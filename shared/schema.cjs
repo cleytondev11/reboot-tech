@@ -305,17 +305,21 @@ CREATE TABLE IF NOT EXISTS seguranca_acoes (
 
 CREATE TABLE IF NOT EXISTS configuracoes_rede (
   id INTEGER PRIMARY KEY,
-  modo TEXT NOT NULL DEFAULT 'standalone', -- standalone, servidor, cliente
+  modo TEXT NOT NULL DEFAULT 'standalone', -- standalone, servidor, cliente, nuvem
   servidor_ip TEXT,
   porta INTEGER DEFAULT 4653,
   chave_rede TEXT,
+  servidor_url TEXT, -- Modo Nuvem: endereço do backend na internet (ex.: https://SEU-APP.onrender.com)
+  token_nuvem TEXT, -- Modo Nuvem: sessão (JWT) do último login feito neste computador
+  usuario_nuvem TEXT, -- Modo Nuvem: nome do usuário logado na nuvem, só pra exibir na tela
   atualizado_em TEXT
 );
 
 CREATE TABLE IF NOT EXISTS configuracoes_impressao (
   id INTEGER PRIMARY KEY,
   impressora_padrao TEXT,
-  largura_papel INTEGER DEFAULT 80, -- 58 ou 80 (mm)
+  largura_papel INTEGER DEFAULT 80, -- 58 ou 80 (mm) -- usado só quando formato = 'termica'
+  formato TEXT DEFAULT 'termica', -- 'termica' (58/80mm) ou 'a4' (folha sulfite em impressora comum)
   copias INTEGER DEFAULT 1,
   atualizado_em TEXT
 );
