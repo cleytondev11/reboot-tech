@@ -50,6 +50,10 @@ Este guia usa duas ferramentas **gratuitas para começar**:
    - `TURSO_AUTH_TOKEN` = (o valor que você guardou)
    - `JWT_SECRET` = uma frase longa e aleatória, só sua (ex.: gere uma em
      https://www.uuidgenerator.net/ e cole duas ou três juntas)
+   - (opcional) `SUPABASE_URL`, `SUPABASE_ANON_KEY` e `LICENCA_CHAVE`, se
+     você quiser poder bloquear remotamente o acesso a este deploy — veja o
+     passo a passo em `LICENCA-SETUP.md`, seção "Bloqueio de licença na
+     versão web/nuvem".
 6. Clique em **Create Web Service**. O primeiro deploy demora alguns minutos.
 7. Quando terminar, o Render te dá uma URL pública, tipo
    `https://reboot-tech-server.onrender.com`. Teste abrindo
@@ -86,6 +90,12 @@ Este guia usa duas ferramentas **gratuitas para começar**:
    `https://reboot-tech.onrender.com` — é esse o endereço que você (e sua
    equipe) vão acessar no navegador do computador **ou do celular**, de
    qualquer lugar com internet.
+
+   O site já é um PWA: quem abrir esse endereço no Chrome/Edge/Android verá
+   a opção "Instalar app" / "Adicionar à tela inicial", e no iPhone dá pra
+   adicionar pela Safari em Compartilhar → "Adicionar à Tela de Início". Uma
+   vez instalado, abre em tela cheia com ícone próprio, sem precisar de loja
+   de aplicativos.
 5. (Opcional) Em **Settings → Custom Domain**, você pode apontar um domínio
    próprio (ex. `sistema.suaempresa.com.br`) para essa URL.
 

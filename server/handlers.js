@@ -575,6 +575,63 @@ const handlers = {
   // ---------- LOGS ----------
   'logs:list': async (db, { limit } = {}) => db.all('SELECT * FROM logs ORDER BY id DESC LIMIT ?', [limit || 200]),
 
+  // ---------- SEGURANÇA / REMOÇÃO DE VÍRUS (histórico na nuvem) ----------
+  // A análise em si (conexão USB/ADB) só roda no computador desktop, mas quando
+  // esse computador está em "Modo Nuvem" o registro do que foi feito é salvo
+  // aqui, no banco central — assim o histórico fica visível pra loja inteira,
+  // de qualquer computador, e não fica preso ao HD de uma única máquina.
+  'seguranca:registrar': async (db, dados, req) => {
+    await db.insert(
+      `INSERT INTO seguranca_acoes (dispositivo_serial, dispositivo_modelo, pacote, acao, nivel_risco, resultado, cliente_id, equipamento_id, usuario_id, usuario_nome, criado_em)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+      [
+        dados.serial || null, dados.modelo || null, dados.pacote || null, dados.acao, dados.nivel || null, dados.resultado || null,
+        dados.cliente_id || null, dados.equipamento_id || null,
+        dados.usuario_id || req.usuario?.id || null, dados.usuario_nome || req.usuario?.nome || 'Sistema', nowIso(),
+      ]
+    );
+    return { ok: true };
+  },
+
+  'adb:historico': async (db, { cliente_id, equipamento_id } = {}) => {
+    let sql = `SELECT s.*, c.nome as cliente_nome FROM seguranca_acoes s LEFT JOIN clientes c ON c.id = s.cliente_id WHERE 1=1`;
+    const params = [];
+    if (cliente_id) { sql += ' AND s.cliente_id = ?'; params.push(cliente_id); }
+    if (equipamento_id) { sql += ' AND s.equipamento_id = ?'; params.push(equipamento_id); }
+    sql += ' ORDER BY s.id DESC LIMIT 200';
+    return db.all(sql, params);
+  },
+
+  // ---------- DADOS COMPOSTOS (usados pelo app desktop pra gerar PDF/impressão
+  // com dados atualizados quando está em Modo Nuvem) ----------
+  'dados:osCompleta': async (db, { id }) => db.get(
+    `SELECT os.*, c.nome as cliente_nome, c.telefone as cliente_telefone, c.whatsapp as cliente_whatsapp, c.cpf_cnpj as cliente_cpf_cnpj,
+            eq.marca as equip_marca, eq.modelo as equip_modelo, eq.imei as equip_imei, eq.fotos as equip_fotos, u.nome as tecnico_nome
+     FROM ordens_servico os
+     LEFT JOIN clientes c ON c.id = os.cliente_id
+     LEFT JOIN equipamentos eq ON eq.id = os.equipamento_id
+     LEFT JOIN usuarios u ON u.id = os.tecnico_id
+     WHERE os.id = ?`,
+    [id]
+  ),
+
+  'dados:orcamentoCompleta': async (db, { id }) => db.get(
+    `SELECT o.*, c.nome as cliente_nome, c.telefone as cliente_telefone, c.whatsapp as cliente_whatsapp, c.email as cliente_email,
+            eq.marca as equip_marca, eq.modelo as equip_modelo
+     FROM orcamentos o LEFT JOIN clientes c ON c.id = o.cliente_id LEFT JOIN equipamentos eq ON eq.id = o.equipamento_id
+     WHERE o.id = ?`, [id]
+  ),
+
+  'dados:lancamentoFinanceiro': async (db, { id }) => db.get('SELECT * FROM lancamentos_financeiros WHERE id = ?', [id]),
+
+  'dados:vendaCompleta': async (db, { id }) => db.get(
+    `SELECT v.*, c.nome as cliente_nome, c.cpf_cnpj as cliente_cpf_cnpj, c.telefone as cliente_telefone,
+            c.whatsapp as cliente_whatsapp, c.email as cliente_email, c.endereco as cliente_endereco,
+            c.numero as cliente_numero, c.bairro as cliente_bairro, c.cidade as cliente_cidade, c.uf as cliente_uf
+     FROM vendas v LEFT JOIN clientes c ON c.id = v.cliente_id WHERE v.id = ?`,
+    [id]
+  ),
+
   // ---------- DASHBOARD ----------
   'dashboard:resumo': async (db) => {
     const abertas = await db.get(`SELECT COUNT(*) c FROM ordens_servico WHERE status NOT IN ('Entregue','Cancelado')`);
