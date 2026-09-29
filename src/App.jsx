@@ -60,12 +60,28 @@ function RedeBadge() {
   if (status.modo === 'servidor') {
     return <span className="pill" title="Este computador é o Servidor da rede multi-PC">🌐 Servidor</span>;
   }
+  if (status.modo === 'nuvem') {
+    return (
+      <span className="pill" title={status.conectadoNuvem ? `Conectado à nuvem em ${status.servidor_url}` : 'Modo Nuvem configurado, mas ainda sem sessão ativa'}>
+        ☁️ Nuvem{status.conectadoNuvem ? '' : ' (desconectado)'}
+      </span>
+    );
+  }
   return <span className="pill" title={`Conectado ao servidor em ${status.servidor_ip}`}>🌐 Cliente</span>;
 }
 
 function Shell() {
   const { user, setUser, theme, toggleTheme } = useApp();
   const [page, setPage] = useState('dashboard');
+
+  useEffect(() => {
+    // Só existe no Electron em Modo Nuvem: se o token da nuvem expirar durante
+    // o uso, volta pra tela de login sozinho (evita ficar preso mostrando erro
+    // em toda ação, igual já acontece na versão web quando o token expira).
+    if (!window.api?.auth?.onSessaoNuvemExpirada) return;
+    const remover = window.api.auth.onSessaoNuvemExpirada(() => setUser(null));
+    return remover;
+  }, [setUser]);
 
   if (!user) return <Login />;
 
@@ -113,7 +129,7 @@ function Shell() {
               <span className="role">{user.papel}</span>
             </div>
           </div>
-          <button className="nav-item" style={{ marginTop: 4 }} onClick={() => { window.api?.auth?.sair?.(); setUser(null); }}>
+          <button className="nav-item" style={{ marginTop: 4 }} onClick={() => { window.api?.rede?.sairNuvem?.(); window.api?.auth?.sair?.(); setUser(null); }}>
             <span className="icon">🚪</span> Sair
           </button>
         </div>

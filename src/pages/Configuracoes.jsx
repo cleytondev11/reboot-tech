@@ -16,11 +16,13 @@ export default function Configuracoes() {
   const [empresaLoaded, setEmpresaLoaded] = useState(false);
 
   const [redeStatus, setRedeStatus] = useState(null);
-  const [redeForm, setRedeForm] = useState({ modo: 'standalone', servidor_ip: '', porta: 4653, chave_rede: '' });
+  const [redeForm, setRedeForm] = useState({ modo: 'standalone', servidor_ip: '', porta: 4653, chave_rede: '', servidor_url: '' });
   const [testandoConexao, setTestandoConexao] = useState(false);
+  const [loginNuvemForm, setLoginNuvemForm] = useState({ usuario: '', senha: '' });
+  const [entrandoNuvem, setEntrandoNuvem] = useState(false);
 
   const [impressoras, setImpressoras] = useState([]);
-  const [impCfg, setImpCfg] = useState({ impressora_padrao: '', largura_papel: 80, copias: 1 });
+  const [impCfg, setImpCfg] = useState({ impressora_padrao: '', largura_papel: 80, formato: 'termica', copias: 1 });
   const [testandoImpressao, setTestandoImpressao] = useState(false);
 
   async function loadLogs() { setLogs(await window.api.logs.list(100)); }
@@ -32,12 +34,12 @@ export default function Configuracoes() {
   async function loadRede() {
     const res = await window.api.rede.status();
     setRedeStatus(res);
-    setRedeForm({ modo: res.modo || 'standalone', servidor_ip: res.servidor_ip || '', porta: res.porta || 4653, chave_rede: res.chave_rede || '' });
+    setRedeForm({ modo: res.modo || 'standalone', servidor_ip: res.servidor_ip || '', porta: res.porta || 4653, chave_rede: res.chave_rede || '', servidor_url: res.servidor_url || '' });
   }
   async function loadImpressora() {
     const [lista, cfg] = await Promise.all([window.api.impressora.listar(), window.api.impressora.configuracao()]);
     setImpressoras(lista);
-    setImpCfg({ impressora_padrao: cfg.impressora_padrao || '', largura_papel: cfg.largura_papel || 80, copias: cfg.copias || 1 });
+    setImpCfg({ impressora_padrao: cfg.impressora_padrao || '', largura_papel: cfg.largura_papel || 80, formato: cfg.formato || 'termica', copias: cfg.copias || 1 });
   }
 
   useEffect(() => {
@@ -60,7 +62,7 @@ export default function Configuracoes() {
   async function salvarRede(e) {
     e.preventDefault();
     try {
-      const res = await window.api.rede.configurar(user, redeForm.modo, redeForm.servidor_ip, redeForm.porta, redeForm.chave_rede);
+      const res = await window.api.rede.configurar(user, redeForm.modo, redeForm.servidor_ip, redeForm.porta, redeForm.chave_rede, redeForm.servidor_url);
       setRedeStatus(res.config);
       showToast('Configuração de rede salva.');
     } catch (err) {
@@ -71,8 +73,12 @@ export default function Configuracoes() {
   async function testarConexaoRede() {
     setTestandoConexao(true);
     try {
-      const res = await window.api.rede.testarConexao(redeForm.servidor_ip, redeForm.porta, redeForm.chave_rede);
-      showToast(`Conectado ao servidor "${res.nomeServidor || '?'}" com sucesso (${res.latenciaMs}ms).`);
+      const res = redeForm.modo === 'nuvem'
+        ? await window.api.rede.testarConexao(null, null, null, redeForm.servidor_url)
+        : await window.api.rede.testarConexao(redeForm.servidor_ip, redeForm.porta, redeForm.chave_rede);
+      showToast(redeForm.modo === 'nuvem'
+        ? `Servidor na nuvem respondeu com sucesso (${res.latenciaMs}ms).`
+        : `Conectado ao servidor "${res.nomeServidor || '?'}" com sucesso (${res.latenciaMs}ms).`);
     } catch (err) {
       showToast(String(err.message || err), 'error');
     } finally {
@@ -80,10 +86,35 @@ export default function Configuracoes() {
     }
   }
 
+  async function entrarNaNuvem(e) {
+    e.preventDefault();
+    setEntrandoNuvem(true);
+    try {
+      const res = await window.api.auth.login(loginNuvemForm.usuario, loginNuvemForm.senha);
+      if (res.ok) {
+        showToast(`Conectado à nuvem como ${res.user.nome}.`);
+        setLoginNuvemForm({ usuario: '', senha: '' });
+        loadRede();
+      } else {
+        showToast(res.error || 'Usuário ou senha inválidos.', 'error');
+      }
+    } catch (err) {
+      showToast(String(err.message || err), 'error');
+    } finally {
+      setEntrandoNuvem(false);
+    }
+  }
+
+  async function sairDaNuvem() {
+    await window.api.rede.sairNuvem();
+    showToast('Sessão da nuvem encerrada neste computador.');
+    loadRede();
+  }
+
   async function salvarImpressora(e) {
     e.preventDefault();
     try {
-      await window.api.impressora.salvarConfiguracao(user, impCfg.impressora_padrao, impCfg.largura_papel, impCfg.copias);
+      await window.api.impressora.salvarConfiguracao(user, impCfg.impressora_padrao, impCfg.largura_papel, impCfg.copias, impCfg.formato);
       showToast('Configuração de impressora salva.');
     } catch (err) {
       showToast(String(err.message || err), 'error');
@@ -94,8 +125,8 @@ export default function Configuracoes() {
     if (!impCfg.impressora_padrao) return showToast('Selecione uma impressora primeiro.', 'error');
     setTestandoImpressao(true);
     try {
-      await window.api.impressora.testar(impCfg.impressora_padrao, impCfg.largura_papel);
-      showToast('Cupom de teste enviado para a impressora.');
+      await window.api.impressora.testar(impCfg.impressora_padrao, impCfg.largura_papel, impCfg.formato);
+      showToast('Impressão de teste enviada para a impressora.');
     } catch (err) {
       showToast(String(err.message || err), 'error');
     } finally {
@@ -227,16 +258,19 @@ export default function Configuracoes() {
       {tab === 'rede' && (
         <div>
           <p className="muted" style={{ fontSize: 12.5, marginTop: -6 }}>
-            Permite que vários computadores da loja compartilhem o mesmo banco de dados (clientes, OS, estoque, financeiro etc.), em tempo real, pela rede local. Escolha <b>um</b> computador para ser o <b>Servidor</b> (é nele que os dados ficam guardados) e configure os demais como <b>Cliente</b>, apontando para o IP do servidor.
+            Permite que vários computadores compartilhem o mesmo banco de dados (clientes, OS, estoque, financeiro etc.) em tempo real. Use <b>Rede Local</b> se os computadores estão sempre na mesma rede Wi-Fi/roteador da loja, ou <b>Nuvem</b> para acessar pela internet, de qualquer lugar, usando o mesmo servidor da versão web.
           </p>
 
           {redeStatus && redeStatus.modo !== 'standalone' && (
             <div className="card" style={{ marginBottom: 18 }}>
               <div className="section-title" style={{ marginTop: 0 }}>Status Atual</div>
               <p style={{ fontSize: 13, margin: 0 }}>
-                Modo: <b>{redeStatus.modo === 'servidor' ? 'Servidor' : 'Cliente'}</b>
+                Modo: <b>{{ servidor: 'Servidor', cliente: 'Cliente', nuvem: 'Nuvem' }[redeStatus.modo]}</b>
                 {redeStatus.modo === 'servidor' && (
                   <> — {redeStatus.servidorAtivo ? <span style={{ color: 'var(--gold)' }}>ativo, ouvindo na porta {redeStatus.porta}</span> : <span>parado</span>}</>
+                )}
+                {redeStatus.modo === 'nuvem' && (
+                  <> — {redeStatus.conectadoNuvem ? <span style={{ color: 'var(--gold)' }}>conectado como {redeStatus.usuario_nuvem}</span> : <span>sem sessão ativa (faça login abaixo)</span>}</>
                 )}
               </p>
               {redeStatus.modo === 'servidor' && redeStatus.ipsLocais?.length > 0 && (
@@ -254,18 +288,26 @@ export default function Configuracoes() {
                 <label>Modo deste computador</label>
                 <select value={redeForm.modo} onChange={(e) => setRF('modo', e.target.value)}>
                   <option value="standalone">Sozinho (sem rede)</option>
-                  <option value="servidor">Servidor (guarda os dados)</option>
-                  <option value="cliente">Cliente (conecta a um servidor)</option>
+                  <option value="servidor">Servidor — Rede Local (guarda os dados)</option>
+                  <option value="cliente">Cliente — Rede Local (conecta a um servidor na mesma rede)</option>
+                  <option value="nuvem">Nuvem — conecta pela internet (mesmo servidor da versão web)</option>
                 </select>
               </div>
               {redeForm.modo === 'cliente' && (
                 <div className="field"><label>IP do Computador Servidor</label><input placeholder="Ex: 192.168.0.10" value={redeForm.servidor_ip} onChange={(e) => setRF('servidor_ip', e.target.value)} /></div>
               )}
-              {redeForm.modo !== 'standalone' && (
+              {(redeForm.modo === 'servidor' || redeForm.modo === 'cliente') && (
                 <div className="field"><label>Porta</label><input type="text" inputMode="numeric" value={redeForm.porta} onChange={(e) => setRF('porta', e.target.value.replace(/\D/g, ''))} /></div>
               )}
+              {redeForm.modo === 'nuvem' && (
+                <div className="field span-2">
+                  <label>Endereço do servidor na nuvem</label>
+                  <input placeholder="Ex: https://reboot-tech-1.onrender.com" value={redeForm.servidor_url} onChange={(e) => setRF('servidor_url', e.target.value)} />
+                  <p className="muted" style={{ fontSize: 11, marginTop: 4 }}>É o mesmo endereço usado pela versão web/celular do sistema (veja server/DEPLOY.md).</p>
+                </div>
+              )}
             </div>
-            {redeForm.modo !== 'standalone' && (
+            {(redeForm.modo === 'servidor' || redeForm.modo === 'cliente') && (
               <div className="form-grid">
                 <div className="field span-2">
                   <label>Chave de Rede (senha simples para proteger a conexão)</label>
@@ -278,7 +320,7 @@ export default function Configuracoes() {
               </div>
             )}
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 16 }}>
-              {redeForm.modo === 'cliente' && (
+              {(redeForm.modo === 'cliente' || redeForm.modo === 'nuvem') && (
                 <button type="button" className="btn btn-secondary" disabled={testandoConexao} onClick={testarConexaoRede}>
                   {testandoConexao ? 'Testando...' : '🔌 Testar Conexão'}
                 </button>
@@ -287,8 +329,27 @@ export default function Configuracoes() {
             </div>
           </form>
 
+          {redeForm.modo === 'nuvem' && (
+            <form className="card" onSubmit={entrarNaNuvem} style={{ marginTop: 16 }}>
+              <div className="section-title" style={{ marginTop: 0 }}>Sessão na Nuvem</div>
+              <p className="muted" style={{ fontSize: 12.5, marginTop: -4 }}>
+                Entre com um usuário já cadastrado no servidor na nuvem (o mesmo login usado na versão web) para este computador passar a usar o banco de dados online.
+              </p>
+              <div className="form-grid cols-3">
+                <div className="field"><label>Usuário</label><input value={loginNuvemForm.usuario} onChange={(e) => setLoginNuvemForm((f) => ({ ...f, usuario: e.target.value }))} /></div>
+                <div className="field"><label>Senha</label><input type="password" value={loginNuvemForm.senha} onChange={(e) => setLoginNuvemForm((f) => ({ ...f, senha: e.target.value }))} /></div>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 16 }}>
+                {redeStatus?.conectadoNuvem && (
+                  <button type="button" className="btn btn-secondary" onClick={sairDaNuvem}>Sair da sessão atual</button>
+                )}
+                <button type="submit" className="btn btn-primary" disabled={entrandoNuvem}>{entrandoNuvem ? 'Entrando...' : 'Entrar na Nuvem'}</button>
+              </div>
+            </form>
+          )}
+
           <p className="muted" style={{ fontSize: 11.5, marginTop: 14 }}>
-            Observações: os dois computadores precisam estar na mesma rede local (mesmo Wi-Fi/roteador). O computador Servidor precisa estar ligado, com o sistema aberto, para os Clientes funcionarem. Backups, PDFs e impressão sempre acontecem no computador que disparou a ação — o backup do banco de dados, porém, só pode ser feito no Servidor.
+            No modo Rede Local, os computadores precisam estar na mesma rede Wi-Fi/roteador, com o Servidor ligado e o sistema aberto. No modo Nuvem, basta ter internet — não depende de nenhum outro computador ligado. Backups, PDFs e impressão sempre acontecem no computador que disparou a ação.
           </p>
         </div>
       )}
@@ -296,7 +357,7 @@ export default function Configuracoes() {
       {tab === 'impressora' && (
         <div>
           <p className="muted" style={{ fontSize: 12.5, marginTop: -6 }}>
-            Configure a impressora térmica (cupom não-fiscal) usada por <b>este computador</b> para imprimir recibos de Venda e de Ordem de Serviço. Cada computador pode ter sua própria impressora configurada — essa opção não é compartilhada pela rede.
+            Configure a impressora usada por <b>este computador</b> para imprimir recibos de Venda e de Ordem de Serviço — em cupom térmico estreito (58/80mm) ou em folha A4 comum. Cada computador pode ter sua própria impressora configurada — essa opção não é compartilhada pela rede.
           </p>
           <form className="card" onSubmit={salvarImpressora}>
             <div className="section-title" style={{ marginTop: 0 }}>Impressora</div>
@@ -308,16 +369,25 @@ export default function Configuracoes() {
                   {impressoras.map((p) => <option key={p.nome} value={p.nome}>{p.nome}{p.padrao ? ' (padrão)' : ''}</option>)}
                 </select>
                 {impressoras.length === 0 && (
-                  <p className="muted" style={{ fontSize: 11, marginTop: 4 }}>Nenhuma impressora detectada. Verifique se a impressora térmica está instalada no Windows (Painel de Controle → Dispositivos e Impressoras).</p>
+                  <p className="muted" style={{ fontSize: 11, marginTop: 4 }}>Nenhuma impressora detectada. Verifique se a impressora está instalada no Windows (Painel de Controle → Dispositivos e Impressoras).</p>
                 )}
               </div>
               <div className="field">
-                <label>Largura do Papel</label>
-                <select value={impCfg.largura_papel} onChange={(e) => setImpCfg((c) => ({ ...c, largura_papel: parseInt(e.target.value, 10) }))}>
-                  <option value={80}>80mm</option>
-                  <option value={58}>58mm</option>
+                <label>Formato do papel</label>
+                <select value={impCfg.formato} onChange={(e) => setImpCfg((c) => ({ ...c, formato: e.target.value }))}>
+                  <option value="termica">Cupom térmico (58/80mm)</option>
+                  <option value="a4">Folha A4 (impressora comum)</option>
                 </select>
               </div>
+              {impCfg.formato === 'termica' && (
+                <div className="field">
+                  <label>Largura do Papel</label>
+                  <select value={impCfg.largura_papel} onChange={(e) => setImpCfg((c) => ({ ...c, largura_papel: parseInt(e.target.value, 10) }))}>
+                    <option value={80}>80mm</option>
+                    <option value={58}>58mm</option>
+                  </select>
+                </div>
+              )}
               <div className="field">
                 <label>Cópias por impressão</label>
                 <input type="text" inputMode="numeric" value={impCfg.copias} onChange={(e) => setImpCfg((c) => ({ ...c, copias: parseInt(e.target.value.replace(/\D/g, ''), 10) || 1 }))} />
@@ -331,7 +401,7 @@ export default function Configuracoes() {
             </div>
           </form>
           <p className="muted" style={{ fontSize: 11.5, marginTop: 14 }}>
-            Funciona com qualquer impressora térmica USB/rede já instalada como impressora do Windows (Elgin, Bematech, Epson, etc.). O leitor de código de barras USB não precisa de configuração aqui — basta usá-lo nos campos de busca do Estoque e nas Vendas, como se fosse um teclado.
+            O formato térmico funciona com qualquer impressora térmica USB/rede já instalada como impressora do Windows (Elgin, Bematech, Epson, etc.). O formato A4 funciona com qualquer impressora comum (jato de tinta/laser) já instalada. O leitor de código de barras USB não precisa de configuração aqui — basta usá-lo nos campos de busca do Estoque e nas Vendas, como se fosse um teclado.
           </p>
         </div>
       )}

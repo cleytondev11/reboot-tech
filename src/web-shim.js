@@ -246,11 +246,26 @@
     },
   };
 
-  // A "licença" do app desktop não se aplica à versão web (o controle de acesso
-  // aqui é simplesmente o login) — sempre reporta "ativa" pra não bloquear a tela.
+  // A licença da versão web é decidida pelo próprio servidor (variáveis de
+  // ambiente SUPABASE_URL/SUPABASE_ANON_KEY/LICENCA_CHAVE no Render — veja
+  // LICENCA-SETUP.md). Se o deploy não tiver isso configurado, o servidor
+  // sempre responde "ativa" e ninguém é bloqueado.
+  async function consultarLicencaWeb() {
+    try {
+      const resposta = await fetch(`${API_URL}/api/licenca/status`);
+      const corpo = await resposta.json();
+      return { estado: corpo.estado === 'bloqueada' ? 'bloqueada' : 'ativa' };
+    } catch (e) {
+      // Sem conexão com o servidor: não trava a tela por causa disso — o
+      // login em seguida já vai falhar com uma mensagem clara se for o caso.
+      return { estado: 'ativa' };
+    }
+  }
   window.api.licenca = {
-    status: async () => ({ estado: 'ativa' }),
-    verificarAgora: async () => ({ estado: 'ativa' }),
+    status: consultarLicencaWeb,
+    verificarAgora: consultarLicencaWeb,
+    // Não existe "ativação por chave" na versão web — a licença deste deploy é
+    // fixa (configurada no servidor), então não há o que o usuário ativar aqui.
     ativar: async () => ({ ok: true }),
   };
 

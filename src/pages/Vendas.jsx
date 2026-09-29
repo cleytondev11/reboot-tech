@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useApp } from '../context.jsx';
 import { formatCurrency, formatDateTime, toInputDate, todayInputValue, sanitizeDecimalInput, parseDecimal, sanitizeIntegerInput, parseIntSafe, FORMAS_PAGAMENTO } from '../utils.js';
+import ImprimirMenu from '../components/ImprimirMenu.jsx';
 
 const EMPTY = { id: null, cliente_id: '', itens: [], desconto: 0, forma_pagamento: 'Dinheiro', observacoes: '', garantia_dias: 90, data_venda: todayInputValue() };
 
@@ -15,12 +16,16 @@ export default function Vendas() {
   const [clientes, setClientes] = useState([]);
   const [produtos, setProdutos] = useState([]);
   const [leitor, setLeitor] = useState('');
+  const [formatoImpressao, setFormatoImpressao] = useState('termica');
 
   async function load() { setList(await window.api.vendas.list(termo)); }
   async function loadClientes() { setClientes(await window.api.clientes.list()); }
   async function loadProdutos() { setProdutos(await window.api.produtos.list()); }
 
-  useEffect(() => { loadClientes(); loadProdutos(); }, []);
+  useEffect(() => {
+    loadClientes(); loadProdutos();
+    window.api.impressora?.configuracao?.().then((cfg) => setFormatoImpressao(cfg?.formato === 'a4' ? 'a4' : 'termica')).catch(() => {});
+  }, []);
   useEffect(() => {
     const t = setTimeout(load, 250);
     return () => clearTimeout(t);
@@ -88,9 +93,9 @@ export default function Vendas() {
     showToast(`${produto.nome} adicionado.`);
   }
 
-  async function imprimirCupom(row) {
+  async function imprimirCupom(row, formato) {
     try {
-      await window.api.impressora.imprimirCupomVenda(row.id);
+      await window.api.impressora.imprimirCupomVenda(row.id, formato);
       showToast('Cupom enviado para a impressora.');
     } catch (err) {
       showToast(String(err.message || err), 'error');
@@ -177,7 +182,7 @@ export default function Vendas() {
                 <td>{formatCurrency(v.valor_total)}</td>
                 <td style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
                   <button className="icon-btn" title="Editar" onClick={() => openEdit(v)}>✏️</button>
-                  <button className="icon-btn" title="Imprimir Cupom (impressora térmica)" onClick={() => imprimirCupom(v)}>🖨️</button>
+                  <ImprimirMenu formatoPadrao={formatoImpressao} title="Imprimir Cupom" onImprimir={(fmt) => imprimirCupom(v, fmt)} />
                   <button className="icon-btn" title="Comprovante de Compra" onClick={() => exportarRecibo(v)}>🧾</button>
                   <button className="icon-btn" title="Termo de Garantia" onClick={() => exportarGarantia(v)}>🛡️</button>
                   {user.papel === 'Administrador' && <button className="icon-btn" title="Excluir" onClick={() => excluir(v)}>🗑️</button>}
@@ -195,7 +200,7 @@ export default function Vendas() {
             <div className="modal-header">
               <h3>{form.id ? `Venda ${form.numero}` : 'Nova Venda'}</h3>
               <div style={{ display: 'flex', gap: 8 }}>
-                {form.id && <button type="button" className="btn btn-secondary btn-sm" onClick={() => imprimirCupom(form)}>🖨️ Cupom</button>}
+                {form.id && <ImprimirMenu small formatoPadrao={formatoImpressao} label="🖨️" title="Imprimir Cupom" onImprimir={(fmt) => imprimirCupom(form, fmt)} />}
                 {form.id && <button type="button" className="btn btn-secondary btn-sm" onClick={() => exportarRecibo(form)}>🧾 Comprovante</button>}
                 {form.id && <button type="button" className="btn btn-secondary btn-sm" onClick={() => exportarGarantia(form)}>🛡️ Garantia</button>}
                 <button type="button" className="icon-btn" onClick={() => setModalOpen(false)}>✕</button>

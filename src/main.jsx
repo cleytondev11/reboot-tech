@@ -22,3 +22,15 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     <App />
   </React.StrictMode>
 );
+
+// PWA: só registra o Service Worker na versão web (http/https). No app
+// instalado (Electron) a página é carregada via file://, onde Service Worker
+// não se aplica — o registro nem chega a rodar lá.
+if (!import.meta.env.DEV && 'serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js').catch(() => {
+      // Sem problema se falhar (ex.: navegador antigo) — o site continua
+      // funcionando normalmente, só sem os recursos de PWA.
+    });
+  });
+}

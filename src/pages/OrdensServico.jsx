@@ -3,6 +3,7 @@ import { useApp } from '../context.jsx';
 import { formatCurrency, formatDateTime, toInputDate, todayInputValue, statusClass, CHECKLIST_ITENS, FORMAS_PAGAMENTO, sanitizeDecimalInput, parseDecimal, sanitizeIntegerInput, parseIntSafe, ACESSORIOS_OPCOES, TERMOS_ACEITE_ITENS, DECLARACAO_CONDICAO_APARELHO } from '../utils.js';
 import SignaturePad from '../components/SignaturePad.jsx';
 import PatternLock from '../components/PatternLock.jsx';
+import ImprimirMenu from '../components/ImprimirMenu.jsx';
 
 const EMPTY = {
   id: null, cliente_id: '', equipamento_id: '', defeito_informado: '', diagnostico: '',
@@ -27,6 +28,7 @@ export default function OrdensServico() {
   const [produtos, setProdutos] = useState([]);
   const [tecnicos, setTecnicos] = useState([]);
   const [equipFotos, setEquipFotos] = useState([]);
+  const [formatoImpressao, setFormatoImpressao] = useState('termica');
   const [equipFotosLoading, setEquipFotosLoading] = useState(false);
 
   async function load() {
@@ -38,7 +40,10 @@ export default function OrdensServico() {
   async function loadProdutos() { setProdutos(await window.api.produtos.list()); }
   async function loadTecnicos() { setTecnicos(await window.api.usuarios.list()); }
 
-  useEffect(() => { loadStatusList(); loadClientes(); loadProdutos(); loadTecnicos(); }, []);
+  useEffect(() => {
+    loadStatusList(); loadClientes(); loadProdutos(); loadTecnicos();
+    window.api.impressora?.configuracao?.().then((cfg) => setFormatoImpressao(cfg?.formato === 'a4' ? 'a4' : 'termica')).catch(() => {});
+  }, []);
   useEffect(() => {
     const t = setTimeout(load, 250);
     return () => clearTimeout(t);
@@ -269,9 +274,9 @@ export default function OrdensServico() {
     }
   }
 
-  async function imprimirCupom(id) {
+  async function imprimirCupom(id, formato) {
     try {
-      await window.api.impressora.imprimirCupomOS(id);
+      await window.api.impressora.imprimirCupomOS(id, formato);
       showToast('Recibo enviado para a impressora.');
     } catch (err) {
       showToast(String(err.message || err), 'error');
@@ -339,7 +344,7 @@ export default function OrdensServico() {
                 <td style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
                   <button className="icon-btn" title="Abrir" onClick={() => openEdit(o)}>✏️</button>
                   <button className="icon-btn" title="Exportar PDF" onClick={() => exportarPdfListagem(o)}>📄</button>
-                  <button className="icon-btn" title="Imprimir Recibo (impressora térmica)" onClick={() => imprimirCupom(o.id)}>🖨️</button>
+                  <ImprimirMenu formatoPadrao={formatoImpressao} title="Imprimir Recibo" onImprimir={(fmt) => imprimirCupom(o.id, fmt)} />
                   <button className="icon-btn" title="Compartilhar no WhatsApp" onClick={() => compartilharWhatsapp(o)}>📲</button>
                   {o.status === 'Entregue' && <button className="icon-btn" title="Termo de Garantia" onClick={() => exportarGarantiaPdf(o.id)}>🛡️</button>}
                   {user.papel === 'Administrador' && <button className="icon-btn" title="Excluir" onClick={() => excluir(o)}>🗑️</button>}
@@ -358,7 +363,7 @@ export default function OrdensServico() {
               <h3>{form.id ? `Ordem de Serviço ${form.numero}` : 'Nova Ordem de Serviço'}</h3>
               <div style={{ display: 'flex', gap: 8 }}>
                 {form.id && <button type="button" className="btn btn-secondary btn-sm" onClick={exportarPdf}>📄 Exportar PDF</button>}
-                {form.id && <button type="button" className="btn btn-secondary btn-sm" onClick={() => imprimirCupom(form.id)}>🖨️ Imprimir Recibo</button>}
+                {form.id && <ImprimirMenu small formatoPadrao={formatoImpressao} label="🖨️" title="Imprimir Recibo" onImprimir={(fmt) => imprimirCupom(form.id, fmt)} />}
                 {form.id && <button type="button" className="btn btn-secondary btn-sm" onClick={() => compartilharWhatsapp({ id: form.id, numero: form.numero, cliente_nome: clientes.find((c) => String(c.id) === String(form.cliente_id))?.nome, cliente_whatsapp: clientes.find((c) => String(c.id) === String(form.cliente_id))?.whatsapp, cliente_telefone: clientes.find((c) => String(c.id) === String(form.cliente_id))?.telefone })}>📲 WhatsApp</button>}
                 {form.id && form.status === 'Entregue' && <button type="button" className="btn btn-secondary btn-sm" onClick={() => exportarGarantiaPdf(form.id)}>🛡️ Termo de Garantia</button>}
                 <button type="button" className="icon-btn" onClick={() => setModalOpen(false)}>✕</button>
