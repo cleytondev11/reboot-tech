@@ -1,0 +1,8 @@
+Coloque aqui os arquivos do "platform-tools" oficial do Google (adb.exe e os
+arquivos que vêm junto, como AdbWinApi.dll e AdbWinUsbApi.dll no Windows).
+
+Veja o passo a passo completo em ADB-SETUP.md, na raiz do projeto.
+
+Este arquivo é só um placeholder para a pasta não ficar vazia/ausente antes
+de você baixar o platform-tools — pode apagá-lo depois de colocar os
+arquivos reais aqui.

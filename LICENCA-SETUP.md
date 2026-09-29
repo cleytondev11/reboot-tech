@@ -108,6 +108,37 @@ Quando cair uma venda:
 
 Para desbloquear, é só voltar o `status` para `ativa`.
 
+## Bloqueio de licença na versão web/nuvem (Render)
+
+A versão instalada (Electron) já usa esse sistema de licença desde sempre. A
+versão web/celular (o site publicado no Render, veja `server/DEPLOY.md`), por
+padrão, **não tem nenhum bloqueio** — qualquer um que souber o link consegue
+tentar fazer login (o que já é uma proteção, já que precisa de usuário/senha
+válidos).
+
+Se você também quiser poder bloquear remotamente aquele deploy inteiro (por
+exemplo: parou de pagar, quer suspender), dá pra usar a mesma tabela
+`licencas` do Supabase que já existe:
+
+1. No Supabase, em **Table Editor → licencas**, cadastre uma linha só pra
+   esse deploy — uma `chave` que não seja usada por nenhum cliente do app
+   desktop, por exemplo `WEB-NOMEDOCLIENTE`. Deixe `status` como `ativa`.
+2. No Render, abra o Web Service do backend (`server/`) → **Environment** e
+   adicione três variáveis:
+   - `SUPABASE_URL` = o mesmo Project URL usado em `electron/licenca.cjs`
+   - `SUPABASE_ANON_KEY` = a mesma chave anon usada em `electron/licenca.cjs`
+   - `LICENCA_CHAVE` = a chave que você cadastrou no passo 1 (ex.: `WEB-NOMEDOCLIENTE`)
+3. Salve — o Render reinicia o serviço sozinho. A partir daí, o servidor
+   confere o status dessa chave a cada 10 minutos.
+
+Pra bloquear, é o mesmo processo do Passo 6 acima: edite essa linha da tabela
+e mude `status` para `bloqueada`. Em até 10 minutos o site inteiro passa a
+recusar login e qualquer ação (a tela mostra "Acesso bloqueado"), tanto pra
+quem já estava logado quanto pra quem tentar entrar depois.
+
+Enquanto essas 3 variáveis não forem configuradas no Render, o site funciona
+normalmente, sem bloqueio nenhum — assim como no app desktop.
+
 ## Automatizando no futuro (opcional)
 
 Hoje esse processo é manual (você mesmo edita a tabela). Se no futuro você
