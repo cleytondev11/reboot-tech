@@ -73,6 +73,20 @@ function RedeBadge() {
 function Shell() {
   const { user, setUser, theme, toggleTheme } = useApp();
   const [page, setPage] = useState('dashboard');
+  const [menuAberto, setMenuAberto] = useState(false); // só afeta o celular/tablet
+
+  // Fecha o menu com a tecla ESC (útil em tablet com teclado)
+  useEffect(() => {
+    if (!menuAberto) return undefined;
+    const onKey = (e) => { if (e.key === 'Escape') setMenuAberto(false); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [menuAberto]);
+
+  function irPara(key) {
+    setPage(key);
+    setMenuAberto(false); // depois de escolher a tela, esconde o menu
+  }
 
   useEffect(() => {
     // Só existe no Electron em Modo Nuvem: se o token da nuvem expirar durante
@@ -87,7 +101,7 @@ function Shell() {
 
   function renderPage() {
     switch (page) {
-      case 'dashboard': return <Dashboard goTo={setPage} />;
+      case 'dashboard': return <Dashboard goTo={irPara} />;
       case 'clientes': return <Clientes />;
       case 'equipamentos': return <Equipamentos />;
       case 'os': return <OrdensServico />;
@@ -108,7 +122,7 @@ function Shell() {
   const initials = (user.nome || '?').split(' ').slice(0, 2).map((w) => w[0]).join('').toUpperCase();
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell ${menuAberto ? 'menu-aberto' : ''}`}>
       <aside className="sidebar">
         <div className="sidebar-logo">
           <img src="./logo.png" alt="" onError={(e) => (e.target.style.display = 'none')} />
@@ -116,7 +130,7 @@ function Shell() {
         </div>
         <nav className="sidebar-nav">
           {NAV.filter((n) => (!n.adminOnly || user.papel === 'Administrador') && (!n.restrictTo || n.restrictTo.includes(user.papel))).map((n) => (
-            <button key={n.key} className={`nav-item ${page === n.key ? 'active' : ''}`} onClick={() => setPage(n.key)}>
+            <button key={n.key} className={`nav-item ${page === n.key ? 'active' : ''}`} onClick={() => irPara(n.key)}>
               <span className="icon">{n.icon}</span> {n.label}
             </button>
           ))}
@@ -135,8 +149,11 @@ function Shell() {
         </div>
       </aside>
 
+      <div className="sidebar-backdrop" onClick={() => setMenuAberto(false)} />
+
       <div className="main-area">
         <div className="topbar">
+          <button className="icon-btn menu-toggle" aria-label="Abrir menu" onClick={() => setMenuAberto((v) => !v)}>☰</button>
           <h1>{TITLES[page]}</h1>
           <div className="topbar-actions">
             <RedeBadge />
