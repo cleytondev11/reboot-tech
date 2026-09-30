@@ -155,3 +155,8 @@ travar, sempre que algum desses recursos é acessado pelo navegador.
 - Troque a senha do usuário `admin` criado manualmente assim que possível.
 - Cada pessoa deve ter seu próprio usuário (evite compartilhar login).
 - O token de sessão expira em 12 horas — depois disso, é pedido login de novo.
+
+---
+
+> **Vai vender para outros clientes?** Veja `NOVO-CLIENTE.md` (raiz do projeto): cada cliente
+> ganha banco e servidor próprios, com mensalidade e bloqueio automático por vencimento.

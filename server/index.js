@@ -18,8 +18,12 @@ app.get('/api/licenca/status', (req, res) => res.json(licenca.obterStatusCache()
 // API (login e RPC) — mas continua respondendo /api/ping e /api/licenca/status
 // normalmente, pra a tela de bloqueio sempre conseguir se comunicar.
 app.use((req, res, next) => {
-  if (licenca.obterStatusCache().estado === 'bloqueada') {
-    return res.status(403).json({ ok: false, error: 'O acesso a este sistema foi bloqueado. Entre em contato com o suporte para regularizar.' });
+  const lic = licenca.obterStatusCache();
+  if (lic.estado === 'bloqueada') {
+    const error = lic.motivo === 'vencida'
+      ? 'A mensalidade deste sistema venceu. Entre em contato com o suporte para pagar e liberar o acesso.'
+      : 'O acesso a este sistema foi bloqueado. Entre em contato com o suporte para regularizar.';
+    return res.status(403).json({ ok: false, bloqueada: true, error });
   }
   next();
 });
