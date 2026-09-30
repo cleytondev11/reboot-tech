@@ -110,6 +110,7 @@ function wrapBodyHtml({ title, subtitle, innerHtml }) {
 <html><head><meta charset="utf-8">
 <style>
   * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
   body { font-family: Arial, Helvetica, sans-serif; font-size: 11px; color: #222; margin: 0; padding: 0 4mm; }
   h1.doc-title { font-size: 18px; color: #1a1a1a; margin: 4mm 0 1mm; text-transform: uppercase; letter-spacing: .4px; }
   .doc-subtitle { font-size: 11px; color: #666; margin-bottom: 6mm; }
@@ -693,9 +694,10 @@ function criarIframe(html) {
     iframe.onload = async () => {
       try {
         const doc = iframe.contentDocument;
-        // Sem isso a altura medida seria a da janelinha, e não a do documento.
+        // Altura: sem isso a medida seria a da janelinha, e não a do documento.
+        // Fonte: celulares "aumentam" textos sozinhos (font boosting); isso trava o tamanho.
         const ajuste = doc.createElement('style');
-        ajuste.textContent = 'html,body{height:auto!important;min-height:0!important}body{display:flow-root!important}';
+        ajuste.textContent = 'html,body{height:auto!important;min-height:0!important;-webkit-text-size-adjust:100%!important;text-size-adjust:100%!important}body{display:flow-root!important}';
         doc.head.appendChild(ajuste);
         await Promise.all(Array.from(doc.images).map((im) => (
           im.complete ? null : new Promise((r) => { im.onload = r; im.onerror = r; })
@@ -773,7 +775,7 @@ function calcularCortes(alturaTotal, alturaPagina, blocos) {
 }
 
 function htmlSimples(corpo) {
-  return `<!doctype html><html><head><meta charset="utf-8"><style>*{box-sizing:border-box}body{margin:0;padding:0;background:#fff;font-family:Arial,Helvetica,sans-serif}</style></head><body>${corpo}</body></html>`;
+  return `<!doctype html><html><head><meta charset="utf-8"><style>*{box-sizing:border-box}html{-webkit-text-size-adjust:100%;text-size-adjust:100%}body{margin:0;padding:0;background:#fff;font-family:Arial,Helvetica,sans-serif}</style></head><body>${corpo}</body></html>`;
 }
 
 async function gerarPdfBlob({ empresa, title, subtitle, innerHtml, footerSubtitulo }) {

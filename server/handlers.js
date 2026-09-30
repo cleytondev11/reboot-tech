@@ -1034,9 +1034,9 @@ const handlers = {
     let sql = `SELECT v.*, c.nome as cliente_nome FROM vendas v LEFT JOIN clientes c ON c.id = v.cliente_id WHERE 1=1`;
     const params = [];
     if (termo) {
-      sql += ` AND (v.numero LIKE ? OR c.nome LIKE ?)`;
+      sql += ` AND (v.numero LIKE ? OR c.nome LIKE ? OR v.itens LIKE ?)`;
       const like = `%${termo}%`;
-      params.push(like, like);
+      params.push(like, like, like);
     }
     sql += ` ORDER BY v.id DESC`;
     return db.all(sql, params);

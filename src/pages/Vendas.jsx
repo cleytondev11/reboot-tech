@@ -7,6 +7,23 @@ const EMPTY = { id: null, cliente_id: '', itens: [], desconto: 0, forma_pagament
 
 function novoItem() { return { produto_id: '', descricao: '', quantidade: 1, valor_unit: 0 }; }
 
+// Itens da venda ficam guardados como texto JSON; aqui vira uma lista legível.
+function itensDaVenda(v) {
+  try { return JSON.parse(v.itens || '[]').filter((i) => i && i.descricao); } catch { return []; }
+}
+
+function ProdutosVendidos({ venda }) {
+  const itens = itensDaVenda(venda);
+  if (itens.length === 0) return <span className="muted">-</span>;
+  const linha = (i) => `${i.quantidade > 1 ? i.quantidade + 'x ' : ''}${i.descricao}`;
+  return (
+    <div title={itens.map(linha).join('\n')} style={{ minWidth: 160, maxWidth: 320, lineHeight: 1.35 }}>
+      {itens.slice(0, 3).map((i, idx) => <div key={idx}>{linha(i)}</div>)}
+      {itens.length > 3 && <div className="muted" style={{ fontSize: 12 }}>+ {itens.length - 3} item(ns)</div>}
+    </div>
+  );
+}
+
 export default function Vendas() {
   const { user, showToast } = useApp();
   const [list, setList] = useState([]);
@@ -158,7 +175,7 @@ export default function Vendas() {
     <div>
       <div className="toolbar">
         <div className="toolbar-left">
-          <input className="search-input" placeholder="Buscar por número ou cliente..." value={termo} onChange={(e) => setTermo(e.target.value)} />
+          <input className="search-input" placeholder="Buscar por número, cliente ou produto..." value={termo} onChange={(e) => setTermo(e.target.value)} />
         </div>
         <div className="toolbar-right">
           <button className="btn btn-primary" onClick={openNew}>+ Nova Venda</button>
@@ -171,12 +188,13 @@ export default function Vendas() {
 
       <div className="table-wrap">
         <table>
-          <thead><tr><th>Venda</th><th>Cliente</th><th>Data</th><th>Forma de Pagamento</th><th>Valor</th><th></th></tr></thead>
+          <thead><tr><th>Venda</th><th>Cliente</th><th>Produto(s) vendido(s)</th><th>Data</th><th>Forma de Pagamento</th><th>Valor</th><th></th></tr></thead>
           <tbody>
             {list.map((v) => (
               <tr key={v.id}>
                 <td><b>{v.numero}</b></td>
                 <td>{v.cliente_nome || 'Consumidor'}</td>
+                <td><ProdutosVendidos venda={v} /></td>
                 <td>{formatDateTime(v.criado_em)}</td>
                 <td>{v.forma_pagamento || '-'}</td>
                 <td>{formatCurrency(v.valor_total)}</td>
@@ -189,7 +207,7 @@ export default function Vendas() {
                 </td>
               </tr>
             ))}
-            {list.length === 0 && <tr><td colSpan={6}><div className="empty-state">Nenhuma venda registrada ainda.</div></td></tr>}
+            {list.length === 0 && <tr><td colSpan={7}><div className="empty-state">Nenhuma venda registrada ainda.</div></td></tr>}
           </tbody>
         </table>
       </div>
