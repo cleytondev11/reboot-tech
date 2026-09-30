@@ -388,3 +388,18 @@ tbody tr:last-child td { border-bottom: none; }
   .grid-4, .grid-3 { grid-template-columns: minmax(0, 1fr); }
   .content .grid[style*="repeat("] { grid-template-columns: minmax(0, 1fr) !important; }
 }
+
+
+/* Faixa de aviso "mensalidade vence em X dias" (LicencaGate) */
+.licenca-wrap { display: flex; flex-direction: column; height: 100vh; height: 100dvh; }
+.licenca-wrap > .app-shell { height: auto; flex: 1; min-height: 0; }
+.licenca-wrap > .login-screen { height: auto; flex: 1; min-height: 0; }
+.faixa-vencimento {
+  display: flex; align-items: center; justify-content: center; gap: 12px; flex-wrap: wrap;
+  padding: calc(6px + env(safe-area-inset-top, 0px)) 12px 6px;
+  background: #b8860b; color: #fff; font-size: 13px; font-weight: 600; text-align: center;
+}
+.faixa-vencimento button {
+  background: rgba(0, 0, 0, 0.25); color: #fff; border: 1px solid rgba(255, 255, 255, 0.5);
+  border-radius: 6px; padding: 3px 10px; font-size: 12.5px; font-weight: 700; cursor: pointer;
+}

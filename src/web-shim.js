@@ -41,6 +41,8 @@ import { criarApiPdf, linkWhatsapp } from './pdf-web.js';
     }
     let corpo;
     try { corpo = await resposta.json(); } catch (e) { throw new Error(`Resposta inválida do servidor (HTTP ${resposta.status}).`); }
+    // Licença bloqueada/vencida no meio do uso: avisa a tela para mostrar o bloqueio na hora.
+    if (resposta.status === 403 && corpo.bloqueada) window.dispatchEvent(new CustomEvent('rt-licenca-bloqueada'));
     if (!corpo.ok) throw new Error(corpo.error || 'Erro desconhecido no servidor.');
     return corpo.data;
   }
@@ -248,7 +250,12 @@ import { criarApiPdf, linkWhatsapp } from './pdf-web.js';
     try {
       const resposta = await fetch(`${API_URL}/api/licenca/status`);
       const corpo = await resposta.json();
-      return { estado: corpo.estado === 'bloqueada' ? 'bloqueada' : 'ativa' };
+      return {
+        estado: corpo.estado === 'bloqueada' ? 'bloqueada' : 'ativa',
+        motivo: corpo.motivo || null,                 // 'vencida' | 'bloqueada' | null
+        dataVencimento: corpo.dataVencimento || null,
+        diasRestantes: typeof corpo.diasRestantes === 'number' ? corpo.diasRestantes : null,
+      };
     } catch (e) {
       // Sem conexão com o servidor: não trava a tela por causa disso — o
       // login em seguida já vai falhar com uma mensagem clara se for o caso.
