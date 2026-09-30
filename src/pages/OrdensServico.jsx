@@ -245,13 +245,21 @@ export default function OrdensServico() {
   }
 
   async function exportarPdf() {
-    const res = await window.api.pdf.exportarOS(form.id);
-    if (res.ok) showToast('PDF exportado com sucesso.');
+    try {
+      const res = await window.api.pdf.exportarOS(form.id);
+      if (res.ok) showToast('PDF exportado com sucesso.');
+    } catch (err) {
+      showToast(String(err.message || err), 'error');
+    }
   }
 
   async function exportarChecklistPdf() {
-    const res = await window.api.pdf.exportarChecklist(form.id);
-    if (res.ok) showToast('Checklist em PDF exportado com sucesso.');
+    try {
+      const res = await window.api.pdf.exportarChecklist(form.id);
+      if (res.ok) showToast('Checklist em PDF exportado com sucesso.');
+    } catch (err) {
+      showToast(String(err.message || err), 'error');
+    }
   }
 
   async function exportarGarantiaPdf(id) {
@@ -296,9 +304,10 @@ export default function OrdensServico() {
     try {
       const telefone = row.cliente_whatsapp || row.cliente_telefone;
       if (!telefone) return showToast('Este cliente não possui WhatsApp/telefone cadastrado.', 'error');
-      const res = await window.api.pdf.exportarOS(row.id);
-      if (!res.ok) return;
       const msg = `Olá! Segue a Ordem de Serviço ${row.numero}${row.cliente_nome ? ' de ' + row.cliente_nome : ''}. Anexei o PDF aqui, um momento.`;
+      const res = await window.api.pdf.exportarOS(row.id, { whatsapp: { telefone, mensagem: msg } });
+      if (!res.ok) return;
+      if (res.web) return; // versão web: a janelinha "PDF pronto" cuida do envio pelo WhatsApp
       await window.api.whatsapp.abrirConversa(telefone, msg);
       showToast('PDF salvo. O WhatsApp foi aberto — anexe o arquivo que acabou de ser revelado na pasta.');
     } catch (err) {

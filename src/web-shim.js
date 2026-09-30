@@ -8,6 +8,8 @@
 // Isso permite que TODAS as telas (src/pages/*.jsx) continuem exatamente iguais,
 // sem saber (nem precisar saber) se estão rodando no programa instalado ou no
 // navegador — elas só usam "window.api.xxx.yyy(...)" normalmente.
+import { criarApiPdf, linkWhatsapp } from './pdf-web.js';
+
 (function () {
   if (typeof window === 'undefined' || window.api) return; // já roda no Electron
 
@@ -163,10 +165,9 @@
     whatsapp: {
       // No navegador não existe app do WhatsApp Desktop pra "abrir" — usamos o
       // link universal wa.me, que abre o WhatsApp Web ou o app do celular.
+      // (Igual ao programa instalado: sem DDI, assume Brasil e coloca 55.)
       abrirConversa: async (telefone, mensagem) => {
-        const numero = String(telefone || '').replace(/\D/g, '');
-        const url = `https://wa.me/${numero}${mensagem ? '?text=' + encodeURIComponent(mensagem) : ''}`;
-        window.open(url, '_blank');
+        window.open(linkWhatsapp(telefone, mensagem), '_blank');
         return { ok: true };
       },
     },
@@ -200,16 +201,9 @@
     backup: {
       manual: indisponivelNoNavegador('O backup do banco de dados é feito automaticamente pelo Turso (nuvem). Este botão só existe no programa instalado.'),
     },
-    pdf: {
-      exportarOS: indisponivelNoNavegador('Exportar PDF ainda só está disponível no programa instalado no computador.'),
-      exportarChecklist: indisponivelNoNavegador(),
-      exportarGarantia: indisponivelNoNavegador(),
-      exportarOrcamento: indisponivelNoNavegador(),
-      exportarComprovante: indisponivelNoNavegador(),
-      exportarVendaGarantia: indisponivelNoNavegador(),
-      exportarVendaRecibo: indisponivelNoNavegador(),
-      exportarRelatorio: indisponivelNoNavegador(),
-    },
+    // PDF gerado no próprio navegador (veja src/pdf-web.js): no computador baixa
+    // o arquivo; no celular abre a janelinha "PDF pronto" com Compartilhar/WhatsApp.
+    pdf: criarApiPdf({ invoke }),
     empresa: {
       get: () => invoke('empresa:get'),
       save: (atual, empresa) => invoke('empresa:save', { empresa }),
