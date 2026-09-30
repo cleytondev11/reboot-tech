@@ -146,3 +146,73 @@ quiser que o bloqueio aconteça **sozinho** quando o Kiwify avisar de um
 reembolso, dá para configurar um webhook do Kiwify que atualiza essa mesma
 tabela automaticamente. Isso exige um pequeno serviço extra (ex.: uma Supabase
 Edge Function) — quando quiser evoluir para isso, é só pedir.
+
+## Vencimento automático da mensalidade (versão web/nuvem)
+
+Cada cliente da versão web tem **uma linha** na tabela `licencas` com:
+
+| Campo | Para que serve |
+|---|---|
+| `chave` | identifica o deploy do cliente (vai em `LICENCA_CHAVE` no Render) |
+| `cliente_nome` | só para você se localizar |
+| `status` | `ativa` ou `bloqueada` (bloqueio manual, vale na hora) |
+| `data_inicio` | quando a mensalidade começou |
+| `data_vencimento` | **dia em que o acesso é bloqueado sozinho** |
+
+**Regra:** no próprio dia do `data_vencimento` o acesso é bloqueado (à meia-noite de
+Brasília). O cliente vê "Mensalidade vencida" com um botão que abre o WhatsApp do
+suporte. Nos **5 dias antes**, aparece uma faixa amarela avisando que a mensalidade
+vai vencer. Para dar uma folga depois do vencimento, mude `DIAS_DE_TOLERANCIA` em
+`server/licenca.js` (0 = bloqueia no dia; 2 = bloqueia 2 dias depois).
+
+Se `data_vencimento` ficar vazio, o cliente não tem vencimento (só vale o `status`).
+
+### Migração (rode UMA vez no Supabase → SQL Editor)
+
+Se você já tinha criado a tabela `licencas`, acrescente as colunas de data:
+
+```sql
+alter table licencas add column if not exists data_inicio date;
+alter table licencas add column if not exists data_vencimento date;
+```
+
+> Faça isso **antes** de subir esta versão no Render. Sem as colunas o servidor
+> volta a olhar só o `status` (o vencimento não funciona, mas nada quebra).
+
+### Cadastrar um cliente (ou use o gerador `server/scripts/novo-cliente.js`)
+
+```sql
+insert into licencas (chave, cliente_nome, status, data_inicio, data_vencimento)
+values ('WEB-PAULO', 'Paulo', 'ativa', current_date, current_date + 30);
+```
+
+### Quando o cliente pagar (renovar)
+
+Soma 30 dias a partir do que for maior: do vencimento atual ou de hoje (assim,
+quem atrasou não ganha dias "de graça" do passado):
+
+```sql
+update licencas
+set data_vencimento = greatest(data_vencimento, current_date) + 30,
+    status = 'ativa',
+    atualizado_em = now()
+where chave = 'WEB-PAULO';
+```
+
+O acesso volta em até 10 minutos (ou na hora, reiniciando o serviço no Render).
+
+### Bloquear / desbloquear à mão
+
+```sql
+update licencas set status = 'bloqueada' where chave = 'WEB-PAULO';
+update licencas set status = 'ativa'     where chave = 'WEB-PAULO';
+```
+
+### Ver todos os clientes e quanto falta para vencer
+
+```sql
+select cliente_nome, chave, status, data_vencimento,
+       data_vencimento - current_date as dias_restantes
+from licencas
+order by data_vencimento;
+```
