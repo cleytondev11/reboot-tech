@@ -689,10 +689,14 @@ function criarIframe(html) {
   return new Promise((resolve) => {
     const iframe = document.createElement('iframe');
     iframe.setAttribute('aria-hidden', 'true');
-    iframe.style.cssText = `position:fixed;left:-10000px;top:0;width:${LARGURA_PX}px;height:1200px;border:0;`;
+    iframe.style.cssText = `position:fixed;left:-10000px;top:0;width:${LARGURA_PX}px;height:200px;border:0;`;
     iframe.onload = async () => {
       try {
         const doc = iframe.contentDocument;
+        // Sem isso a altura medida seria a da janelinha, e não a do documento.
+        const ajuste = doc.createElement('style');
+        ajuste.textContent = 'html,body{height:auto!important;min-height:0!important}body{display:flow-root!important}';
+        doc.head.appendChild(ajuste);
         await Promise.all(Array.from(doc.images).map((im) => (
           im.complete ? null : new Promise((r) => { im.onload = r; im.onerror = r; })
         )));
@@ -705,10 +709,17 @@ function criarIframe(html) {
   });
 }
 
+const MAX_PIXELS_CANVAS = 16e6; // limite seguro para celulares (iPhone ~16,7 milhões)
+
 async function capturar(iframe, escalaMaxima) {
   const doc = iframe.contentDocument;
-  const alturaPx = Math.ceil(Math.max(doc.documentElement.scrollHeight, doc.body.scrollHeight, 1));
+  // Altura REAL do conteúdo: a altura do <html> nunca é menor que a da janelinha
+  // do iframe, por isso mede-se o <body> (que envolve todo o conteúdo).
+  const alturaPx = Math.ceil(Math.max(doc.body.getBoundingClientRect().height, doc.body.scrollHeight, 1));
   iframe.style.height = alturaPx + 'px';
+  if (LARGURA_PX * alturaPx > MAX_PIXELS_CANVAS) {
+    throw new Error('O documento ficou grande demais para gerar no celular. Filtre um período menor (ou use o computador) e tente de novo.');
+  }
   // Celulares limitam o tamanho do "desenho" (canvas): documentos longos usam escala menor.
   const escala = Math.max(1, Math.min(escalaMaxima, Math.sqrt(12e6 / (LARGURA_PX * alturaPx))));
   const canvas = await window.html2canvas(doc.body, {
@@ -743,6 +754,7 @@ function coletarBlocos(doc) {
 }
 
 function calcularCortes(alturaTotal, alturaPagina, blocos) {
+  if (!(alturaPagina > 50)) throw new Error('Layout do PDF inválido (altura da página).');
   const cortes = [0];
   let y = 0;
   let guarda = 0;
@@ -752,6 +764,7 @@ function calcularCortes(alturaTotal, alturaPagina, blocos) {
     const minimo = y + alturaPagina * 0.35;
     const cruzam = blocos.filter((b) => b.top < limite && b.bottom > limite && b.top >= minimo && (b.bottom - b.top) <= alturaPagina * 0.6);
     if (cruzam.length) corte = Math.min(...cruzam.map((b) => b.top));
+    if (!(corte > y + 1)) corte = limite; // nunca deixa de avançar
     cortes.push(corte);
     y = corte;
   }
@@ -772,6 +785,7 @@ async function gerarPdfBlob({ empresa, title, subtitle, innerHtml, footerSubtitu
     iframes.push(ifCab);
     const cab = await capturar(ifCab, 2);
     const cabMm = cab.alturaPx * PX_MM;
+    if (cabMm > 60) throw new Error('cabeçalho da empresa com altura inesperada');
     const cabUrl = cab.canvas.toDataURL('image/jpeg', 0.95);
 
     // Corpo do documento
@@ -784,6 +798,7 @@ async function gerarPdfBlob({ empresa, title, subtitle, innerHtml, footerSubtitu
     const topoMm = MARGEM_TOPO + cabMm + 4;
     const alturaPaginaPx = (A4_H - topoMm - RODAPE_MM) / PX_MM;
     const cortes = calcularCortes(corpo.alturaPx, alturaPaginaPx, blocos);
+    if (cortes.length - 1 > 150) throw new Error('documento com páginas demais (' + (cortes.length - 1) + '). Filtre um período menor.');
 
     const { jsPDF } = window.jspdf;
     const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait', compress: true });
