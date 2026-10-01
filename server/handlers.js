@@ -13,9 +13,38 @@
 const bcrypt = require('bcryptjs');
 const { requirePapel } = require('./auth');
 
+const push = require('./push');
+
 function nowIso() {
   return new Date().toISOString();
 }
+
+// ---------- MIGRAÇÃO (importar o banco local do desktop para a nuvem) ----------
+// Lista de colunas permitidas por tabela — é o que garante que a migração só
+// grava nas tabelas/colunas que a própria aplicação usa (nomes de tabela e
+// coluna nunca vêm soltos do que o cliente mandar: só entram aqui os que já
+// estão nesta lista). Tabelas de configuração de UM computador específico
+// (impressora, rede, licença local) propositalmente NÃO entram aqui.
+const TABELAS_MIGRAVEIS = {
+  usuarios: ['id', 'nome', 'usuario', 'senha_hash', 'papel', 'ativo', 'criado_em'],
+  fornecedores: ['id', 'nome', 'cnpj_cpf', 'telefone', 'email', 'endereco', 'observacoes', 'criado_em'],
+  clientes: ['id', 'tipo', 'nome', 'cpf_cnpj', 'rg_ie', 'telefone', 'whatsapp', 'email', 'cep', 'endereco', 'numero', 'bairro', 'cidade', 'uf', 'observacoes', 'data_nascimento', 'criado_em', 'atualizado_em'],
+  produtos: ['id', 'nome', 'categoria', 'fabricante', 'fornecedor_id', 'codigo_interno', 'codigo_barras', 'quantidade', 'estoque_minimo', 'valor_compra', 'valor_venda', 'localizacao', 'ativo', 'criado_em', 'atualizado_em'],
+  equipamentos: ['id', 'cliente_id', 'marca', 'modelo', 'imei', 'numero_serie', 'cor', 'senha_desbloqueio', 'capacidade', 'operadora', 'estado_conservacao', 'acessorios', 'fotos', 'criado_em'],
+  servicos: ['id', 'nome', 'descricao', 'categoria', 'valor_padrao', 'ativo', 'criado_em', 'atualizado_em'],
+  ordens_servico: ['id', 'numero', 'cliente_id', 'equipamento_id', 'defeito_informado', 'diagnostico', 'servicos_executados', 'pecas_utilizadas', 'valor_mao_obra', 'valor_pecas', 'desconto', 'valor_total', 'garantia_dias', 'data_entrada', 'previsao', 'data_saida', 'status', 'observacoes', 'assinatura_cliente', 'checklist', 'usuario_id', 'criado_em', 'atualizado_em', 'itens_pecas', 'estoque_baixado', 'forma_pagamento', 'financeiro_lancado', 'despesa_pecas_lancada', 'tecnico_id', 'termos_aceite', 'senha_tipo', 'senha_valor', 'checklist_acessorios', 'financeiro_receber_lancado'],
+  orcamentos: ['id', 'numero', 'cliente_id', 'equipamento_id', 'descricao', 'itens', 'valor_servicos', 'desconto', 'valor_total', 'validade_dias', 'data_orcamento', 'status', 'observacoes', 'os_id', 'usuario_id', 'criado_em', 'atualizado_em'],
+  vendas: ['id', 'numero', 'cliente_id', 'itens', 'valor_itens', 'desconto', 'valor_total', 'forma_pagamento', 'status', 'observacoes', 'usuario_id', 'criado_em', 'garantia_dias'],
+  compras: ['id', 'numero', 'fornecedor_id', 'itens', 'valor_total', 'status', 'data_pedido', 'data_prevista', 'data_recebimento', 'observacoes', 'estoque_lancado', 'despesa_lancada', 'usuario_id', 'criado_em', 'atualizado_em'],
+  movimentacoes_estoque: ['id', 'produto_id', 'tipo', 'quantidade', 'motivo', 'referencia', 'usuario_id', 'usuario_nome', 'criado_em'],
+  lancamentos_financeiros: ['id', 'tipo', 'categoria', 'descricao', 'valor', 'forma_pagamento', 'status', 'data_vencimento', 'data_pagamento', 'referencia', 'os_id', 'observacoes', 'origem_automatica', 'usuario_id', 'usuario_nome', 'criado_em', 'atualizado_em'],
+  caixa_sessoes: ['id', 'data_abertura', 'valor_abertura', 'usuario_abertura_id', 'usuario_abertura_nome', 'data_fechamento', 'valor_fechamento_informado', 'valor_fechamento_calculado', 'usuario_fechamento_id', 'usuario_fechamento_nome', 'status', 'observacoes', 'criado_em'],
+  caixa_movimentos: ['id', 'sessao_id', 'tipo', 'valor', 'forma_pagamento', 'descricao', 'referencia', 'usuario_id', 'usuario_nome', 'criado_em'],
+  metas_financeiras: ['mes', 'meta_lucro', 'usuario_id', 'atualizado_em'],
+  configuracoes_empresa: ['id', 'nome', 'nome_fantasia', 'logo', 'cnpj', 'ie', 'endereco', 'numero', 'bairro', 'cidade', 'uf', 'cep', 'telefone', 'whatsapp', 'email', 'site', 'redes_sociais', 'atualizado_em'],
+  seguranca_acoes: ['id', 'dispositivo_serial', 'dispositivo_modelo', 'pacote', 'acao', 'nivel_risco', 'resultado', 'cliente_id', 'equipamento_id', 'usuario_id', 'usuario_nome', 'criado_em'],
+  logs: ['id', 'usuario_id', 'usuario_nome', 'acao', 'entidade', 'entidade_id', 'detalhes', 'criado_em'],
+};
 
 async function log(db, req, acao, entidade, entidade_id, detalhes) {
   const usuario = req.usuario;
@@ -575,6 +604,42 @@ const handlers = {
   // ---------- LOGS ----------
   'logs:list': async (db, { limit } = {}) => db.all('SELECT * FROM logs ORDER BY id DESC LIMIT ?', [limit || 200]),
 
+  // ---------- MIGRAÇÃO (importar dados do banco local do desktop) ----------
+  'migracao:importarTabela': async (db, { tabela, linhas }, req) => {
+    requirePapel(req, ['Administrador']);
+    const colunasPermitidas = TABELAS_MIGRAVEIS[tabela];
+    if (!colunasPermitidas) throw new Error(`Tabela não permitida para migração: ${tabela}`);
+    if (!Array.isArray(linhas) || linhas.length === 0) return { ok: true, importadas: 0 };
+
+    let importadas = 0;
+    for (const linha of linhas) {
+      const colunas = colunasPermitidas.filter((c) => Object.prototype.hasOwnProperty.call(linha, c));
+      if (colunas.length === 0) continue;
+      const valores = colunas.map((c) => (linha[c] === undefined ? null : linha[c]));
+      const placeholders = colunas.map(() => '?').join(',');
+      await db.run(`INSERT OR REPLACE INTO ${tabela} (${colunas.join(',')}) VALUES (${placeholders})`, valores);
+      importadas++;
+    }
+
+    // Corrige o contador de autoincremento da tabela pra continuar depois do
+    // maior id importado (senão o próximo registro criado direto na nuvem
+    // poderia tentar usar um id que acabou de ser importado).
+    if (colunasPermitidas.includes('id')) {
+      try {
+        const maiorId = await db.get(`SELECT MAX(id) as m FROM ${tabela}`);
+        if (maiorId && maiorId.m) {
+          await db.run('CREATE TABLE IF NOT EXISTS sqlite_sequence (name TEXT, seq INTEGER)');
+          const existe = await db.get('SELECT seq FROM sqlite_sequence WHERE name = ?', [tabela]);
+          if (existe) await db.run('UPDATE sqlite_sequence SET seq = ? WHERE name = ? AND seq < ?', [maiorId.m, tabela, maiorId.m]);
+          else await db.run('INSERT INTO sqlite_sequence (name, seq) VALUES (?, ?)', [tabela, maiorId.m]);
+        }
+      } catch (e) { /* não é crítico pra migração em si — segue normalmente */ }
+    }
+
+    await log(db, req, 'IMPORTAR', tabela, null, `Migração do banco local: ${importadas} registro(s) importado(s)`);
+    return { ok: true, importadas };
+  },
+
   // ---------- SEGURANÇA / REMOÇÃO DE VÍRUS (histórico na nuvem) ----------
   // A análise em si (conexão USB/ADB) só roda no computador desktop, mas quando
   // esse computador está em "Modo Nuvem" o registro do que foi feito é salvo
@@ -770,6 +835,7 @@ const handlers = {
         await db.run('UPDATE ordens_servico SET financeiro_lancado = 1 WHERE id = ?', [o.id]);
       }
       if (before && before.status !== o.status) {
+        if (o.status === 'Pronto') await push.avisarOsPronta(o.id);
         await log(db, req, 'MUDAR_STATUS', 'ordens_servico', o.id, `${before.status} -> ${o.status}`);
       } else {
         await log(db, req, 'EDITAR', 'ordens_servico', o.id, o.numero);
@@ -795,6 +861,7 @@ const handlers = {
         await baixarOuLancarRecebimentoDaOs(db, req, id, numero, o.valor_total, o.forma_pagamento);
         await db.run('UPDATE ordens_servico SET financeiro_lancado = 1 WHERE id = ?', [id]);
       }
+      if (o.status === 'Pronto') await push.avisarOsPronta(id);
       await log(db, req, 'CRIAR', 'ordens_servico', id, numero);
       return { ok: true, id, numero };
     }
@@ -807,6 +874,7 @@ const handlers = {
       await lancarReceberDaOs(db, req, id, before?.numero, before?.valor_total, before?.previsao);
       await db.run('UPDATE ordens_servico SET financeiro_receber_lancado = 1 WHERE id = ?', [id]);
     }
+    if (before && before.status !== status && status === 'Pronto') await push.avisarOsPronta(id);
     await log(db, req, 'MUDAR_STATUS', 'ordens_servico', id, `${before?.status} -> ${status}`);
     return { ok: true };
   },
@@ -1034,9 +1102,9 @@ const handlers = {
     let sql = `SELECT v.*, c.nome as cliente_nome FROM vendas v LEFT JOIN clientes c ON c.id = v.cliente_id WHERE 1=1`;
     const params = [];
     if (termo) {
-      sql += ` AND (v.numero LIKE ? OR c.nome LIKE ? OR v.itens LIKE ?)`;
+      sql += ` AND (v.numero LIKE ? OR c.nome LIKE ?)`;
       const like = `%${termo}%`;
-      params.push(like, like, like);
+      params.push(like, like);
     }
     sql += ` ORDER BY v.id DESC`;
     return db.all(sql, params);
@@ -1208,6 +1276,7 @@ const handlers = {
       await lancarDespesaPecasDaOs(db, req, osId, numero, itensPecas, valorPecas, dataHoje);
     }
     await db.run(`UPDATE orcamentos SET status='Convertido', os_id=?, atualizado_em=? WHERE id=?`, [osId, nowIso(), id]);
+    await push.avisarOrcamentoConvertido(orc.numero, osId);
     await log(db, req, 'CONVERTER_EM_OS', 'orcamentos', id, `${orc.numero} -> ${numero}`);
     return { ok: true, osId, osNumero: numero };
   },
@@ -1218,6 +1287,49 @@ const handlers = {
     if (!orc) throw new Error('Orçamento não encontrado.');
     await db.run('DELETE FROM orcamentos WHERE id = ?', [id]);
     await log(db, req, 'EXCLUIR', 'orcamentos', id, orc.numero);
+    return { ok: true };
+  },
+
+  // ---------- NOTIFICAÇÕES PUSH (celular) ----------
+  'push:config': async () => ({ chavePublica: await push.chavePublica() }),
+
+  'push:status': async (db, { endpoint }) => {
+    if (!endpoint) return null;
+    const r = await db.get('SELECT notif_os_pronta, notif_orc_convertido FROM push_subscricoes WHERE endpoint = ?', [endpoint]);
+    return r ? { os_pronta: !!r.notif_os_pronta, orc_convertido: !!r.notif_orc_convertido } : null;
+  },
+
+  'push:salvar': async (db, { subscription, prefs }, req) => {
+    const sub = subscription || {};
+    if (!sub.endpoint || !sub.keys || !sub.keys.p256dh || !sub.keys.auth) throw new Error('Inscrição de notificação inválida.');
+    const osPronta = prefs && prefs.os_pronta === false ? 0 : 1;
+    const orcConv = prefs && prefs.orc_convertido === false ? 0 : 1;
+    await db.run(
+      `INSERT INTO push_subscricoes (usuario_id, endpoint, p256dh, auth, notif_os_pronta, notif_orc_convertido, criado_em)
+       VALUES (?,?,?,?,?,?,?)
+       ON CONFLICT(endpoint) DO UPDATE SET usuario_id = excluded.usuario_id, p256dh = excluded.p256dh, auth = excluded.auth,
+         notif_os_pronta = excluded.notif_os_pronta, notif_orc_convertido = excluded.notif_orc_convertido`,
+      [req.usuario?.id || null, sub.endpoint, sub.keys.p256dh, sub.keys.auth, osPronta, orcConv, nowIso()]
+    );
+    return { ok: true };
+  },
+
+  'push:remover': async (db, { endpoint }) => {
+    if (endpoint) await db.run('DELETE FROM push_subscricoes WHERE endpoint = ?', [endpoint]);
+    return { ok: true };
+  },
+
+  'push:testar': async (db, { endpoint }) => {
+    const sub = await db.get('SELECT * FROM push_subscricoes WHERE endpoint = ?', [endpoint]);
+    if (!sub) throw new Error('Este aparelho ainda não ativou as notificações.');
+    await push.chavePublica(); // garante que o VAPID está configurado
+    const ok = await push.enviarParaInscricao(sub, {
+      titulo: '🔔 Notificações ativadas!',
+      corpo: 'Você vai receber avisos do Reboot Tech neste aparelho.',
+      url: './',
+      tag: 'teste',
+    });
+    if (!ok) throw new Error('Não foi possível enviar a notificação de teste. Desative e ative novamente.');
     return { ok: true };
   },
 

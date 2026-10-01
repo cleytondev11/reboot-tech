@@ -20,6 +20,47 @@ export default function Configuracoes() {
   const [testandoConexao, setTestandoConexao] = useState(false);
   const [loginNuvemForm, setLoginNuvemForm] = useState({ usuario: '', senha: '' });
   const [entrandoNuvem, setEntrandoNuvem] = useState(false);
+  const [migrando, setMigrando] = useState(false);
+  const [resultadoMigracao, setResultadoMigracao] = useState(null);
+
+  // Notificações push (só existem na versão web/celular)
+  const pushApi = typeof window !== 'undefined' ? window.api?.push : null;
+  const [pushAtivo, setPushAtivo] = useState(false);
+  const [pushPrefs, setPushPrefs] = useState({ os_pronta: true, orc_convertido: true });
+  const [pushCarregando, setPushCarregando] = useState(false);
+
+  async function carregarPush() {
+    if (!pushApi) return;
+    const st = await pushApi.status();
+    setPushAtivo(st.ativo);
+    if (st.prefs) setPushPrefs(st.prefs);
+  }
+  async function ativarPush() {
+    setPushCarregando(true);
+    try {
+      await pushApi.ativar(pushPrefs);
+      setPushAtivo(true);
+      showToast('Notificações ativadas neste aparelho!');
+    } catch (e) { showToast(e.message, 'error'); }
+    setPushCarregando(false);
+  }
+  async function desativarPush() {
+    setPushCarregando(true);
+    try { await pushApi.desativar(); setPushAtivo(false); showToast('Notificações desativadas neste aparelho.'); }
+    catch (e) { showToast(e.message, 'error'); }
+    setPushCarregando(false);
+  }
+  async function alterarPref(chave, valor) {
+    const novas = { ...pushPrefs, [chave]: valor };
+    setPushPrefs(novas);
+    if (!pushAtivo) return;
+    try { await pushApi.salvarPrefs(novas); showToast('Preferência salva.'); }
+    catch (e) { setPushPrefs(pushPrefs); showToast(e.message, 'error'); }
+  }
+  async function testarPush() {
+    try { await pushApi.testar(); showToast('Notificação de teste enviada!'); }
+    catch (e) { showToast(e.message, 'error'); }
+  }
 
   const [impressoras, setImpressoras] = useState([]);
   const [impCfg, setImpCfg] = useState({ impressora_padrao: '', largura_papel: 80, formato: 'termica', copias: 1 });
@@ -111,6 +152,32 @@ export default function Configuracoes() {
     loadRede();
   }
 
+  async function migrarParaNuvem() {
+    const confirmado = window.confirm(
+      'Isso vai enviar todos os dados deste computador (clientes, OS, vendas, financeiro etc.) para o banco online, substituindo os registros que já existirem lá com o mesmo ID.\n\n' +
+      'Use isso normalmente só uma vez, ao começar a usar o Modo Nuvem. Deseja continuar?'
+    );
+    if (!confirmado) return;
+    setMigrando(true);
+    setResultadoMigracao(null);
+    try {
+      const res = await window.api.rede.migrarParaNuvem(user);
+      setResultadoMigracao(res.resultado);
+      const total = res.resultado.reduce((s, r) => s + (r.importadas || 0), 0);
+      const comErro = res.resultado.filter((r) => r.erro);
+      showToast(
+        comErro.length
+          ? `Migração concluída com ${total} registro(s) importado(s), mas ${comErro.length} tabela(s) tiveram erro — veja o detalhe abaixo.`
+          : `Migração concluída: ${total} registro(s) enviados para a nuvem.`,
+        comErro.length ? 'error' : undefined
+      );
+    } catch (err) {
+      showToast(String(err.message || err), 'error');
+    } finally {
+      setMigrando(false);
+    }
+  }
+
   async function salvarImpressora(e) {
     e.preventDefault();
     try {
@@ -167,6 +234,7 @@ export default function Configuracoes() {
         <button className={`tab-btn ${tab === 'empresa' ? 'active' : ''}`} onClick={() => setTab('empresa')}>🏢 Dados da Empresa</button>
         <button className={`tab-btn ${tab === 'rede' ? 'active' : ''}`} onClick={() => setTab('rede')}>🌐 Rede Multi-PC</button>
         <button className={`tab-btn ${tab === 'impressora' ? 'active' : ''}`} onClick={() => setTab('impressora')}>🖨️ Impressora Térmica</button>
+        {pushApi && <button className={`tab-btn ${tab === 'notificacoes' ? 'active' : ''}`} onClick={() => { setTab('notificacoes'); carregarPush(); }}>🔔 Notificações</button>}
         <button className={`tab-btn ${tab === 'logs' ? 'active' : ''}`} onClick={() => setTab('logs')}>🧾 Logs do Sistema</button>
       </div>
 
@@ -348,6 +416,42 @@ export default function Configuracoes() {
             </form>
           )}
 
+          {redeForm.modo === 'nuvem' && redeStatus?.conectadoNuvem && user.papel === 'Administrador' && (
+            <div className="card" style={{ marginTop: 16 }}>
+              <div className="section-title" style={{ marginTop: 0 }}>Migrar dados deste computador para a nuvem</div>
+              <p className="muted" style={{ fontSize: 12.5, marginTop: -4 }}>
+                Se este computador já tinha clientes, OS, vendas etc. cadastrados (no modo Sozinho ou Rede Local antigo), use o botão abaixo pra enviar tudo isso pro banco online de uma vez. Faça isso normalmente só uma vez, ao começar a usar a Nuvem.
+              </p>
+              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                <button type="button" className="btn btn-primary" disabled={migrando} onClick={migrarParaNuvem}>
+                  {migrando ? 'Migrando... isso pode levar alguns minutos' : '☁️ Migrar dados para a nuvem'}
+                </button>
+              </div>
+              {resultadoMigracao && (
+                <div style={{ marginTop: 14, fontSize: 12.5 }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr style={{ textAlign: 'left', color: 'var(--muted)' }}>
+                        <th style={{ padding: '4px 6px' }}>Tabela</th>
+                        <th style={{ padding: '4px 6px' }}>Registros enviados</th>
+                        <th style={{ padding: '4px 6px' }}>Situação</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {resultadoMigracao.map((r) => (
+                        <tr key={r.tabela} style={{ borderTop: '1px solid var(--border)' }}>
+                          <td style={{ padding: '4px 6px' }}>{r.tabela}</td>
+                          <td style={{ padding: '4px 6px' }}>{r.importadas}</td>
+                          <td style={{ padding: '4px 6px', color: r.erro ? '#e5484d' : 'inherit' }}>{r.erro || 'OK'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
           <p className="muted" style={{ fontSize: 11.5, marginTop: 14 }}>
             No modo Rede Local, os computadores precisam estar na mesma rede Wi-Fi/roteador, com o Servidor ligado e o sistema aberto. No modo Nuvem, basta ter internet — não depende de nenhum outro computador ligado. Backups, PDFs e impressão sempre acontecem no computador que disparou a ação.
           </p>
@@ -403,6 +507,44 @@ export default function Configuracoes() {
           <p className="muted" style={{ fontSize: 11.5, marginTop: 14 }}>
             O formato térmico funciona com qualquer impressora térmica USB/rede já instalada como impressora do Windows (Elgin, Bematech, Epson, etc.). O formato A4 funciona com qualquer impressora comum (jato de tinta/laser) já instalada. O leitor de código de barras USB não precisa de configuração aqui — basta usá-lo nos campos de busca do Estoque e nas Vendas, como se fosse um teclado.
           </p>
+        </div>
+      )}
+
+      {tab === 'notificacoes' && pushApi && (
+        <div className="card" style={{ maxWidth: 560 }}>
+          <div className="section-title" style={{ marginTop: 0 }}>Notificações no celular</div>
+          <p className="muted" style={{ fontSize: 12.5 }}>
+            Receba um aviso neste aparelho, mesmo com o app fechado. A configuração vale só para o aparelho que você está usando agora.
+          </p>
+          {!pushApi.suportado() ? (
+            <p style={{ fontSize: 13 }}>Este navegador não suporta notificações. No iPhone/iPad, abra o site no Safari, toque em Compartilhar → <b>Adicionar à Tela de Início</b> e abra o app por lá (iOS 16.4 ou superior).</p>
+          ) : (
+            <>
+              <label style={{ display: 'flex', gap: 10, alignItems: 'center', margin: '12px 0', cursor: 'pointer' }}>
+                <input type="checkbox" checked={pushPrefs.os_pronta} onChange={(e) => alterarPref('os_pronta', e.target.checked)} />
+                <span>✅ Quando um serviço (OS) ficar <b>Pronto</b></span>
+              </label>
+              <label style={{ display: 'flex', gap: 10, alignItems: 'center', margin: '12px 0', cursor: 'pointer' }}>
+                <input type="checkbox" checked={pushPrefs.orc_convertido} onChange={(e) => alterarPref('orc_convertido', e.target.checked)} />
+                <span>🔄 Quando um orçamento for <b>convertido em OS</b></span>
+              </label>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 16 }}>
+                {pushAtivo ? (
+                  <>
+                    <button className="btn btn-secondary" onClick={testarPush}>Enviar teste</button>
+                    <button className="btn btn-secondary" disabled={pushCarregando} onClick={desativarPush}>Desativar neste aparelho</button>
+                  </>
+                ) : (
+                  <button className="btn btn-primary" disabled={pushCarregando} onClick={ativarPush}>
+                    {pushCarregando ? 'Ativando...' : '🔔 Ativar notificações neste aparelho'}
+                  </button>
+                )}
+              </div>
+              <p className="muted" style={{ fontSize: 12, marginTop: 12 }}>
+                Status: {pushAtivo ? 'ativado ✅' : pushApi.permissao() === 'denied' ? 'bloqueado nas configurações do navegador ⛔' : 'desativado'}
+              </p>
+            </>
+          )}
         </div>
       )}
 

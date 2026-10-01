@@ -8,8 +8,6 @@
 // Isso permite que TODAS as telas (src/pages/*.jsx) continuem exatamente iguais,
 // sem saber (nem precisar saber) se estão rodando no programa instalado ou no
 // navegador — elas só usam "window.api.xxx.yyy(...)" normalmente.
-import { criarApiPdf, linkWhatsapp } from './pdf-web.js';
-
 (function () {
   if (typeof window === 'undefined' || window.api) return; // já roda no Electron
 
@@ -41,8 +39,6 @@ import { criarApiPdf, linkWhatsapp } from './pdf-web.js';
     }
     let corpo;
     try { corpo = await resposta.json(); } catch (e) { throw new Error(`Resposta inválida do servidor (HTTP ${resposta.status}).`); }
-    // Licença bloqueada/vencida no meio do uso: avisa a tela para mostrar o bloqueio na hora.
-    if (resposta.status === 403 && corpo.bloqueada) window.dispatchEvent(new CustomEvent('rt-licenca-bloqueada'));
     if (!corpo.ok) throw new Error(corpo.error || 'Erro desconhecido no servidor.');
     return corpo.data;
   }
@@ -167,14 +163,78 @@ import { criarApiPdf, linkWhatsapp } from './pdf-web.js';
     whatsapp: {
       // No navegador não existe app do WhatsApp Desktop pra "abrir" — usamos o
       // link universal wa.me, que abre o WhatsApp Web ou o app do celular.
-      // (Igual ao programa instalado: sem DDI, assume Brasil e coloca 55.)
       abrirConversa: async (telefone, mensagem) => {
-        window.open(linkWhatsapp(telefone, mensagem), '_blank');
+        const numero = String(telefone || '').replace(/\D/g, '');
+        const url = `https://wa.me/${numero}${mensagem ? '?text=' + encodeURIComponent(mensagem) : ''}`;
+        window.open(url, '_blank');
         return { ok: true };
       },
     },
     dashboard: {
       resumo: () => invoke('dashboard:resumo'),
+    },
+    // Notificações push (só na versão web/celular; no programa do computador este
+    // grupo não existe e a aba de notificações some das Configurações).
+    push: {
+      suportado: () => 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window,
+      permissao: () => (typeof Notification !== 'undefined' ? Notification.permission : 'denied'),
+      _registro: async () => {
+        const reg = await navigator.serviceWorker.getRegistration();
+        if (!reg) throw new Error('O app ainda não está pronto para notificações. Recarregue a página e tente de novo.');
+        return reg;
+      },
+      _urlBase64ParaUint8: (b64) => {
+        const pad = '='.repeat((4 - (b64.length % 4)) % 4);
+        const bin = atob((b64 + pad).replace(/-/g, '+').replace(/_/g, '/'));
+        return Uint8Array.from(bin, (c) => c.charCodeAt(0));
+      },
+      // Retorna { ativo, prefs } do aparelho atual.
+      status: async () => {
+        if (!window.api.push.suportado()) return { ativo: false, prefs: null };
+        try {
+          const reg = await navigator.serviceWorker.getRegistration();
+          const sub = reg && (await reg.pushManager.getSubscription());
+          if (!sub) return { ativo: false, prefs: null };
+          const prefs = await invoke('push:status', { endpoint: sub.endpoint });
+          return { ativo: !!prefs, prefs };
+        } catch (e) { return { ativo: false, prefs: null }; }
+      },
+      // Pede permissão, inscreve este aparelho e salva as preferências no servidor.
+      ativar: async (prefs) => {
+        if (!window.api.push.suportado()) throw new Error('Este navegador não suporta notificações. No iPhone, primeiro adicione o app à Tela de Início.');
+        const permissao = await Notification.requestPermission();
+        if (permissao !== 'granted') throw new Error('Permissão negada. Libere as notificações deste site nas configurações do navegador/celular.');
+        const reg = await window.api.push._registro();
+        const { chavePublica } = await invoke('push:config');
+        let sub = await reg.pushManager.getSubscription();
+        if (!sub) {
+          sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: window.api.push._urlBase64ParaUint8(chavePublica) });
+        }
+        await invoke('push:salvar', { subscription: sub.toJSON(), prefs });
+        return { ok: true };
+      },
+      salvarPrefs: async (prefs) => {
+        const reg = await window.api.push._registro();
+        const sub = await reg.pushManager.getSubscription();
+        if (!sub) throw new Error('Este aparelho não está inscrito. Ative as notificações primeiro.');
+        await invoke('push:salvar', { subscription: sub.toJSON(), prefs });
+        return { ok: true };
+      },
+      desativar: async () => {
+        const reg = await navigator.serviceWorker.getRegistration();
+        const sub = reg && (await reg.pushManager.getSubscription());
+        if (sub) {
+          try { await invoke('push:remover', { endpoint: sub.endpoint }); } catch (e) { /* segue mesmo assim */ }
+          await sub.unsubscribe();
+        }
+        return { ok: true };
+      },
+      testar: async () => {
+        const reg = await window.api.push._registro();
+        const sub = await reg.pushManager.getSubscription();
+        if (!sub) throw new Error('Este aparelho não está inscrito.');
+        return invoke('push:testar', { endpoint: sub.endpoint });
+      },
     },
     financas: {
       metaMensal: (mes) => invoke('financas:metaMensal', { mes }),
@@ -203,9 +263,16 @@ import { criarApiPdf, linkWhatsapp } from './pdf-web.js';
     backup: {
       manual: indisponivelNoNavegador('O backup do banco de dados é feito automaticamente pelo Turso (nuvem). Este botão só existe no programa instalado.'),
     },
-    // PDF gerado no próprio navegador (veja src/pdf-web.js): no computador baixa
-    // o arquivo; no celular abre a janelinha "PDF pronto" com Compartilhar/WhatsApp.
-    pdf: criarApiPdf({ invoke }),
+    pdf: {
+      exportarOS: indisponivelNoNavegador('Exportar PDF ainda só está disponível no programa instalado no computador.'),
+      exportarChecklist: indisponivelNoNavegador(),
+      exportarGarantia: indisponivelNoNavegador(),
+      exportarOrcamento: indisponivelNoNavegador(),
+      exportarComprovante: indisponivelNoNavegador(),
+      exportarVendaGarantia: indisponivelNoNavegador(),
+      exportarVendaRecibo: indisponivelNoNavegador(),
+      exportarRelatorio: indisponivelNoNavegador(),
+    },
     empresa: {
       get: () => invoke('empresa:get'),
       save: (atual, empresa) => invoke('empresa:save', { empresa }),
@@ -250,12 +317,7 @@ import { criarApiPdf, linkWhatsapp } from './pdf-web.js';
     try {
       const resposta = await fetch(`${API_URL}/api/licenca/status`);
       const corpo = await resposta.json();
-      return {
-        estado: corpo.estado === 'bloqueada' ? 'bloqueada' : 'ativa',
-        motivo: corpo.motivo || null,                 // 'vencida' | 'bloqueada' | null
-        dataVencimento: corpo.dataVencimento || null,
-        diasRestantes: typeof corpo.diasRestantes === 'number' ? corpo.diasRestantes : null,
-      };
+      return { estado: corpo.estado === 'bloqueada' ? 'bloqueada' : 'ativa' };
     } catch (e) {
       // Sem conexão com o servidor: não trava a tela por causa disso — o
       // login em seguida já vai falhar com uma mensagem clara se for o caso.

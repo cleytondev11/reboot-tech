@@ -8,7 +8,7 @@
 //
 // Suba o número da versão sempre que quiser forçar todo mundo a baixar os
 // arquivos novos na próxima abertura do app.
-const VERSAO_CACHE = 'reboot-tech-v1';
+const VERSAO_CACHE = 'reboot-tech-v2';
 
 self.addEventListener('install', (evento) => {
   self.skipWaiting();
@@ -69,6 +69,39 @@ self.addEventListener('fetch', (evento) => {
         })
         .catch(() => null);
       return emCache || (await buscaRede) || Response.error();
+    })()
+  );
+});
+
+// ---------- NOTIFICAÇÕES PUSH ----------
+// Recebe o aviso enviado pelo servidor (OS pronta / orçamento convertido em OS)
+// e mostra a notificação no celular, mesmo com o app fechado.
+self.addEventListener('push', (evento) => {
+  let dados = {};
+  try { dados = evento.data ? evento.data.json() : {}; } catch (e) { dados = { corpo: evento.data ? evento.data.text() : '' }; }
+  const titulo = dados.titulo || 'Reboot Tech';
+  evento.waitUntil(
+    self.registration.showNotification(titulo, {
+      body: dados.corpo || '',
+      icon: './icons/icon-192.png',
+      badge: './icons/favicon-32.png',
+      tag: dados.tag || undefined,
+      data: { url: dados.url || './' },
+    })
+  );
+});
+
+// Ao tocar na notificação: foca o app se já estiver aberto, senão abre.
+self.addEventListener('notificationclick', (evento) => {
+  evento.notification.close();
+  const destino = new URL((evento.notification.data && evento.notification.data.url) || './', self.registration.scope).href;
+  evento.waitUntil(
+    (async () => {
+      const janelas = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+      for (const j of janelas) {
+        if (j.url.startsWith(self.registration.scope) && 'focus' in j) return j.focus();
+      }
+      return self.clients.openWindow(destino);
     })()
   );
 });

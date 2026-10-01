@@ -67,6 +67,19 @@ async function migrate() {
   await tryAdd(`ALTER TABLE configuracoes_rede ADD COLUMN usuario_nuvem TEXT`);
   await tryAdd(`ALTER TABLE configuracoes_impressao ADD COLUMN formato TEXT DEFAULT 'termica'`);
 
+  // Notificações push (celular): inscrições dos aparelhos + chaves VAPID.
+  await client.execute(`CREATE TABLE IF NOT EXISTS push_subscricoes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    usuario_id INTEGER,
+    endpoint TEXT NOT NULL UNIQUE,
+    p256dh TEXT NOT NULL,
+    auth TEXT NOT NULL,
+    notif_os_pronta INTEGER DEFAULT 1,
+    notif_orc_convertido INTEGER DEFAULT 1,
+    criado_em TEXT
+  )`);
+  await client.execute(`CREATE TABLE IF NOT EXISTS push_config (chave TEXT PRIMARY KEY, valor TEXT)`);
+
   const existeEmpresa = await get('SELECT id FROM configuracoes_empresa WHERE id = 1');
   if (!existeEmpresa) {
     await run(
