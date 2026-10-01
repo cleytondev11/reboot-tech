@@ -62,6 +62,40 @@ async function migrate() {
   await tryAdd(`ALTER TABLE ordens_servico ADD COLUMN financeiro_receber_lancado INTEGER DEFAULT 0`);
   await tryAdd(`ALTER TABLE clientes ADD COLUMN data_nascimento TEXT`);
   await tryAdd(`ALTER TABLE vendas ADD COLUMN garantia_dias INTEGER DEFAULT 90`);
+  await tryAdd(`ALTER TABLE configuracoes_rede ADD COLUMN servidor_url TEXT`);
+  await tryAdd(`ALTER TABLE configuracoes_rede ADD COLUMN token_nuvem TEXT`);
+  await tryAdd(`ALTER TABLE configuracoes_rede ADD COLUMN usuario_nuvem TEXT`);
+  await tryAdd(`ALTER TABLE configuracoes_impressao ADD COLUMN formato TEXT DEFAULT 'termica'`);
+
+  // Notificações push (celular): inscrições dos aparelhos + chaves VAPID.
+  await client.execute(`CREATE TABLE IF NOT EXISTS push_subscricoes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    usuario_id INTEGER,
+    endpoint TEXT NOT NULL UNIQUE,
+    p256dh TEXT NOT NULL,
+    auth TEXT NOT NULL,
+    notif_os_pronta INTEGER DEFAULT 1,
+    notif_orc_convertido INTEGER DEFAULT 1,
+    notif_os_nova INTEGER DEFAULT 1,
+    notif_os_status INTEGER DEFAULT 1,
+    notif_orc_novo INTEGER DEFAULT 1,
+    notif_orc_status INTEGER DEFAULT 1,
+    notif_venda INTEGER DEFAULT 1,
+    notif_estoque_baixo INTEGER DEFAULT 1,
+    notif_contas_pagar INTEGER DEFAULT 1,
+    criado_em TEXT
+  )`);
+  // Bancos que já existiam antes das novas opções de notificação.
+  await tryAdd(`ALTER TABLE push_subscricoes ADD COLUMN notif_os_nova INTEGER DEFAULT 1`);
+  await tryAdd(`ALTER TABLE push_subscricoes ADD COLUMN notif_os_status INTEGER DEFAULT 1`);
+  await tryAdd(`ALTER TABLE push_subscricoes ADD COLUMN notif_orc_novo INTEGER DEFAULT 1`);
+  await tryAdd(`ALTER TABLE push_subscricoes ADD COLUMN notif_orc_status INTEGER DEFAULT 1`);
+  await tryAdd(`ALTER TABLE push_subscricoes ADD COLUMN notif_venda INTEGER DEFAULT 1`);
+  await tryAdd(`ALTER TABLE push_subscricoes ADD COLUMN notif_estoque_baixo INTEGER DEFAULT 1`);
+  await tryAdd(`ALTER TABLE push_subscricoes ADD COLUMN notif_contas_pagar INTEGER DEFAULT 1`);
+  // Controle dos avisos diários (evita mandar o mesmo resumo duas vezes no dia).
+  await client.execute(`CREATE TABLE IF NOT EXISTS push_avisos (chave TEXT PRIMARY KEY, criado_em TEXT)`);
+  await client.execute(`CREATE TABLE IF NOT EXISTS push_config (chave TEXT PRIMARY KEY, valor TEXT)`);
 
   const existeEmpresa = await get('SELECT id FROM configuracoes_empresa WHERE id = 1');
   if (!existeEmpresa) {

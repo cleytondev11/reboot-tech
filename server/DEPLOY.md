@@ -156,7 +156,28 @@ travar, sempre que algum desses recursos é acessado pelo navegador.
 - Cada pessoa deve ter seu próprio usuário (evite compartilhar login).
 - O token de sessão expira em 12 horas — depois disso, é pedido login de novo.
 
+
 ---
 
-> **Vai vender para outros clientes?** Veja `NOVO-CLIENTE.md` (raiz do projeto): cada cliente
-> ganha banco e servidor próprios, com mensalidade e bloqueio automático por vencimento.
+## Notificações no celular (push)
+
+O sistema avisa no celular, **sempre mostrando o valor**, quando:
+
+- **OS:** é aberta uma nova OS, **muda qualquer status** (Em análise, Em manutenção, Aguardando peça, Pronto, Entregue, Cancelado...) ou só quando fica "Pronto";
+- **Orçamento:** é criado, **muda qualquer status** (Enviado, Aprovado, Recusado, Expirado, Convertido) ou só quando é convertido em OS;
+- **Venda:** uma venda é realizada (com o valor total e a descrição de cada item vendido);
+- **Estoque:** um produto chega no estoque mínimo ou acaba (avisa uma vez ao cruzar o mínimo, não a cada venda; produto com mínimo 0 avisa quando zera);
+- **Contas a pagar:** resumo diário (a partir das 8h, horário de Brasília) das despesas pendentes atrasadas, que vencem hoje ou amanhã, com valor e total.
+
+**Resumo de contas a pagar no plano grátis do Render:** o servidor "dorme" sem uso e só confere as contas enquanto está acordado. Para garantir o aviso todo dia de manhã:
+1. No Render (Environment), crie a variável `CRON_TOKEN` com uma senha longa qualquer.
+2. Em um serviço de agendamento gratuito (ex.: [cron-job.org](https://cron-job.org)), crie uma tarefa que abra `https://SEU-ENDERECO.onrender.com/api/cron/avisos?token=SUA_SENHA` todo dia às 08:05 (pode repetir a cada 30 min até as 18h: o aviso do dia não duplica).
+3. Opcional: `AVISO_HORA` muda a hora do resumo (padrão 8) e `FUSO_HORAS` o fuso (padrão -3, Brasília).
+
+Cada aparelho escolhe quais avisos quer em **Configurações → 🔔 Notificações**. Aparelhos que já tinham as notificações ativadas passam a receber as novas opções (todas ligadas) e podem desligar o que não quiserem.
+
+- Nada para configurar: as chaves de notificação (VAPID) são geradas sozinhas na primeira execução e guardadas no banco. (Opcional: defina `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` e `VAPID_SUBJECT` no Render para fixar suas próprias chaves — gere com `npx web-push generate-vapid-keys`.)
+- O site precisa estar em **HTTPS** (o Render já está).
+- Em cada celular: abra o sistema → **Configurações → 🔔 Notificações → Ativar**, escolha os avisos desejados e permita as notificações.
+- **iPhone:** só funciona com o app instalado na Tela de Início (Safari → Compartilhar → Adicionar à Tela de Início), iOS 16.4+.
+- Depois de atualizar, rode `npm install` na pasta `server/` (nova dependência: `web-push`).

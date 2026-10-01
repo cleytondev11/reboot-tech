@@ -26,7 +26,7 @@ export default function Configuracoes() {
   // Notificações push (só existem na versão web/celular)
   const pushApi = typeof window !== 'undefined' ? window.api?.push : null;
   const [pushAtivo, setPushAtivo] = useState(false);
-  const PUSH_PREFS_PADRAO = { os_nova: true, os_status: true, os_pronta: true, orc_novo: true, orc_status: true, orc_convertido: true, venda: true };
+  const PUSH_PREFS_PADRAO = { os_nova: true, os_status: true, os_pronta: true, orc_novo: true, orc_status: true, orc_convertido: true, venda: true, estoque_baixo: true, contas_pagar: true };
   const [pushPrefs, setPushPrefs] = useState(PUSH_PREFS_PADRAO);
   // Grupos de avisos exibidos na aba Notificações (todos mostram o valor).
   const PUSH_GRUPOS = [
@@ -41,7 +41,13 @@ export default function Configuracoes() {
       { chave: 'orc_convertido', texto: <>🔄 Só quando um orçamento for <b>convertido em OS</b></> },
     ] },
     { titulo: 'Vendas', itens: [
-      { chave: 'venda', texto: <>💰 Quando uma <b>venda</b> for realizada</> },
+      { chave: 'venda', texto: <>💰 Quando uma <b>venda</b> for realizada (com o valor e a descrição dos itens)</> },
+    ] },
+    { titulo: 'Estoque', itens: [
+      { chave: 'estoque_baixo', texto: <>⚠️ Quando um produto chegar no <b>estoque mínimo</b> ou acabar (venda, uso em OS ou ajuste manual)</> },
+    ] },
+    { titulo: 'Financeiro', itens: [
+      { chave: 'contas_pagar', texto: <>💸 <b>Resumo diário</b> (por volta das 8h) das contas a pagar <b>atrasadas</b>, que vencem <b>hoje</b> ou <b>amanhã</b></> },
     ] },
   ];
   const [pushCarregando, setPushCarregando] = useState(false);
@@ -549,7 +555,7 @@ export default function Configuracoes() {
                 </div>
               ))}
               <p className="muted" style={{ fontSize: 12, marginTop: 10 }}>
-                As notificações de OS, orçamento e venda mostram o <b>valor</b>. Se "toda mudança de status" estiver ligada, o aviso de "Pronto" já vem junto (você não recebe duas vezes).
+                As notificações de OS, orçamento e venda mostram o <b>valor</b> (a venda também lista os itens). Se "toda mudança de status" estiver ligada, o aviso de "Pronto" já vem junto (você não recebe duas vezes).
               </p>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 16 }}>
                 {pushAtivo ? (

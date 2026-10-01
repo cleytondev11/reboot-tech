@@ -1,14 +1,15 @@
 {
   "name": "reboottech-assistencia",
-  "version": "1.12.0",
+  "version": "1.22.0",
   "description": "Reboot Tech - Sistema de Gestão de Assistência Técnica",
   "author": "Reboot Tech",
   "main": "electron/main.cjs",
   "type": "module",
   "scripts": {
+    "sync:schema": "node scripts/sync-schema.cjs",
     "dev:vite": "vite",
     "build:vite": "vite build",
-    "dist": "npm run build:vite && electron-builder"
+    "dist": "npm run sync:schema && npm run build:vite && electron-builder"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.1",
@@ -31,7 +32,8 @@
       "dist/**/*",
       "electron/**/*",
       "shared/**/*",
-      "assets/**/*"
+      "assets/**/*",
+      "package.json"
     ],
     "extraResources": [
       {
