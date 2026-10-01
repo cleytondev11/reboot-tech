@@ -26,14 +26,31 @@ export default function Configuracoes() {
   // Notificações push (só existem na versão web/celular)
   const pushApi = typeof window !== 'undefined' ? window.api?.push : null;
   const [pushAtivo, setPushAtivo] = useState(false);
-  const [pushPrefs, setPushPrefs] = useState({ os_pronta: true, orc_convertido: true });
+  const PUSH_PREFS_PADRAO = { os_nova: true, os_status: true, os_pronta: true, orc_novo: true, orc_status: true, orc_convertido: true, venda: true };
+  const [pushPrefs, setPushPrefs] = useState(PUSH_PREFS_PADRAO);
+  // Grupos de avisos exibidos na aba Notificações (todos mostram o valor).
+  const PUSH_GRUPOS = [
+    { titulo: 'Ordens de serviço', itens: [
+      { chave: 'os_nova', texto: <>📥 Quando uma <b>nova OS</b> for aberta</> },
+      { chave: 'os_status', texto: <>🔧 A cada <b>mudança de status</b> da OS (Em análise, Em manutenção, Aguardando peça, Pronto, Entregue...)</> },
+      { chave: 'os_pronta', texto: <>✅ Só quando uma OS ficar <b>Pronto</b></> },
+    ] },
+    { titulo: 'Orçamentos', itens: [
+      { chave: 'orc_novo', texto: <>📝 Quando um <b>novo orçamento</b> for criado</> },
+      { chave: 'orc_status', texto: <>📊 A cada <b>mudança de status</b> do orçamento (Enviado, Aprovado, Recusado, Expirado, Convertido)</> },
+      { chave: 'orc_convertido', texto: <>🔄 Só quando um orçamento for <b>convertido em OS</b></> },
+    ] },
+    { titulo: 'Vendas', itens: [
+      { chave: 'venda', texto: <>💰 Quando uma <b>venda</b> for realizada</> },
+    ] },
+  ];
   const [pushCarregando, setPushCarregando] = useState(false);
 
   async function carregarPush() {
     if (!pushApi) return;
     const st = await pushApi.status();
     setPushAtivo(st.ativo);
-    if (st.prefs) setPushPrefs(st.prefs);
+    if (st.prefs) setPushPrefs({ ...PUSH_PREFS_PADRAO, ...st.prefs });
   }
   async function ativarPush() {
     setPushCarregando(true);
@@ -520,14 +537,20 @@ export default function Configuracoes() {
             <p style={{ fontSize: 13 }}>Este navegador não suporta notificações. No iPhone/iPad, abra o site no Safari, toque em Compartilhar → <b>Adicionar à Tela de Início</b> e abra o app por lá (iOS 16.4 ou superior).</p>
           ) : (
             <>
-              <label style={{ display: 'flex', gap: 10, alignItems: 'center', margin: '12px 0', cursor: 'pointer' }}>
-                <input type="checkbox" checked={pushPrefs.os_pronta} onChange={(e) => alterarPref('os_pronta', e.target.checked)} />
-                <span>✅ Quando um serviço (OS) ficar <b>Pronto</b></span>
-              </label>
-              <label style={{ display: 'flex', gap: 10, alignItems: 'center', margin: '12px 0', cursor: 'pointer' }}>
-                <input type="checkbox" checked={pushPrefs.orc_convertido} onChange={(e) => alterarPref('orc_convertido', e.target.checked)} />
-                <span>🔄 Quando um orçamento for <b>convertido em OS</b></span>
-              </label>
+              {PUSH_GRUPOS.map((g) => (
+                <div key={g.titulo} style={{ marginTop: 14 }}>
+                  <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 2 }}>{g.titulo}</div>
+                  {g.itens.map((it) => (
+                    <label key={it.chave} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', margin: '8px 0', cursor: 'pointer' }}>
+                      <input type="checkbox" style={{ marginTop: 3 }} checked={!!pushPrefs[it.chave]} onChange={(e) => alterarPref(it.chave, e.target.checked)} />
+                      <span>{it.texto}</span>
+                    </label>
+                  ))}
+                </div>
+              ))}
+              <p className="muted" style={{ fontSize: 12, marginTop: 10 }}>
+                As notificações de OS, orçamento e venda mostram o <b>valor</b>. Se "toda mudança de status" estiver ligada, o aviso de "Pronto" já vem junto (você não recebe duas vezes).
+              </p>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 16 }}>
                 {pushAtivo ? (
                   <>

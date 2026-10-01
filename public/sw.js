@@ -8,7 +8,7 @@
 //
 // Suba o número da versão sempre que quiser forçar todo mundo a baixar os
 // arquivos novos na próxima abertura do app.
-const VERSAO_CACHE = 'reboot-tech-v2';
+const VERSAO_CACHE = 'reboot-tech-v3';
 
 self.addEventListener('install', (evento) => {
   self.skipWaiting();
@@ -74,7 +74,7 @@ self.addEventListener('fetch', (evento) => {
 });
 
 // ---------- NOTIFICAÇÕES PUSH ----------
-// Recebe o aviso enviado pelo servidor (OS pronta / orçamento convertido em OS)
+// Recebe o aviso enviado pelo servidor (OS, orçamento, venda)
 // e mostra a notificação no celular, mesmo com o app fechado.
 self.addEventListener('push', (evento) => {
   let dados = {};
@@ -86,6 +86,7 @@ self.addEventListener('push', (evento) => {
       icon: './icons/icon-192.png',
       badge: './icons/favicon-32.png',
       tag: dados.tag || undefined,
+      renotify: !!dados.tag, // mudou de status de novo? avisa/vibra de novo em vez de trocar em silêncio
       data: { url: dados.url || './' },
     })
   );

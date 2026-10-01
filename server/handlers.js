@@ -835,7 +835,7 @@ const handlers = {
         await db.run('UPDATE ordens_servico SET financeiro_lancado = 1 WHERE id = ?', [o.id]);
       }
       if (before && before.status !== o.status) {
-        if (o.status === 'Pronto') await push.avisarOsPronta(o.id);
+        await push.avisarOsStatus(o.id, before.status, o.status);
         await log(db, req, 'MUDAR_STATUS', 'ordens_servico', o.id, `${before.status} -> ${o.status}`);
       } else {
         await log(db, req, 'EDITAR', 'ordens_servico', o.id, o.numero);
@@ -861,7 +861,7 @@ const handlers = {
         await baixarOuLancarRecebimentoDaOs(db, req, id, numero, o.valor_total, o.forma_pagamento);
         await db.run('UPDATE ordens_servico SET financeiro_lancado = 1 WHERE id = ?', [id]);
       }
-      if (o.status === 'Pronto') await push.avisarOsPronta(id);
+      await push.avisarOsNova(id, o.status || 'Recebido');
       await log(db, req, 'CRIAR', 'ordens_servico', id, numero);
       return { ok: true, id, numero };
     }
@@ -874,7 +874,7 @@ const handlers = {
       await lancarReceberDaOs(db, req, id, before?.numero, before?.valor_total, before?.previsao);
       await db.run('UPDATE ordens_servico SET financeiro_receber_lancado = 1 WHERE id = ?', [id]);
     }
-    if (before && before.status !== status && status === 'Pronto') await push.avisarOsPronta(id);
+    if (before && before.status !== status) await push.avisarOsStatus(id, before.status, status);
     await log(db, req, 'MUDAR_STATUS', 'ordens_servico', id, `${before?.status} -> ${status}`);
     return { ok: true };
   },
@@ -1176,6 +1176,7 @@ const handlers = {
         }
       }
     }
+    if (!v.id) await push.avisarVenda(id); // só venda nova (editar uma venda não avisa de novo)
     return { ok: true, id, numero };
   },
 
@@ -1216,10 +1217,12 @@ const handlers = {
     o.valor_total = calcularTotalOrcamento(o);
     const itens = JSON.stringify(o.itens || []);
     if (o.id) {
+      const antes = await db.get('SELECT status FROM orcamentos WHERE id = ?', [o.id]);
       await db.run(
         `UPDATE orcamentos SET cliente_id=?, equipamento_id=?, descricao=?, itens=?, valor_servicos=?, desconto=?, valor_total=?, validade_dias=?, data_orcamento=?, status=?, observacoes=?, atualizado_em=? WHERE id=?`,
         [o.cliente_id, o.equipamento_id || null, o.descricao, itens, o.valor_servicos || 0, o.desconto || 0, o.valor_total, o.validade_dias || 7, o.data_orcamento, o.status, o.observacoes, nowIso(), o.id]
       );
+      if (antes && antes.status !== o.status) await push.avisarOrcamentoStatus(o.id, antes.status, o.status);
       await log(db, req, 'EDITAR', 'orcamentos', o.id, o.numero);
       return { ok: true, id: o.id };
     } else {
@@ -1228,6 +1231,7 @@ const handlers = {
         `INSERT INTO orcamentos (numero, cliente_id, equipamento_id, descricao, itens, valor_servicos, desconto, valor_total, validade_dias, data_orcamento, status, observacoes, usuario_id, criado_em) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
         [numero, o.cliente_id, o.equipamento_id || null, o.descricao, itens, o.valor_servicos || 0, o.desconto || 0, o.valor_total, o.validade_dias || 7, o.data_orcamento, o.status || 'Pendente', o.observacoes, req.usuario?.id, nowIso()]
       );
+      await push.avisarOrcamentoNovo(id);
       await log(db, req, 'CRIAR', 'orcamentos', id, numero);
       return { ok: true, id, numero };
     }
@@ -1236,6 +1240,7 @@ const handlers = {
   'orcamentos:setStatus': async (db, { id, status }, req) => {
     const before = await db.get('SELECT status, numero FROM orcamentos WHERE id = ?', [id]);
     await db.run('UPDATE orcamentos SET status = ?, atualizado_em = ? WHERE id = ?', [status, nowIso(), id]);
+    if (before && before.status !== status) await push.avisarOrcamentoStatus(id, before.status, status);
     await log(db, req, 'MUDAR_STATUS', 'orcamentos', id, `${before?.status} -> ${status}`);
     return { ok: true };
   },
@@ -1276,7 +1281,7 @@ const handlers = {
       await lancarDespesaPecasDaOs(db, req, osId, numero, itensPecas, valorPecas, dataHoje);
     }
     await db.run(`UPDATE orcamentos SET status='Convertido', os_id=?, atualizado_em=? WHERE id=?`, [osId, nowIso(), id]);
-    await push.avisarOrcamentoConvertido(orc.numero, osId);
+    await push.avisarOrcamentoConvertido(id, osId);
     await log(db, req, 'CONVERTER_EM_OS', 'orcamentos', id, `${orc.numero} -> ${numero}`);
     return { ok: true, osId, osNumero: numero };
   },
@@ -1295,21 +1300,25 @@ const handlers = {
 
   'push:status': async (db, { endpoint }) => {
     if (!endpoint) return null;
-    const r = await db.get('SELECT notif_os_pronta, notif_orc_convertido FROM push_subscricoes WHERE endpoint = ?', [endpoint]);
-    return r ? { os_pronta: !!r.notif_os_pronta, orc_convertido: !!r.notif_orc_convertido } : null;
+    const r = await db.get(`SELECT ${Object.values(push.PREFS).join(', ')} FROM push_subscricoes WHERE endpoint = ?`, [endpoint]);
+    if (!r) return null;
+    const prefs = {};
+    for (const [chave, coluna] of Object.entries(push.PREFS)) prefs[chave] = !!r[coluna];
+    return prefs;
   },
 
   'push:salvar': async (db, { subscription, prefs }, req) => {
     const sub = subscription || {};
     if (!sub.endpoint || !sub.keys || !sub.keys.p256dh || !sub.keys.auth) throw new Error('Inscrição de notificação inválida.');
-    const osPronta = prefs && prefs.os_pronta === false ? 0 : 1;
-    const orcConv = prefs && prefs.orc_convertido === false ? 0 : 1;
+    const chaves = Object.keys(push.PREFS);
+    const colunas = chaves.map((k) => push.PREFS[k]);
+    const valores = chaves.map((k) => (prefs && prefs[k] === false ? 0 : 1));
     await db.run(
-      `INSERT INTO push_subscricoes (usuario_id, endpoint, p256dh, auth, notif_os_pronta, notif_orc_convertido, criado_em)
-       VALUES (?,?,?,?,?,?,?)
+      `INSERT INTO push_subscricoes (usuario_id, endpoint, p256dh, auth, ${colunas.join(', ')}, criado_em)
+       VALUES (?,?,?,?,${colunas.map(() => '?').join(',')},?)
        ON CONFLICT(endpoint) DO UPDATE SET usuario_id = excluded.usuario_id, p256dh = excluded.p256dh, auth = excluded.auth,
-         notif_os_pronta = excluded.notif_os_pronta, notif_orc_convertido = excluded.notif_orc_convertido`,
-      [req.usuario?.id || null, sub.endpoint, sub.keys.p256dh, sub.keys.auth, osPronta, orcConv, nowIso()]
+         ${colunas.map((c) => `${c} = excluded.${c}`).join(', ')}`,
+      [req.usuario?.id || null, sub.endpoint, sub.keys.p256dh, sub.keys.auth, ...valores, nowIso()]
     );
     return { ok: true };
   },

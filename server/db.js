@@ -76,8 +76,19 @@ async function migrate() {
     auth TEXT NOT NULL,
     notif_os_pronta INTEGER DEFAULT 1,
     notif_orc_convertido INTEGER DEFAULT 1,
+    notif_os_nova INTEGER DEFAULT 1,
+    notif_os_status INTEGER DEFAULT 1,
+    notif_orc_novo INTEGER DEFAULT 1,
+    notif_orc_status INTEGER DEFAULT 1,
+    notif_venda INTEGER DEFAULT 1,
     criado_em TEXT
   )`);
+  // Bancos que já existiam antes das novas opções de notificação.
+  await tryAdd(`ALTER TABLE push_subscricoes ADD COLUMN notif_os_nova INTEGER DEFAULT 1`);
+  await tryAdd(`ALTER TABLE push_subscricoes ADD COLUMN notif_os_status INTEGER DEFAULT 1`);
+  await tryAdd(`ALTER TABLE push_subscricoes ADD COLUMN notif_orc_novo INTEGER DEFAULT 1`);
+  await tryAdd(`ALTER TABLE push_subscricoes ADD COLUMN notif_orc_status INTEGER DEFAULT 1`);
+  await tryAdd(`ALTER TABLE push_subscricoes ADD COLUMN notif_venda INTEGER DEFAULT 1`);
   await client.execute(`CREATE TABLE IF NOT EXISTS push_config (chave TEXT PRIMARY KEY, valor TEXT)`);
 
   const existeEmpresa = await get('SELECT id FROM configuracoes_empresa WHERE id = 1');
