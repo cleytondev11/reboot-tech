@@ -38,7 +38,7 @@ const TABELAS_MIGRAVEIS = {
   vendas: ['id', 'numero', 'cliente_id', 'itens', 'valor_itens', 'desconto', 'valor_total', 'forma_pagamento', 'status', 'observacoes', 'usuario_id', 'criado_em', 'garantia_dias'],
   compras: ['id', 'numero', 'fornecedor_id', 'itens', 'valor_total', 'status', 'data_pedido', 'data_prevista', 'data_recebimento', 'observacoes', 'estoque_lancado', 'despesa_lancada', 'usuario_id', 'criado_em', 'atualizado_em'],
   movimentacoes_estoque: ['id', 'produto_id', 'tipo', 'quantidade', 'motivo', 'referencia', 'usuario_id', 'usuario_nome', 'criado_em'],
-  lancamentos_financeiros: ['id', 'tipo', 'categoria', 'descricao', 'valor', 'forma_pagamento', 'status', 'data_vencimento', 'data_pagamento', 'referencia', 'os_id', 'observacoes', 'origem_automatica', 'usuario_id', 'usuario_nome', 'criado_em', 'atualizado_em'],
+  lancamentos_financeiros: ['id', 'tipo', 'categoria', 'descricao', 'valor', 'forma_pagamento', 'status', 'data_vencimento', 'data_pagamento', 'referencia', 'os_id', 'observacoes', 'origem_automatica', 'usuario_id', 'usuario_nome', 'criado_em', 'atualizado_em', 'cliente_id', 'parcela', 'cobrado_em'],
   caixa_sessoes: ['id', 'data_abertura', 'valor_abertura', 'usuario_abertura_id', 'usuario_abertura_nome', 'data_fechamento', 'valor_fechamento_informado', 'valor_fechamento_calculado', 'usuario_fechamento_id', 'usuario_fechamento_nome', 'status', 'observacoes', 'criado_em'],
   caixa_movimentos: ['id', 'sessao_id', 'tipo', 'valor', 'forma_pagamento', 'descricao', 'referencia', 'usuario_id', 'usuario_nome', 'criado_em'],
   metas_financeiras: ['mes', 'meta_lucro', 'usuario_id', 'atualizado_em'],
@@ -136,7 +136,63 @@ async function lancarReceberDaOs(db, req, osId, osNumero, valorTotal, previsaoOu
   );
 }
 
-async function baixarOuLancarRecebimentoDaOs(db, req, osId, osNumero, valorTotal, formaPagamento) {
+// ---------- VENDA A PRAZO / COBRANÇA: helpers ----------
+const FORMA_A_PRAZO = 'A prazo';
+
+function dataValida(s) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(String(s || '')) && !Number.isNaN(Date.parse(`${s}T00:00:00Z`));
+}
+
+// Soma meses mantendo o mesmo dia (e respeitando meses mais curtos: 31/01 + 1 mês = 28/02).
+function somarMeses(dataIso, meses) {
+  const [a, m, d] = dataIso.split('-').map(Number);
+  const alvo = new Date(Date.UTC(a, m - 1 + meses, 1));
+  const ultimoDia = new Date(Date.UTC(alvo.getUTCFullYear(), alvo.getUTCMonth() + 1, 0)).getUTCDate();
+  alvo.setUTCDate(Math.min(d, ultimoDia));
+  return alvo.toISOString().slice(0, 10);
+}
+
+// Valida e normaliza { parcelas, primeiroVencimento }. Sem data informada, o 1º vencimento é daqui a 1 mês.
+function normalizarPrazo(prazo) {
+  let n = parseInt(prazo && prazo.parcelas, 10);
+  if (!n || n < 1) n = 1;
+  if (n > 24) n = 24;
+  let venc = prazo && prazo.primeiroVencimento;
+  if (venc && !dataValida(venc)) throw new Error('Data do 1º vencimento inválida.');
+  if (!venc) venc = somarMeses(nowIso().slice(0, 10), 1);
+  return { parcelas: n, primeiroVencimento: venc };
+}
+
+// Cria as parcelas (contas a receber pendentes) de uma venda/OS a prazo. Nada entra no caixa/faturamento
+// agora: o dinheiro só "entra" quando cada parcela for marcada como paga (Financeiro / Cobranças).
+async function lancarParcelasAPrazo(db, req, { osId, clienteId, numero, categoria, descricao, valorTotal, prazo }) {
+  const { parcelas, primeiroVencimento } = normalizarPrazo(prazo);
+  const totalCent = Math.round((parseFloat(valorTotal) || 0) * 100);
+  const base = Math.floor(totalCent / parcelas);
+  const resto = totalCent - base * parcelas; // centavos que sobram vão na última parcela
+  for (let i = 1; i <= parcelas; i++) {
+    const cent = base + (i === parcelas ? resto : 0);
+    const desc = parcelas > 1 ? `${descricao} — parcela ${i}/${parcelas}` : `${descricao} (a prazo)`;
+    await db.insert(
+      `INSERT INTO lancamentos_financeiros (tipo, categoria, descricao, valor, forma_pagamento, status, data_vencimento, data_pagamento, referencia, os_id, observacoes, origem_automatica, usuario_id, usuario_nome, criado_em, cliente_id, parcela) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      ['receita', categoria, desc, cent / 100, FORMA_A_PRAZO, 'Pendente', somarMeses(primeiroVencimento, i - 1), null, numero, osId || null, 'Venda a prazo — lançada automaticamente.', 1, req.usuario?.id, req.usuario?.nome, nowIso(), clienteId || null, parcelas > 1 ? `${i}/${parcelas}` : null]
+    );
+  }
+  return parcelas;
+}
+
+async function baixarOuLancarRecebimentoDaOs(db, req, osId, osNumero, valorTotal, formaPagamento, prazo) {
+  if (formaPagamento === FORMA_A_PRAZO) {
+    const os = await db.get('SELECT cliente_id FROM ordens_servico WHERE id = ?', [osId]);
+    if (!os?.cliente_id) throw new Error('Para entregar a prazo, a OS precisa ter um cliente.');
+    normalizarPrazo(prazo); // valida antes de mexer no financeiro
+    // O "A receber" automático (OS pronta) é substituído pelas parcelas.
+    await db.run(`DELETE FROM lancamentos_financeiros WHERE os_id = ? AND tipo = 'receita' AND status = 'Pendente' AND origem_automatica = 1`, [osId]);
+    if (valorTotal > 0) {
+      await lancarParcelasAPrazo(db, req, { osId, clienteId: os.cliente_id, numero: osNumero, categoria: 'Serviços (OS)', descricao: `Recebimento da ${osNumero}`, valorTotal, prazo });
+    }
+    return;
+  }
   const pendente = await db.get(
     `SELECT * FROM lancamentos_financeiros WHERE os_id = ? AND tipo = 'receita' AND status = 'Pendente' AND origem_automatica = 1 ORDER BY id DESC LIMIT 1`,
     [osId]
@@ -240,6 +296,12 @@ async function nextVendaNumero(db) {
 }
 
 async function reverterEfeitosVenda(db, req, vendaAntiga) {
+  if (vendaAntiga.forma_pagamento === FORMA_A_PRAZO) {
+    const pagas = await db.get(`SELECT COUNT(*) c FROM lancamentos_financeiros WHERE referencia = ? AND origem_automatica = 1 AND status = 'Pago'`, [vendaAntiga.numero]);
+    if (pagas && Number(pagas.c) > 0) {
+      throw new Error('Esta venda a prazo já tem parcela(s) recebida(s). Para não perder o histórico de pagamentos, ela não pode ser editada nem excluída.');
+    }
+  }
   let itensAntigos = [];
   try { itensAntigos = JSON.parse(vendaAntiga.itens || '[]'); } catch { itensAntigos = []; }
   for (const item of itensAntigos) {
@@ -808,7 +870,7 @@ const handlers = {
 
   'os:get': async (db, { id }) => db.get(
     `SELECT os.*, c.nome as cliente_nome, c.telefone as cliente_telefone, c.whatsapp as cliente_whatsapp, c.cpf_cnpj as cliente_cpf_cnpj,
-            eq.marca as equip_marca, eq.modelo as equip_modelo, eq.imei as equip_imei, eq.fotos as equip_fotos, u.nome as tecnico_nome
+            eq.marca as equip_marca, eq.modelo as equip_modelo, eq.imei as equip_imei, u.nome as tecnico_nome
      FROM ordens_servico os
      LEFT JOIN clientes c ON c.id = os.cliente_id
      LEFT JOIN equipamentos eq ON eq.id = os.equipamento_id
@@ -844,7 +906,7 @@ const handlers = {
         await db.run('UPDATE ordens_servico SET financeiro_receber_lancado = 1 WHERE id = ?', [o.id]);
       }
       if (!before?.financeiro_lancado && o.status === 'Entregue' && o.forma_pagamento) {
-        await baixarOuLancarRecebimentoDaOs(db, req, o.id, before?.numero, o.valor_total, o.forma_pagamento);
+        await baixarOuLancarRecebimentoDaOs(db, req, o.id, before?.numero, o.valor_total, o.forma_pagamento, { parcelas: o.prazo_parcelas, primeiroVencimento: o.prazo_vencimento });
         await db.run('UPDATE ordens_servico SET financeiro_lancado = 1 WHERE id = ?', [o.id]);
       }
       if (before && before.status !== o.status) {
@@ -871,7 +933,7 @@ const handlers = {
         await db.run('UPDATE ordens_servico SET financeiro_receber_lancado = 1 WHERE id = ?', [id]);
       }
       if (o.status === 'Entregue' && o.forma_pagamento) {
-        await baixarOuLancarRecebimentoDaOs(db, req, id, numero, o.valor_total, o.forma_pagamento);
+        await baixarOuLancarRecebimentoDaOs(db, req, id, numero, o.valor_total, o.forma_pagamento, { parcelas: o.prazo_parcelas, primeiroVencimento: o.prazo_vencimento });
         await db.run('UPDATE ordens_servico SET financeiro_lancado = 1 WHERE id = ?', [id]);
       }
       await push.avisarOsNova(db, id, o.status || 'Recebido');
@@ -880,16 +942,49 @@ const handlers = {
     }
   },
 
-  'os:setStatus': async (db, { id, status }, req) => {
-    const before = await db.get('SELECT status, numero, valor_total, previsao, financeiro_receber_lancado, financeiro_lancado FROM ordens_servico WHERE id = ?', [id]);
-    await db.run('UPDATE ordens_servico SET status = ?, atualizado_em = ? WHERE id = ?', [status, nowIso(), id]);
-    if (!before?.financeiro_receber_lancado && status === 'Pronto' && !before?.financeiro_lancado) {
-      await lancarReceberDaOs(db, req, id, before?.numero, before?.valor_total, before?.previsao);
-      await db.run('UPDATE ordens_servico SET financeiro_receber_lancado = 1 WHERE id = ?', [id]);
+  // Usado pela Bancada (Kanban) e pela lista de OS. Além de trocar o status, faz a movimentação financeira:
+  //  - Pronto   -> lança "A receber" (cobrança pendente);
+  //  - Entregue -> recebe (PIX, dinheiro, cartão...) OU gera as parcelas, se for "A prazo";
+  //  - voltou de Pronto para uma etapa anterior -> desfaz o "A receber" automático (ainda não pago).
+  'os:setStatus': async (db, { id, status, pagamento }, req) => {
+    const before = await db.get('SELECT status, numero, valor_total, previsao, cliente_id, forma_pagamento, financeiro_receber_lancado, financeiro_lancado FROM ordens_servico WHERE id = ?', [id]);
+    if (!before) throw new Error('Ordem de serviço não encontrada.');
+    if (!STATUS_LIST.includes(status)) throw new Error('Status inválido.');
+    if (before.status === 'Entregue' && before.financeiro_lancado && status !== 'Entregue') {
+      throw new Error('Esta OS já foi entregue e o pagamento já foi lançado no financeiro. Para alterar, abra a OS na tela Ordens de Serviço.');
     }
-    if (before && before.status !== status) await push.avisarOsStatus(db, id, before.status, status);
-    await log(db, req, 'MUDAR_STATUS', 'ordens_servico', id, `${before?.status} -> ${status}`);
-    return { ok: true };
+    let financeiro = null;
+    if (status === 'Entregue' && !before.financeiro_lancado) {
+      const forma = (pagamento && pagamento.forma_pagamento) || before.forma_pagamento || '';
+      const valor = parseFloat(before.valor_total) || 0;
+      if (valor > 0 && !forma) throw new Error('Informe a forma de pagamento para entregar a OS.');
+      const prazo = { parcelas: pagamento && pagamento.parcelas, primeiroVencimento: pagamento && pagamento.primeiro_vencimento };
+      if (forma === FORMA_A_PRAZO) normalizarPrazo(prazo); // valida antes de alterar qualquer coisa
+      const hoje = nowIso().slice(0, 10);
+      await db.run(
+        `UPDATE ordens_servico SET status = ?, forma_pagamento = ?, data_saida = COALESCE(NULLIF(data_saida, ''), ?), atualizado_em = ? WHERE id = ?`,
+        [status, forma || null, hoje, nowIso(), id]
+      );
+      if (valor > 0) {
+        await baixarOuLancarRecebimentoDaOs(db, req, id, before.numero, valor, forma, prazo);
+        financeiro = forma === FORMA_A_PRAZO ? 'a_prazo' : 'recebido';
+      }
+      await db.run('UPDATE ordens_servico SET financeiro_lancado = 1 WHERE id = ?', [id]);
+    } else {
+      await db.run('UPDATE ordens_servico SET status = ?, atualizado_em = ? WHERE id = ?', [status, nowIso(), id]);
+      if (!before.financeiro_receber_lancado && status === 'Pronto' && !before.financeiro_lancado) {
+        await lancarReceberDaOs(db, req, id, before.numero, before.valor_total, before.previsao);
+        await db.run('UPDATE ordens_servico SET financeiro_receber_lancado = 1 WHERE id = ?', [id]);
+        financeiro = 'a_receber';
+      } else if (before.status === 'Pronto' && status !== 'Pronto' && status !== 'Entregue' && before.financeiro_receber_lancado && !before.financeiro_lancado) {
+        await db.run(`DELETE FROM lancamentos_financeiros WHERE os_id = ? AND tipo = 'receita' AND status = 'Pendente' AND origem_automatica = 1`, [id]);
+        await db.run('UPDATE ordens_servico SET financeiro_receber_lancado = 0 WHERE id = ?', [id]);
+        financeiro = 'a_receber_removido';
+      }
+    }
+    if (before.status !== status) await push.avisarOsStatus(db, id, before.status, status);
+    await log(db, req, 'MUDAR_STATUS', 'ordens_servico', id, `${before.status} -> ${status}`);
+    return { ok: true, financeiro };
   },
 
   'os:delete': async (db, { id }, req) => {
@@ -1124,13 +1219,22 @@ const handlers = {
     return db.all(sql, params);
   },
 
-  'vendas:get': async (db, { id }) => db.get(
-    `SELECT v.*, c.nome as cliente_nome, c.cpf_cnpj as cliente_cpf_cnpj, c.telefone as cliente_telefone,
-            c.whatsapp as cliente_whatsapp, c.email as cliente_email, c.endereco as cliente_endereco,
-            c.numero as cliente_numero, c.bairro as cliente_bairro, c.cidade as cliente_cidade, c.uf as cliente_uf
-     FROM vendas v LEFT JOIN clientes c ON c.id = v.cliente_id WHERE v.id = ?`,
-    [id]
-  ),
+  'vendas:get': async (db, { id }) => {
+    const v = await db.get(
+      `SELECT v.*, c.nome as cliente_nome, c.cpf_cnpj as cliente_cpf_cnpj, c.telefone as cliente_telefone,
+              c.whatsapp as cliente_whatsapp, c.email as cliente_email, c.endereco as cliente_endereco,
+              c.numero as cliente_numero, c.bairro as cliente_bairro, c.cidade as cliente_cidade, c.uf as cliente_uf
+       FROM vendas v LEFT JOIN clientes c ON c.id = v.cliente_id WHERE v.id = ?`,
+      [id]
+    );
+    if (v && v.forma_pagamento === FORMA_A_PRAZO) {
+      // Para reabrir a venda a prazo na edição: quantas parcelas e quando vence a primeira.
+      const r = await db.get(`SELECT COUNT(*) AS qtd, MIN(data_vencimento) AS primeiro FROM lancamentos_financeiros WHERE referencia = ? AND origem_automatica = 1 AND categoria = 'Vendas'`, [v.numero]);
+      v.prazo_parcelas = Number(r?.qtd) || 1;
+      v.prazo_vencimento = r?.primeiro || '';
+    }
+    return v;
+  },
 
   'vendas:save': async (db, { venda }, req) => {
     const v = venda;
@@ -1140,6 +1244,12 @@ const handlers = {
     const valorTotal = Math.max(0, valorItens - desconto);
     const garantiaDias = v.garantia_dias === '' || v.garantia_dias === null || v.garantia_dias === undefined ? 90 : parseInt(v.garantia_dias, 10) || 0;
     const dataVenda = v.data_venda || nowIso().slice(0, 10);
+    const aPrazo = v.forma_pagamento === FORMA_A_PRAZO;
+    const prazoVenda = { parcelas: v.prazo_parcelas, primeiroVencimento: v.prazo_vencimento };
+    if (aPrazo) {
+      if (!v.cliente_id) throw new Error('Para vender a prazo, selecione o cliente.');
+      normalizarPrazo(prazoVenda); // valida antes de alterar estoque/financeiro
+    }
 
     let numero;
     let id;
@@ -1175,7 +1285,9 @@ const handlers = {
       );
       if (!v.id) await push.avisarEstoqueBaixo(db, produto.id, produto.quantidade || 0); // editar venda não reavisa
     }
-    if (valorTotal > 0) {
+    if (valorTotal > 0 && aPrazo) {
+      await lancarParcelasAPrazo(db, req, { osId: null, clienteId: v.cliente_id, numero, categoria: 'Vendas', descricao: `Venda ${numero}`, valorTotal, prazo: prazoVenda });
+    } else if (valorTotal > 0) {
       const hoje = nowIso().slice(0, 10);
       await db.insert(
         `INSERT INTO lancamentos_financeiros (tipo, categoria, descricao, valor, forma_pagamento, status, data_vencimento, data_pagamento, referencia, os_id, observacoes, origem_automatica, usuario_id, usuario_nome, criado_em) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
@@ -1391,16 +1503,39 @@ const handlers = {
 
   // ---------- FINANCEIRO ----------
   'financeiro:list': async (db, { tipo, status, termo } = {}) => {
-    let sql = `SELECT * FROM lancamentos_financeiros WHERE 1=1`;
+    // Traz também o cliente (direto do lançamento ou, nos lançamentos antigos, pela OS) — usado na Cobrança.
+    let sql = `SELECT l.*, c.nome AS cliente_nome, c.whatsapp AS cliente_whatsapp, c.telefone AS cliente_telefone
+               FROM lancamentos_financeiros l
+               LEFT JOIN ordens_servico os ON os.id = l.os_id
+               LEFT JOIN clientes c ON c.id = COALESCE(l.cliente_id, os.cliente_id)
+               WHERE 1=1`;
     const params = [];
-    if (tipo) { sql += ` AND tipo = ?`; params.push(tipo); }
-    if (status) { sql += ` AND status = ?`; params.push(status); }
-    if (termo) { sql += ` AND (descricao LIKE ? OR referencia LIKE ? OR categoria LIKE ?)`; const like = `%${termo}%`; params.push(like, like, like); }
-    sql += ` ORDER BY COALESCE(data_vencimento, criado_em) DESC, id DESC`;
+    if (tipo) { sql += ` AND l.tipo = ?`; params.push(tipo); }
+    if (status) { sql += ` AND l.status = ?`; params.push(status); }
+    if (termo) { sql += ` AND (l.descricao LIKE ? OR l.referencia LIKE ? OR l.categoria LIKE ? OR c.nome LIKE ?)`; const like = `%${termo}%`; params.push(like, like, like, like); }
+    sql += ` ORDER BY COALESCE(l.data_vencimento, l.criado_em) DESC, l.id DESC`;
     return db.all(sql, params);
   },
 
-  'financeiro:get': async (db, { id }) => db.get('SELECT * FROM lancamentos_financeiros WHERE id = ?', [id]),
+  // Cobrança: guarda a data do último aviso enviado ao cliente (botão "Cobrar no WhatsApp").
+  'financeiro:registrarCobranca': async (db, { id }, req) => {
+    const l = await db.get('SELECT id, descricao FROM lancamentos_financeiros WHERE id = ?', [id]);
+    if (!l) throw new Error('Lançamento não encontrado.');
+    await db.run('UPDATE lancamentos_financeiros SET cobrado_em = ?, atualizado_em = ? WHERE id = ?', [nowIso(), nowIso(), id]);
+    await log(db, req, 'COBRAR', 'lancamentos_financeiros', id, l.descricao);
+    return { ok: true };
+  },
+
+  // Cobrança: nova data de vencimento combinada com o cliente (prorrogação).
+  'financeiro:reprogramar': async (db, { id, data_vencimento }, req) => {
+    const l = await db.get('SELECT * FROM lancamentos_financeiros WHERE id = ?', [id]);
+    if (!l) throw new Error('Lançamento não encontrado.');
+    if (l.status !== 'Pendente') throw new Error('Só dá para alterar o vencimento de lançamentos pendentes.');
+    if (!dataValida(data_vencimento)) throw new Error('Data de vencimento inválida.');
+    await db.run('UPDATE lancamentos_financeiros SET data_vencimento = ?, atualizado_em = ? WHERE id = ?', [data_vencimento, nowIso(), id]);
+    await log(db, req, 'REPROGRAMAR', 'lancamentos_financeiros', id, `${l.descricao} -> ${data_vencimento}`);
+    return { ok: true };
+  },
 
   'financeiro:save': async (db, { lancamento }, req) => {
     const l = lancamento;

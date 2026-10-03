@@ -8,8 +8,6 @@
 // Isso permite que TODAS as telas (src/pages/*.jsx) continuem exatamente iguais,
 // sem saber (nem precisar saber) se estão rodando no programa instalado ou no
 // navegador — elas só usam "window.api.xxx.yyy(...)" normalmente.
-import { criarPdfApi } from './pdf-web.js';
-
 (function () {
   if (typeof window === 'undefined' || window.api) return; // já roda no Electron
 
@@ -52,33 +50,7 @@ import { criarPdfApi } from './pdf-web.js';
     return async () => { throw new Error(mensagem || 'Este recurso só está disponível no programa instalado no computador.'); };
   }
 
-  // Quando o navegador bloqueia a abertura automática do WhatsApp (comum no
-  // celular, porque ela acontece depois de uma espera), mostra um botão para o
-  // próprio usuário tocar — um toque direto nunca é bloqueado.
-  function mostrarBotaoWhatsapp(url) {
-    const antigo = document.getElementById('rt-wa-aviso');
-    if (antigo) antigo.remove();
-    const caixa = document.createElement('div');
-    caixa.id = 'rt-wa-aviso';
-    caixa.style.cssText = 'position:fixed;left:0;right:0;bottom:0;z-index:99999;background:#14532d;color:#fff;padding:14px 16px;display:flex;gap:12px;align-items:center;justify-content:center;flex-wrap:wrap;font:14px Arial,sans-serif;box-shadow:0 -4px 16px rgba(0,0,0,.3)';
-    const texto = document.createElement('span');
-    texto.textContent = 'O navegador bloqueou a abertura automática do WhatsApp.';
-    const abrir = document.createElement('a');
-    abrir.href = url; abrir.target = '_blank'; abrir.rel = 'noopener';
-    abrir.textContent = 'Abrir WhatsApp';
-    abrir.style.cssText = 'background:#25d366;color:#04210f;font-weight:bold;padding:9px 16px;border-radius:6px;text-decoration:none';
-    abrir.addEventListener('click', () => setTimeout(() => caixa.remove(), 300));
-    const fechar = document.createElement('button');
-    fechar.type = 'button'; fechar.textContent = '✕';
-    fechar.style.cssText = 'background:transparent;color:#fff;border:0;font-size:18px;cursor:pointer';
-    fechar.addEventListener('click', () => caixa.remove());
-    caixa.append(texto, abrir, fechar);
-    document.body.appendChild(caixa);
-    setTimeout(() => caixa.remove(), 60000);
-  }
-
   window.api = {
-    ehWeb: true, // as telas usam isso para ajustar textos que só fazem sentido no programa instalado
     auth: {
       login: async (usuario, senha) => {
         const resposta = await fetch(`${API_URL}/api/auth/login`, {
@@ -146,7 +118,7 @@ import { criarPdfApi } from './pdf-web.js';
       list: (termo, status) => invoke('os:list', { termo, status }),
       get: (id) => invoke('os:get', { id }),
       save: (atual, os) => invoke('os:save', { os }),
-      setStatus: (atual, id, status) => invoke('os:setStatus', { id, status }),
+      setStatus: (atual, id, status, pagamento) => invoke('os:setStatus', { id, status, pagamento }),
       delete: (atual, id) => invoke('os:delete', { id }),
     },
     fornecedores: {
@@ -191,16 +163,10 @@ import { criarPdfApi } from './pdf-web.js';
     whatsapp: {
       // No navegador não existe app do WhatsApp Desktop pra "abrir" — usamos o
       // link universal wa.me, que abre o WhatsApp Web ou o app do celular.
-      // (O WhatsApp não deixa anexar arquivo por link: o PDF é salvo pela
-      // impressão e anexado na conversa pelo usuário.)
       abrirConversa: async (telefone, mensagem) => {
-        let numero = String(telefone || '').replace(/\D/g, '');
-        if (!numero) throw new Error('Este cliente não possui telefone/WhatsApp cadastrado.');
-        if (numero.length <= 11) numero = '55' + numero; // assume Brasil quando não há DDI
+        const numero = String(telefone || '').replace(/\D/g, '');
         const url = `https://wa.me/${numero}${mensagem ? '?text=' + encodeURIComponent(mensagem) : ''}`;
-        let w = null;
-        try { w = window.open(url, '_blank'); } catch (e) { w = null; }
-        if (!w) mostrarBotaoWhatsapp(url); // celular bloqueou a nova aba: pede um toque
+        window.open(url, '_blank');
         return { ok: true };
       },
     },
@@ -280,6 +246,8 @@ import { criarPdfApi } from './pdf-web.js';
       save: (atual, lancamento) => invoke('financeiro:save', { lancamento }),
       marcarPago: (atual, id, forma_pagamento, data_pagamento) => invoke('financeiro:marcarPago', { id, forma_pagamento, data_pagamento }),
       cancelar: (atual, id) => invoke('financeiro:cancelar', { id }),
+      registrarCobranca: (id) => invoke('financeiro:registrarCobranca', { id }),
+      reprogramar: (id, data_vencimento) => invoke('financeiro:reprogramar', { id, data_vencimento }),
       delete: (atual, id) => invoke('financeiro:delete', { id }),
       dre: (mes) => invoke('financeiro:dre', { mes }),
     },
@@ -297,9 +265,16 @@ import { criarPdfApi } from './pdf-web.js';
     backup: {
       manual: indisponivelNoNavegador('O backup do banco de dados é feito automaticamente pelo Turso (nuvem). Este botão só existe no programa instalado.'),
     },
-    // PDFs: mesmos modelos do programa instalado; abrem na tela de impressão do
-    // navegador (escolha "Salvar como PDF"). Veja src/pdf-web.js.
-    pdf: criarPdfApi(invoke),
+    pdf: {
+      exportarOS: indisponivelNoNavegador('Exportar PDF ainda só está disponível no programa instalado no computador.'),
+      exportarChecklist: indisponivelNoNavegador(),
+      exportarGarantia: indisponivelNoNavegador(),
+      exportarOrcamento: indisponivelNoNavegador(),
+      exportarComprovante: indisponivelNoNavegador(),
+      exportarVendaGarantia: indisponivelNoNavegador(),
+      exportarVendaRecibo: indisponivelNoNavegador(),
+      exportarRelatorio: indisponivelNoNavegador(),
+    },
     empresa: {
       get: () => invoke('empresa:get'),
       save: (atual, empresa) => invoke('empresa:save', { empresa }),

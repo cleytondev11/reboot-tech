@@ -91,6 +91,11 @@ export const CATEGORIAS_PRODUTO = ['Tela', 'Bateria', 'Conector de Carga', 'Plac
 
 export const FORMAS_PAGAMENTO = ['Dinheiro', 'PIX', 'Cartão Débito', 'Cartão Crédito', 'Boleto', 'Transferência'];
 
+// "A prazo" (fiado/parcelado): só vale ao vender/entregar — gera contas a receber em vez de entrar no caixa.
+// Por isso NÃO entra em FORMAS_PAGAMENTO, que também é usada para registrar o recebimento de uma conta.
+export const FORMA_A_PRAZO = 'A prazo';
+export const FORMAS_PAGAMENTO_COM_PRAZO = [...FORMAS_PAGAMENTO, FORMA_A_PRAZO];
+
 export const ACESSORIOS_OPCOES = ['Capinha', 'Película', 'Cartão SIM', 'Cartão SD', 'Carregador', 'Fone de ouvido', 'Caixa/embalagem'];
 
 export const TERMOS_ACEITE_ITENS = [
@@ -163,3 +168,44 @@ export function parseIntSafe(raw) {
   const n = parseInt(String(raw).replace(/[^0-9]/g, ''), 10);
   return isNaN(n) ? 0 : n;
 }
+
+
+// ---------- Datas "só dia" (YYYY-MM-DD) sem o deslocamento de fuso ----------
+// new Date('2026-10-03') é meia-noite UTC, e no Brasil isso vira o dia anterior ao formatar.
+// Estas funções trabalham direto com o texto/dia local para nunca errar o dia.
+export function hojeLocal() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+export function formatDiaCurto(iso) {
+  const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : '-';
+}
+
+function diaParaUtc(iso) {
+  const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m ? Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : null;
+}
+
+// Dias entre hoje e a data (positivo = no futuro, negativo = já passou). null se a data for inválida.
+export function diasAte(iso) {
+  const alvo = diaParaUtc(iso);
+  const hoje = diaParaUtc(hojeLocal());
+  if (alvo === null || hoje === null) return null;
+  return Math.round((alvo - hoje) / 86400000);
+}
+
+// Soma meses mantendo o dia (31/01 + 1 mês = 28/02). Mesma regra usada no servidor.
+export function somarMesesDia(iso, meses) {
+  const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return '';
+  const alvo = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1 + meses, 1));
+  const ultimo = new Date(Date.UTC(alvo.getUTCFullYear(), alvo.getUTCMonth() + 1, 0)).getUTCDate();
+  alvo.setUTCDate(Math.min(Number(m[3]), ultimo));
+  return alvo.toISOString().slice(0, 10);
+}
+
+// Número do suporte (WhatsApp) — único lugar para trocar se o contato mudar.
+export const SUPORTE_WHATSAPP = '5561992522517';
+export const SUPORTE_WHATSAPP_EXIBIR = '(61) 99252-2517';

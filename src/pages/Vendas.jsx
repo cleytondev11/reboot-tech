@@ -1,9 +1,10 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useApp } from '../context.jsx';
-import { formatCurrency, formatDateTime, toInputDate, todayInputValue, sanitizeDecimalInput, parseDecimal, sanitizeIntegerInput, parseIntSafe, FORMAS_PAGAMENTO } from '../utils.js';
+import { formatCurrency, formatDateTime, toInputDate, todayInputValue, sanitizeDecimalInput, parseDecimal, sanitizeIntegerInput, parseIntSafe, FORMAS_PAGAMENTO_COM_PRAZO, FORMA_A_PRAZO } from '../utils.js';
+import PrazoCampos from '../components/PrazoCampos.jsx';
 import ImprimirMenu from '../components/ImprimirMenu.jsx';
 
-const EMPTY = { id: null, cliente_id: '', itens: [], desconto: 0, forma_pagamento: 'Dinheiro', observacoes: '', garantia_dias: 90, data_venda: todayInputValue() };
+const EMPTY = { id: null, cliente_id: '', itens: [], desconto: 0, forma_pagamento: 'Dinheiro', observacoes: '', garantia_dias: 90, data_venda: todayInputValue(), prazo_parcelas: 1, prazo_vencimento: '' };
 
 function novoItem() { return { produto_id: '', descricao: '', quantidade: 1, valor_unit: 0 }; }
 
@@ -62,6 +63,8 @@ export default function Vendas() {
       itens,
       garantia_dias: full.garantia_dias ?? 90,
       data_venda: toInputDate(full.criado_em) || todayInputValue(),
+      prazo_parcelas: full.prazo_parcelas || 1,
+      prazo_vencimento: full.prazo_vencimento || '',
     });
     setModalOpen(true);
   }
@@ -126,11 +129,16 @@ export default function Vendas() {
     e.preventDefault();
     if (form.itens.filter((i) => i.descricao).length === 0) return showToast('Adicione ao menos um item à venda.', 'error');
     if (!form.forma_pagamento) return showToast('Selecione a forma de pagamento.', 'error');
+    if (form.forma_pagamento === FORMA_A_PRAZO) {
+      if (!form.cliente_id) return showToast('Para vender a prazo, selecione o cliente.', 'error');
+      if (!form.prazo_vencimento) return showToast('Informe a data do 1º vencimento.', 'error');
+    }
     try {
       const payload = {
         ...form,
         desconto: parseDecimal(form.desconto),
         garantia_dias: parseIntSafe(form.garantia_dias) || 0,
+        prazo_parcelas: parseIntSafe(form.prazo_parcelas) || 1,
         itens: form.itens.filter((i) => i.descricao).map((i) => ({ ...i, quantidade: parseIntSafe(i.quantidade) || 1, valor_unit: parseDecimal(i.valor_unit) })),
       };
       const res = await window.api.vendas.save(user, payload);
@@ -238,7 +246,7 @@ export default function Vendas() {
 
             <div className="form-grid">
               <div className="field span-2">
-                <label>Cliente (opcional)</label>
+                <label>{form.forma_pagamento === FORMA_A_PRAZO ? 'Cliente * (obrigatório na venda a prazo)' : 'Cliente (opcional)'}</label>
                 <select value={form.cliente_id} onChange={(e) => set('cliente_id', e.target.value)}>
                   <option value="">Consumidor não identificado</option>
                   {clientes.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
@@ -271,7 +279,7 @@ export default function Vendas() {
               <div className="field">
                 <label>Forma de Pagamento *</label>
                 <select value={form.forma_pagamento} onChange={(e) => set('forma_pagamento', e.target.value)}>
-                  {FORMAS_PAGAMENTO.map((f) => <option key={f} value={f}>{f}</option>)}
+                  {FORMAS_PAGAMENTO_COM_PRAZO.map((f) => <option key={f} value={f}>{f === FORMA_A_PRAZO ? 'A prazo (fiado / parcelado)' : f}</option>)}
                 </select>
               </div>
               <div className="field">
@@ -279,6 +287,12 @@ export default function Vendas() {
                 <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--gold)', paddingTop: 6 }}>{formatCurrency(total)}</div>
               </div>
             </div>
+
+            {form.forma_pagamento === FORMA_A_PRAZO && (
+              <div style={{ marginTop: 14 }}>
+                <PrazoCampos total={total} parcelas={form.prazo_parcelas} vencimento={form.prazo_vencimento} onChange={(p) => setForm((f) => ({ ...f, prazo_parcelas: p.parcelas, prazo_vencimento: p.vencimento }))} />
+              </div>
+            )}
 
             <div className="field" style={{ marginTop: 14 }}>
               <label>Observações</label>

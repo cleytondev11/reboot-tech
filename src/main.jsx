@@ -17,6 +17,13 @@ window.addEventListener('focus', () => {
   }
 });
 
+// PWA: o navegador (Chrome/Edge/Android) avisa que o app pode ser instalado UMA vez, logo no
+// começo. Guardamos esse aviso aqui para a tela "Download App" poder oferecer o botão de instalar.
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  window.__rtInstallPrompt = e;
+});
+
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <App />

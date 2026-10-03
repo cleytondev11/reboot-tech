@@ -403,3 +403,116 @@ tbody tr:last-child td { border-bottom: none; }
   background: rgba(0, 0, 0, 0.25); color: #fff; border: 1px solid rgba(255, 255, 255, 0.5);
   border-radius: 6px; padding: 3px 10px; font-size: 12.5px; font-weight: 700; cursor: pointer;
 }
+
+
+/* =====================================================================
+   Bancada (Kanban), Cobranças, A prazo, Suporte e Download App
+   ===================================================================== */
+
+/* ---- Bancada (Kanban) ---- */
+.kb-board {
+  display: grid; grid-auto-flow: column; grid-auto-columns: minmax(262px, 1fr); gap: 14px;
+  overflow-x: auto; padding-bottom: 14px; align-items: start; -webkit-overflow-scrolling: touch;
+}
+.kb-col {
+  background: var(--bg-elev); border: 1px solid var(--border); border-radius: 12px; padding: 10px;
+  min-height: 260px; border-top: 3px solid var(--border); transition: background var(--transition), border-color var(--transition);
+}
+.kb-col-analise { border-top-color: var(--info); }
+.kb-col-peca { border-top-color: var(--warning); }
+.kb-col-manutencao { border-top-color: #a06be0; }
+.kb-col-pronto { border-top-color: var(--success); }
+.kb-col-entregue { border-top-color: var(--gold); }
+.kb-col.over { background: var(--bg-elev-2); border-color: var(--gold); }
+.kb-col-head { display: flex; align-items: center; justify-content: space-between; padding: 4px 4px 2px; }
+.kb-col-title { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.4px; display: flex; align-items: center; gap: 7px; }
+.kb-col-icon { font-size: 14px; }
+.kb-count { min-width: 24px; text-align: center; padding: 1px 8px; border-radius: 999px; background: var(--bg-elev-2); border: 1px solid var(--border); font-size: 11.5px; font-weight: 700; }
+.kb-col-sum { font-size: 11.5px; padding: 0 4px 6px; }
+.kb-list { display: flex; flex-direction: column; gap: 9px; min-height: 120px; margin-top: 6px; }
+.kb-empty { text-align: center; font-size: 12px; color: var(--text-dim); padding: 28px 8px; border: 1px dashed var(--border); border-radius: 10px; }
+
+.kb-card {
+  position: relative; background: var(--bg-elev-2); border: 1px solid var(--border); border-radius: 10px;
+  padding: 11px 12px; font-size: 12.5px; cursor: grab; display: flex; flex-direction: column; gap: 6px;
+  transition: box-shadow var(--transition), transform var(--transition), opacity var(--transition);
+}
+.kb-card:hover { box-shadow: var(--shadow); }
+.kb-card.dragging { opacity: 0.45; transform: scale(0.98); }
+.kb-card.locked { cursor: default; opacity: 0.92; }
+.kb-card-top { display: flex; align-items: center; gap: 6px; }
+.kb-card-top .kb-more { margin-left: auto; }
+.kb-lock { font-size: 12px; }
+.kb-cliente { font-size: 14px; font-weight: 800; line-height: 1.2; }
+.kb-equip { color: var(--info); font-weight: 600; }
+.kb-defeito { font-size: 12px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.kb-substatus { align-self: flex-start; font-size: 10.5px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--bg-elev); border: 1px solid var(--border); color: var(--text-dim); }
+.kb-total { display: flex; align-items: center; justify-content: space-between; background: var(--bg-elev); border: 1px solid var(--border); border-radius: 8px; padding: 6px 9px; font-size: 12px; }
+.kb-total b { font-size: 13.5px; color: var(--gold); }
+.kb-tags { display: flex; flex-wrap: wrap; gap: 5px; }
+.kb-tag { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 6px; background: var(--bg-elev); border: 1px solid var(--border); }
+.kb-tag.pago { color: var(--success); border-color: var(--success); }
+.kb-tag.prazo { color: var(--warning); border-color: var(--warning); }
+.kb-card-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; border-top: 1px solid var(--border); padding-top: 7px; font-size: 11.5px; }
+.kb-data small { opacity: 0.75; margin-left: 3px; }
+.kb-next {
+  width: 32px; height: 28px; border-radius: 8px; border: 1px solid var(--gold); background: transparent; color: var(--gold);
+  font-size: 15px; font-weight: 800; cursor: pointer; line-height: 1;
+}
+.kb-next:hover { background: var(--gold); color: #17170e; }
+.kb-next:disabled { opacity: 0.4; cursor: not-allowed; }
+.kb-menu {
+  position: absolute; right: 8px; top: 38px; z-index: 20; min-width: 190px; background: var(--bg-elev);
+  border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--shadow); padding: 6px; display: flex; flex-direction: column; gap: 2px;
+}
+.kb-menu-title { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.4px; color: var(--text-dim); padding: 4px 8px; font-weight: 700; }
+.kb-menu button { text-align: left; padding: 9px 10px; border-radius: 7px; background: transparent; border: none; color: var(--text); font-size: 13px; cursor: pointer; }
+.kb-menu button:hover:not(:disabled) { background: var(--bg-elev-2); }
+.kb-menu button:disabled { opacity: 0.4; cursor: default; }
+.kb-total-grande { display: flex; align-items: center; justify-content: space-between; background: var(--bg-elev-2); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; }
+.kb-total-grande b { font-size: 22px; color: var(--gold); }
+
+/* ---- Venda a prazo ---- */
+.prazo-box { background: var(--bg-elev-2); border: 1px dashed var(--gold); border-radius: 10px; padding: 12px 14px; }
+.prazo-resumo { font-size: 12.5px; margin: 10px 0 0; }
+
+/* ---- Cobranças ---- */
+.cb-cliente { margin-bottom: 14px; }
+.cb-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.cb-nome { font-size: 15.5px; font-weight: 800; }
+.cb-head-right { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; justify-content: flex-end; }
+.cb-total { font-size: 18px; font-weight: 800; color: var(--gold); }
+.cb-vencido { font-size: 12px; font-weight: 700; color: var(--danger); }
+
+/* ---- Suporte ---- */
+.sp-icone { width: 64px; height: 64px; margin: 0 auto; border-radius: 18px; display: flex; align-items: center; justify-content: center; font-size: 30px; background: rgba(76, 175, 125, 0.15); border: 1px solid var(--success); }
+.sp-numero { font-size: 26px; font-weight: 800; color: var(--gold); letter-spacing: 0.5px; margin-top: 8px; }
+.sp-assunto { display: flex; align-items: center; gap: 12px; text-align: left; cursor: pointer; color: var(--text); font-size: 14px; font-weight: 600; font-family: inherit; }
+.sp-assunto:hover { border-color: var(--gold); }
+.sp-assunto-icone { font-size: 22px; }
+
+/* ---- Download App ---- */
+.dl-beneficio { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 4px; padding: 14px 10px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg-elev-2); font-size: 12.5px; }
+.dl-beneficio-icone { font-size: 22px; margin-bottom: 2px; }
+.dl-abas { display: flex; gap: 4px; padding: 4px; border-radius: 10px; background: var(--bg-elev-2); border: 1px solid var(--border); margin-bottom: 14px; }
+.dl-abas button { flex: 1; padding: 9px 8px; border-radius: 8px; border: none; background: transparent; color: var(--text-dim); font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit; }
+.dl-abas button.active { background: var(--bg-elev); color: var(--gold); box-shadow: var(--shadow); }
+.dl-painel { background: var(--bg-elev-2); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+.dl-painel h3 { margin: 0 0 4px; text-align: center; font-size: 17px; }
+.dl-painel > p { text-align: center; margin: 0 0 14px; font-size: 13px; }
+.dl-passo { display: flex; align-items: center; gap: 14px; background: var(--bg-elev); border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; margin-bottom: 10px; max-width: 520px; margin-left: auto; margin-right: auto; }
+.dl-passo-n { flex: 0 0 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; color: var(--gold); background: rgba(212, 175, 55, 0.15); }
+.dl-passo-txt { display: flex; flex-direction: column; gap: 2px; flex: 1; font-size: 13.5px; }
+.dl-passo-txt .muted { font-size: 12px; }
+.dl-passo-icone { font-size: 20px; }
+.dl-aviso { max-width: 520px; margin: 12px auto 0; padding: 10px 14px; border-radius: 8px; font-size: 12.5px; background: rgba(224, 168, 60, 0.12); border: 1px solid var(--warning); }
+.dl-aviso.ok { max-width: none; background: rgba(76, 175, 125, 0.12); border-color: var(--success); margin: 0 0 10px; }
+
+@media (max-width: 900px) {
+  .kb-board { grid-auto-columns: 84vw; scroll-snap-type: x mandatory; gap: 10px; }
+  .kb-col { scroll-snap-align: center; }
+  .kb-card { cursor: default; }
+  .kb-next { width: 40px; height: 34px; }
+  .dl-painel { padding: 14px; }
+  .sp-numero { font-size: 22px; }
+}

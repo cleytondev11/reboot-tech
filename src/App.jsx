@@ -16,27 +16,38 @@ import Relatorios from './pages/Relatorios.jsx';
 import Usuarios from './pages/Usuarios.jsx';
 import Configuracoes from './pages/Configuracoes.jsx';
 import RemocaoVirus from './pages/RemocaoVirus.jsx';
+import Kanban from './pages/Kanban.jsx';
+import Cobrancas from './pages/Cobrancas.jsx';
+import Suporte from './pages/Suporte.jsx';
+import DownloadApp from './pages/DownloadApp.jsx';
+
+// No programa instalado no Windows (Electron) não faz sentido o menu de instalar o app no celular.
+const EH_ELECTRON = typeof navigator !== 'undefined' && /Electron/i.test(navigator.userAgent);
 
 const NAV = [
   { key: 'dashboard', label: 'Dashboard', icon: '📊' },
   { key: 'clientes', label: 'Clientes', icon: '👤' },
   { key: 'equipamentos', label: 'Equipamentos', icon: '📱' },
   { key: 'os', label: 'Ordens de Serviço', icon: '🧾' },
+  { key: 'kanban', label: 'Bancada (Kanban)', icon: '🗂️' },
   { key: 'orcamentos', label: 'Orçamentos', icon: '📝' },
   { key: 'compras', label: 'Compras', icon: '🚚' },
   { key: 'estoque', label: 'Estoque', icon: '📦' },
   { key: 'servicos', label: 'Serviços', icon: '🔧' },
   { key: 'vendas', label: 'Vendas', icon: '🛒' },
+  { key: 'cobrancas', label: 'Cobranças', icon: '💸', restrictTo: ['Administrador', 'Financeiro', 'Atendente'] },
   { key: 'antivirus', label: 'Remoção de Vírus', icon: '🛡️' },
   { key: 'financeiro', label: 'Financeiro', icon: '💰', restrictTo: ['Administrador', 'Financeiro'] },
   { key: 'relatorios', label: 'Relatórios', icon: '📈', adminOnly: true },
   { key: 'usuarios', label: 'Usuários', icon: '🔐', adminOnly: true },
   { key: 'config', label: 'Configurações', icon: '⚙️' },
+  { key: 'suporte', label: 'Fale com o Suporte', icon: '💬' },
+  { key: 'download', label: 'Download App', icon: '📲', hideInElectron: true },
 ];
 
 const TITLES = {
   dashboard: 'Dashboard', clientes: 'Clientes', equipamentos: 'Equipamentos',
-  os: 'Ordens de Serviço', orcamentos: 'Orçamentos', compras: 'Compras', estoque: 'Estoque', servicos: 'Serviços', vendas: 'Vendas', financeiro: 'Financeiro',
+  os: 'Ordens de Serviço', kanban: 'Bancada — Kanban', cobrancas: 'Cobranças', suporte: 'Fale com o Suporte', download: 'Download App', orcamentos: 'Orçamentos', compras: 'Compras', estoque: 'Estoque', servicos: 'Serviços', vendas: 'Vendas', financeiro: 'Financeiro',
   relatorios: 'Relatórios', usuarios: 'Usuários', config: 'Configurações', antivirus: 'Remoção de Vírus',
 };
 
@@ -105,6 +116,10 @@ function Shell() {
       case 'clientes': return <Clientes />;
       case 'equipamentos': return <Equipamentos />;
       case 'os': return <OrdensServico />;
+      case 'kanban': return <Kanban />;
+      case 'cobrancas': return <Cobrancas />;
+      case 'suporte': return <Suporte />;
+      case 'download': return <DownloadApp />;
       case 'orcamentos': return <Orcamentos />;
       case 'compras': return <Compras />;
       case 'estoque': return <Estoque />;
@@ -129,7 +144,7 @@ function Shell() {
           <div className="brand">REBOOT <span>TECH</span></div>
         </div>
         <nav className="sidebar-nav">
-          {NAV.filter((n) => (!n.adminOnly || user.papel === 'Administrador') && (!n.restrictTo || n.restrictTo.includes(user.papel))).map((n) => (
+          {NAV.filter((n) => (!n.adminOnly || user.papel === 'Administrador') && (!n.restrictTo || n.restrictTo.includes(user.papel)) && !(n.hideInElectron && EH_ELECTRON)).map((n) => (
             <button key={n.key} className={`nav-item ${page === n.key ? 'active' : ''}`} onClick={() => irPara(n.key)}>
               <span className="icon">{n.icon}</span> {n.label}
             </button>

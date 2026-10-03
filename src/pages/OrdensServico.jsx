@@ -1,16 +1,18 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useApp } from '../context.jsx';
-import { formatCurrency, formatDateTime, toInputDate, todayInputValue, statusClass, CHECKLIST_ITENS, FORMAS_PAGAMENTO, sanitizeDecimalInput, parseDecimal, sanitizeIntegerInput, parseIntSafe, ACESSORIOS_OPCOES, TERMOS_ACEITE_ITENS, DECLARACAO_CONDICAO_APARELHO } from '../utils.js';
+import { formatCurrency, formatDateTime, toInputDate, todayInputValue, statusClass, CHECKLIST_ITENS, FORMAS_PAGAMENTO_COM_PRAZO, FORMA_A_PRAZO, sanitizeDecimalInput, parseDecimal, sanitizeIntegerInput, parseIntSafe, ACESSORIOS_OPCOES, TERMOS_ACEITE_ITENS, DECLARACAO_CONDICAO_APARELHO } from '../utils.js';
 import SignaturePad from '../components/SignaturePad.jsx';
 import PatternLock from '../components/PatternLock.jsx';
 import ImprimirMenu from '../components/ImprimirMenu.jsx';
+import AvisoProntoModal, { foiAvisada } from '../components/AvisoProntoModal.jsx';
+import PrazoCampos from '../components/PrazoCampos.jsx';
 
 const EMPTY = {
   id: null, cliente_id: '', equipamento_id: '', defeito_informado: '', diagnostico: '',
   servicos_executados: '', pecas_utilizadas: '', valor_mao_obra: 0, valor_pecas: 0, desconto: 0,
   garantia_dias: 90, data_entrada: todayInputValue(), previsao: '', data_saida: '',
   status: 'Recebido', observacoes: '', assinatura_cliente: '', checklist: [], itens_pecas: [], estoque_baixado: 0,
-  forma_pagamento: '', financeiro_lancado: 0, tecnico_id: '',
+  forma_pagamento: '', financeiro_lancado: 0, tecnico_id: '', prazo_parcelas: 1, prazo_vencimento: '',
   termos_aceite: TERMOS_ACEITE_ITENS.map(() => false), senha_tipo: 'texto', senha_valor: '', checklist_acessorios: [],
 };
 
@@ -30,6 +32,9 @@ export default function OrdensServico() {
   const [equipFotos, setEquipFotos] = useState([]);
   const [formatoImpressao, setFormatoImpressao] = useState('termica');
   const [equipFotosLoading, setEquipFotosLoading] = useState(false);
+  const [statusOriginal, setStatusOriginal] = useState(''); // status de quando a OS foi aberta (detecta a virada para "Pronto")
+  const [avisoPronto, setAvisoPronto] = useState(null);   // dados do aviso "OS pronta" aberto na tela
+  const [, setAvisoTick] = useState(0);                   // só para redesenhar o ✅ de "cliente avisado"
 
   async function load() {
     const res = await window.api.os.list(termo, statusFiltro);
@@ -108,11 +113,13 @@ export default function OrdensServico() {
       checklist_acessorios: [],
     });
     setTab('dados');
+    setStatusOriginal('');
     setModalOpen(true);
   }
 
   async function openEdit(row) {
     const full = await window.api.os.get(row.id);
+    setStatusOriginal(full.status || '');
     let checklist = [];
     try { checklist = JSON.parse(full.checklist || '[]'); } catch { checklist = []; }
     if (checklist.length === 0) checklist = CHECKLIST_ITENS.map((item) => ({ item, status: '', obs: '' }));
@@ -211,6 +218,20 @@ export default function OrdensServico() {
     return Math.max(0, mao + pecas - desc);
   }, [form.valor_mao_obra, form.valor_pecas, form.desconto]);
 
+  // Monta os dados do aviso a partir de uma linha da lista
+  function dadosAvisoDaLinha(row) {
+    return {
+      id: row.id, numero: row.numero, cliente_nome: row.cliente_nome,
+      whatsapp: row.cliente_whatsapp, telefone: row.cliente_telefone,
+      equipamento: [row.equip_marca, row.equip_modelo].filter(Boolean).join(' '),
+      valor_total: row.valor_total,
+    };
+  }
+
+  function abrirAviso(dados) {
+    setAvisoPronto(dados);
+  }
+
   async function save(e) {
     e.preventDefault();
     if (!form.cliente_id) return showToast('Selecione o cliente.', 'error');
@@ -222,23 +243,26 @@ export default function OrdensServico() {
         valor_pecas: parseDecimal(form.valor_pecas),
         desconto: parseDecimal(form.desconto),
         garantia_dias: parseIntSafe(form.garantia_dias) || 90,
+        prazo_parcelas: parseIntSafe(form.prazo_parcelas) || 1,
         itens_pecas: form.itens_pecas
           .filter((i) => i.produto_id)
           .map((i) => ({ ...i, quantidade: parseIntSafe(i.quantidade) || 1, valor_unit: parseDecimal(i.valor_unit) })),
       };
-      const statusAnterior = form.id ? (list.find((o) => o.id === form.id) || {}).status : null;
       const res = await window.api.os.save(user, payload);
       showToast(`Ordem de Serviço ${res.numero || form.numero || ''} salva com sucesso.`);
-      setModalOpen(false);
-      load();
-      if (payload.status === 'Pronto' && statusAnterior !== 'Pronto') {
-        const cli = clientes.find((c) => String(c.id) === String(form.cliente_id)) || {};
-        const eq = equipCliente.find((x) => String(x.id) === String(form.equipamento_id)) || {};
-        avisarProntoWhatsapp({
-          numero: res.numero || form.numero, cliente_nome: cli.nome, cliente_whatsapp: cli.whatsapp, cliente_telefone: cli.telefone,
-          equip_marca: eq.marca, equip_modelo: eq.modelo, valor_total: total,
+      const virouPronto = payload.status === 'Pronto' && statusOriginal !== 'Pronto';
+      if (virouPronto) {
+        const cli = clientes.find((c) => String(c.id) === String(form.cliente_id));
+        const eq = equipCliente.find((e) => String(e.id) === String(form.equipamento_id));
+        abrirAviso({
+          id: res.id || form.id, numero: res.numero || form.numero, cliente_nome: cli?.nome,
+          whatsapp: cli?.whatsapp, telefone: cli?.telefone,
+          equipamento: eq ? [eq.marca, eq.modelo].filter(Boolean).join(' ') : '',
+          valor_total: total,
         });
       }
+      setModalOpen(false);
+      load();
     } catch (err) {
       showToast(String(err.message || err), 'error');
     }
@@ -247,41 +271,29 @@ export default function OrdensServico() {
   async function quickStatus(row, status) {
     try {
       await window.api.os.setStatus(user, row.id, status);
+      if (status === 'Pronto' && row.status !== 'Pronto') abrirAviso(dadosAvisoDaLinha(row));
       load();
-      if (status === 'Pronto' && row.status !== 'Pronto') avisarProntoWhatsapp(row);
-    } catch (err) {
-      showToast(String(err.message || err), 'error');
-    }
-  }
-
-  // Quando a OS fica "Pronto", oferece abrir o WhatsApp do cliente já com a
-  // mensagem de aviso escrita (é só enviar).
-  async function avisarProntoWhatsapp(os) {
-    try {
-      const telefone = os.cliente_whatsapp || os.cliente_telefone;
-      if (!telefone) return showToast(`OS ${os.numero} pronta. O cliente não tem WhatsApp/telefone cadastrado para avisar.`, 'error');
-      const nome = os.cliente_nome || 'cliente';
-      if (!confirm(`A OS ${os.numero} ficou PRONTA.\n\nEnviar o aviso de retirada para ${nome} pelo WhatsApp?`)) return;
-      let empresaNome = '';
-      try { const emp = await window.api.empresa.get(); empresaNome = (emp && (emp.nome_fantasia || emp.nome)) || ''; } catch (e) { /* segue sem o nome */ }
-      const aparelho = [os.equip_marca, os.equip_modelo].filter(Boolean).join(' ');
-      const primeiroNome = String(nome).trim().split(/\s+/)[0];
-      const valor = Number(os.valor_total) > 0 ? `\nValor: ${formatCurrency(os.valor_total)}.` : '';
-      const msg = `Olá, ${primeiroNome}! Boa notícia: ${aparelho ? `seu ${aparelho}` : 'seu aparelho'} (OS ${os.numero}) já está pronto para retirada. ✅${valor}\nQualquer dúvida, é só chamar.${empresaNome ? `\n— ${empresaNome}` : ''}`;
-      await window.api.whatsapp.abrirConversa(telefone, msg);
     } catch (err) {
       showToast(String(err.message || err), 'error');
     }
   }
 
   async function exportarPdf() {
-    const res = await window.api.pdf.exportarOS(form.id);
-    if (res.ok) showToast('PDF exportado com sucesso.');
+    try {
+      const res = await window.api.pdf.exportarOS(form.id);
+      if (res.ok) showToast('PDF exportado com sucesso.');
+    } catch (err) {
+      showToast(String(err.message || err), 'error');
+    }
   }
 
   async function exportarChecklistPdf() {
-    const res = await window.api.pdf.exportarChecklist(form.id);
-    if (res.ok) showToast('Checklist em PDF exportado com sucesso.');
+    try {
+      const res = await window.api.pdf.exportarChecklist(form.id);
+      if (res.ok) showToast('Checklist em PDF exportado com sucesso.');
+    } catch (err) {
+      showToast(String(err.message || err), 'error');
+    }
   }
 
   async function exportarGarantiaPdf(id) {
@@ -326,13 +338,12 @@ export default function OrdensServico() {
     try {
       const telefone = row.cliente_whatsapp || row.cliente_telefone;
       if (!telefone) return showToast('Este cliente não possui WhatsApp/telefone cadastrado.', 'error');
-      const res = await window.api.pdf.exportarOS(row.id);
-      if (!res.ok) return;
       const msg = `Olá! Segue a Ordem de Serviço ${row.numero}${row.cliente_nome ? ' de ' + row.cliente_nome : ''}. Anexei o PDF aqui, um momento.`;
+      const res = await window.api.pdf.exportarOS(row.id, { whatsapp: { telefone, mensagem: msg } });
+      if (!res.ok) return;
+      if (res.web) return; // versão web: a janelinha "PDF pronto" cuida do envio pelo WhatsApp
       await window.api.whatsapp.abrirConversa(telefone, msg);
-      showToast(window.api.ehWeb
-        ? 'WhatsApp aberto. Salve o PDF na janela de impressão e anexe o arquivo na conversa.'
-        : 'PDF salvo. O WhatsApp foi aberto — anexe o arquivo que acabou de ser revelado na pasta.');
+      showToast('PDF salvo. O WhatsApp foi aberto — anexe o arquivo que acabou de ser revelado na pasta.');
     } catch (err) {
       showToast(String(err.message || err), 'error');
     }
@@ -378,6 +389,9 @@ export default function OrdensServico() {
                   <button className="icon-btn" title="Exportar PDF" onClick={() => exportarPdfListagem(o)}>📄</button>
                   <ImprimirMenu formatoPadrao={formatoImpressao} title="Imprimir Recibo" onImprimir={(fmt) => imprimirCupom(o.id, fmt)} />
                   <button className="icon-btn" title="Compartilhar no WhatsApp" onClick={() => compartilharWhatsapp(o)}>📲</button>
+                  {o.status === 'Pronto' && (
+                    <button className="icon-btn" title={foiAvisada(o.id) ? 'Cliente já avisado — avisar de novo' : 'Avisar cliente que a OS está pronta'} onClick={() => abrirAviso(dadosAvisoDaLinha(o))}>{foiAvisada(o.id) ? '✅' : '🔔'}</button>
+                  )}
                   {o.status === 'Entregue' && <button className="icon-btn" title="Termo de Garantia" onClick={() => exportarGarantiaPdf(o.id)}>🛡️</button>}
                   {user.papel === 'Administrador' && <button className="icon-btn" title="Excluir" onClick={() => excluir(o)}>🗑️</button>}
                 </td>
@@ -609,8 +623,13 @@ export default function OrdensServico() {
                     <label>Forma de Pagamento {!form.financeiro_lancado && <span style={{ color: 'var(--danger)' }}>*</span>}</label>
                     <select value={form.forma_pagamento || ''} onChange={(e) => set('forma_pagamento', e.target.value)} disabled={!!form.financeiro_lancado}>
                       <option value="">Selecione...</option>
-                      {FORMAS_PAGAMENTO.map((f) => <option key={f} value={f}>{f}</option>)}
+                      {FORMAS_PAGAMENTO_COM_PRAZO.map((f) => <option key={f} value={f}>{f === FORMA_A_PRAZO ? 'A prazo (fiado / parcelado)' : f}</option>)}
                     </select>
+                    {form.forma_pagamento === FORMA_A_PRAZO && !form.financeiro_lancado && (
+                      <div style={{ marginTop: 10 }}>
+                        <PrazoCampos total={total} parcelas={form.prazo_parcelas} vencimento={form.prazo_vencimento} onChange={(p) => setForm((f) => ({ ...f, prazo_parcelas: p.parcelas, prazo_vencimento: p.vencimento }))} />
+                      </div>
+                    )}
                     {form.financeiro_lancado ? (
                       <p className="muted" style={{ fontSize: 11.5, marginTop: 6 }}>✅ Recebimento já lançado no Financeiro.</p>
                     ) : (
@@ -634,6 +653,12 @@ export default function OrdensServico() {
             </div>
           </form>
         </div>
+      )}
+      {avisoPronto && (
+        <AvisoProntoModal
+          dados={avisoPronto}
+          onClose={() => { setAvisoPronto(null); setAvisoTick((n) => n + 1); }}
+        />
       )}
     </div>
   );

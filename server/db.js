@@ -67,6 +67,10 @@ async function migrate() {
   await tryAdd(`ALTER TABLE ordens_servico ADD COLUMN financeiro_receber_lancado INTEGER DEFAULT 0`);
   await tryAdd(`ALTER TABLE clientes ADD COLUMN data_nascimento TEXT`);
   await tryAdd(`ALTER TABLE vendas ADD COLUMN garantia_dias INTEGER DEFAULT 90`);
+  // Venda a prazo / cobrança: de quem é a parcela, qual parcela é (ex.: 2/3) e quando foi cobrada por último.
+  await tryAdd(`ALTER TABLE lancamentos_financeiros ADD COLUMN cliente_id INTEGER`);
+  await tryAdd(`ALTER TABLE lancamentos_financeiros ADD COLUMN parcela TEXT`);
+  await tryAdd(`ALTER TABLE lancamentos_financeiros ADD COLUMN cobrado_em TEXT`);
   await tryAdd(`ALTER TABLE configuracoes_rede ADD COLUMN servidor_url TEXT`);
   await tryAdd(`ALTER TABLE configuracoes_rede ADD COLUMN token_nuvem TEXT`);
   await tryAdd(`ALTER TABLE configuracoes_rede ADD COLUMN usuario_nuvem TEXT`);

@@ -21,6 +21,8 @@ Aplicação desktop (Windows) para gestão de assistência técnica de celulares
 **v1.9.x:** Sistema de **Licença/Ativação online** (tela de ativação por chave, verificação periódica via Supabase, bloqueio remoto de clientes inadimplentes/reembolsados) · Módulo **Remoção de Vírus** (análise de aparelhos Android conectados via ADB, classificação de risco de apps suspeitos, parar/desativar/desinstalar app, formatação de emergência, histórico de ações por cliente/equipamento).
 **v1.10.0 (nova):** Novo módulo **Compras / Pedidos a Fornecedores** (Fase 6): criação de pedidos de compra vinculados a um fornecedor, com itens livres ou vinculados a produtos do estoque, numeração automática (CP-000001...), fluxo de status (Pendente → Enviado → Recebido/Cancelado) e cadastro rápido de fornecedor sem sair do pedido. Ao marcar um pedido como **"Recebido"**, o sistema automaticamente dá entrada na quantidade de cada item vinculado a um produto, atualiza o valor de compra do produto para o preço pago e lança a despesa correspondente em **Contas a Pagar** — sem necessidade de lançamento manual duplicado.
 
+**v1.24.0 (web/nuvem):** **Venda a prazo** (fiado/parcelado, 1x a 24x) em Vendas, Ordens de Serviço e na entrega · menu **Cobranças** (contas a receber por cliente, cobrar no WhatsApp, receber, prorrogar vencimento) · menu **Bancada (Kanban)** (mover a OS entre Em análise, Aguardando peça, Em manutenção, Pronto e Entregue atualiza o status e o financeiro) · menus **Fale com o Suporte** e **Download App** (tutorial de instalação PWA).
+
 ---
 
 ## 1. Como usar (usuário final)
