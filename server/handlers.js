@@ -14,6 +14,7 @@ const bcrypt = require('bcryptjs');
 const { requirePapel } = require('./auth');
 
 const push = require('./push');
+const tenants = require('./tenants');
 
 function nowIso() {
   return new Date().toISOString();
@@ -92,6 +93,7 @@ async function baixarEstoqueDaOs(db, req, osId, osNumero, itensPecas) {
       `INSERT INTO movimentacoes_estoque (produto_id, tipo, quantidade, motivo, referencia, usuario_id, usuario_nome, criado_em) VALUES (?,?,?,?,?,?,?,?)`,
       [produto.id, 'saida', item.quantidade, 'Uso em Ordem de Serviço', osNumero, req.usuario?.id, req.usuario?.nome, nowIso()]
     );
+    await push.avisarEstoqueBaixo(db, produto.id, produto.quantidade || 0);
   }
 }
 
@@ -405,11 +407,14 @@ const handlers = {
 
   'usuarios:create': async (db, { nome, usuario, senha, papel }, req) => {
     requirePapel(req, ['Administrador']);
+    const cid = tenants.clienteIdDe(req);
+    await tenants.garantirLoginLivre(usuario, cid); // o login é único em TODOS os clientes do sistema
     const hash = bcrypt.hashSync(senha, 10);
     const id = await db.insert(
       `INSERT INTO usuarios (nome, usuario, senha_hash, papel, ativo, criado_em) VALUES (?,?,?,?,?,?)`,
       [nome, usuario, hash, papel, 1, nowIso()]
     );
+    await tenants.registrarLogin(usuario, cid);
     await log(db, req, 'CRIAR', 'usuarios', id, nome);
     return { ok: true, id };
   },
@@ -429,7 +434,13 @@ const handlers = {
     if (!usuario || !usuario.trim()) throw new Error('Informe o login do usuário.');
     const conflito = await db.get('SELECT id FROM usuarios WHERE usuario = ? AND id != ?', [usuario, id]);
     if (conflito) throw new Error('Já existe outro usuário com esse login.');
+    const cid = tenants.clienteIdDe(req);
+    if (usuario !== existente.usuario) await tenants.garantirLoginLivre(usuario, cid);
     await db.run('UPDATE usuarios SET nome = ?, usuario = ?, papel = ? WHERE id = ?', [nome, usuario, papel, id]);
+    if (usuario !== existente.usuario) {
+      await tenants.removerLogin(existente.usuario, cid);
+      await tenants.registrarLogin(usuario, cid);
+    }
     await log(db, req, 'EDITAR', 'usuarios', id, nome);
     return { ok: true };
   },
@@ -444,6 +455,7 @@ const handlers = {
       if (outrosAdmins.c === 0) throw new Error('Não é possível excluir o único Administrador ativo do sistema.');
     }
     await db.run('DELETE FROM usuarios WHERE id = ?', [id]);
+    await tenants.removerLogin(existente.usuario, tenants.clienteIdDe(req));
     await log(db, req, 'EXCLUIR', 'usuarios', id, existente.nome);
     return { ok: true };
   },
@@ -636,6 +648,7 @@ const handlers = {
       } catch (e) { /* não é crítico pra migração em si — segue normalmente */ }
     }
 
+    if (tabela === 'usuarios') await tenants.sincronizarLogins(tenants.clienteIdDe(req), db);
     await log(db, req, 'IMPORTAR', tabela, null, `Migração do banco local: ${importadas} registro(s) importado(s)`);
     return { ok: true, importadas };
   },
@@ -835,7 +848,7 @@ const handlers = {
         await db.run('UPDATE ordens_servico SET financeiro_lancado = 1 WHERE id = ?', [o.id]);
       }
       if (before && before.status !== o.status) {
-        await push.avisarOsStatus(o.id, before.status, o.status);
+        await push.avisarOsStatus(db, o.id, before.status, o.status);
         await log(db, req, 'MUDAR_STATUS', 'ordens_servico', o.id, `${before.status} -> ${o.status}`);
       } else {
         await log(db, req, 'EDITAR', 'ordens_servico', o.id, o.numero);
@@ -861,7 +874,7 @@ const handlers = {
         await baixarOuLancarRecebimentoDaOs(db, req, id, numero, o.valor_total, o.forma_pagamento);
         await db.run('UPDATE ordens_servico SET financeiro_lancado = 1 WHERE id = ?', [id]);
       }
-      await push.avisarOsNova(id, o.status || 'Recebido');
+      await push.avisarOsNova(db, id, o.status || 'Recebido');
       await log(db, req, 'CRIAR', 'ordens_servico', id, numero);
       return { ok: true, id, numero };
     }
@@ -874,7 +887,7 @@ const handlers = {
       await lancarReceberDaOs(db, req, id, before?.numero, before?.valor_total, before?.previsao);
       await db.run('UPDATE ordens_servico SET financeiro_receber_lancado = 1 WHERE id = ?', [id]);
     }
-    if (before && before.status !== status) await push.avisarOsStatus(id, before.status, status);
+    if (before && before.status !== status) await push.avisarOsStatus(db, id, before.status, status);
     await log(db, req, 'MUDAR_STATUS', 'ordens_servico', id, `${before?.status} -> ${status}`);
     return { ok: true };
   },
@@ -989,6 +1002,7 @@ const handlers = {
       [produto_id, tipo, quantidade, motivo || '', 'Ajuste manual', req.usuario?.id, req.usuario?.nome, nowIso()]
     );
     await log(db, req, 'MOVIMENTAR_ESTOQUE', 'produtos', produto_id, `${tipo} ${quantidade} — ${motivo || ''}`);
+    if (tipo === 'saida' || tipo === 'ajuste') await push.avisarEstoqueBaixo(db, produto_id, produto.quantidade || 0);
     return { ok: true };
   },
 
@@ -1159,6 +1173,7 @@ const handlers = {
         `INSERT INTO movimentacoes_estoque (produto_id, tipo, quantidade, motivo, referencia, usuario_id, usuario_nome, criado_em) VALUES (?,?,?,?,?,?,?,?)`,
         [produto.id, 'saida', item.quantidade, 'Venda avulsa', numero, req.usuario?.id, req.usuario?.nome, nowIso()]
       );
+      if (!v.id) await push.avisarEstoqueBaixo(db, produto.id, produto.quantidade || 0); // editar venda não reavisa
     }
     if (valorTotal > 0) {
       const hoje = nowIso().slice(0, 10);
@@ -1176,7 +1191,7 @@ const handlers = {
         }
       }
     }
-    if (!v.id) await push.avisarVenda(id); // só venda nova (editar uma venda não avisa de novo)
+    if (!v.id) await push.avisarVenda(db, id); // só venda nova (editar uma venda não avisa de novo)
     return { ok: true, id, numero };
   },
 
@@ -1222,7 +1237,7 @@ const handlers = {
         `UPDATE orcamentos SET cliente_id=?, equipamento_id=?, descricao=?, itens=?, valor_servicos=?, desconto=?, valor_total=?, validade_dias=?, data_orcamento=?, status=?, observacoes=?, atualizado_em=? WHERE id=?`,
         [o.cliente_id, o.equipamento_id || null, o.descricao, itens, o.valor_servicos || 0, o.desconto || 0, o.valor_total, o.validade_dias || 7, o.data_orcamento, o.status, o.observacoes, nowIso(), o.id]
       );
-      if (antes && antes.status !== o.status) await push.avisarOrcamentoStatus(o.id, antes.status, o.status);
+      if (antes && antes.status !== o.status) await push.avisarOrcamentoStatus(db, o.id, antes.status, o.status);
       await log(db, req, 'EDITAR', 'orcamentos', o.id, o.numero);
       return { ok: true, id: o.id };
     } else {
@@ -1231,7 +1246,7 @@ const handlers = {
         `INSERT INTO orcamentos (numero, cliente_id, equipamento_id, descricao, itens, valor_servicos, desconto, valor_total, validade_dias, data_orcamento, status, observacoes, usuario_id, criado_em) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
         [numero, o.cliente_id, o.equipamento_id || null, o.descricao, itens, o.valor_servicos || 0, o.desconto || 0, o.valor_total, o.validade_dias || 7, o.data_orcamento, o.status || 'Pendente', o.observacoes, req.usuario?.id, nowIso()]
       );
-      await push.avisarOrcamentoNovo(id);
+      await push.avisarOrcamentoNovo(db, id);
       await log(db, req, 'CRIAR', 'orcamentos', id, numero);
       return { ok: true, id, numero };
     }
@@ -1240,7 +1255,7 @@ const handlers = {
   'orcamentos:setStatus': async (db, { id, status }, req) => {
     const before = await db.get('SELECT status, numero FROM orcamentos WHERE id = ?', [id]);
     await db.run('UPDATE orcamentos SET status = ?, atualizado_em = ? WHERE id = ?', [status, nowIso(), id]);
-    if (before && before.status !== status) await push.avisarOrcamentoStatus(id, before.status, status);
+    if (before && before.status !== status) await push.avisarOrcamentoStatus(db, id, before.status, status);
     await log(db, req, 'MUDAR_STATUS', 'orcamentos', id, `${before?.status} -> ${status}`);
     return { ok: true };
   },
@@ -1281,7 +1296,7 @@ const handlers = {
       await lancarDespesaPecasDaOs(db, req, osId, numero, itensPecas, valorPecas, dataHoje);
     }
     await db.run(`UPDATE orcamentos SET status='Convertido', os_id=?, atualizado_em=? WHERE id=?`, [osId, nowIso(), id]);
-    await push.avisarOrcamentoConvertido(id, osId);
+    await push.avisarOrcamentoConvertido(db, id, osId);
     await log(db, req, 'CONVERTER_EM_OS', 'orcamentos', id, `${orc.numero} -> ${numero}`);
     return { ok: true, osId, osNumero: numero };
   },
@@ -1332,7 +1347,7 @@ const handlers = {
     const sub = await db.get('SELECT * FROM push_subscricoes WHERE endpoint = ?', [endpoint]);
     if (!sub) throw new Error('Este aparelho ainda não ativou as notificações.');
     await push.chavePublica(); // garante que o VAPID está configurado
-    const ok = await push.enviarParaInscricao(sub, {
+    const ok = await push.enviarParaInscricao(db, sub, {
       titulo: '🔔 Notificações ativadas!',
       corpo: 'Você vai receber avisos do Reboot Tech neste aparelho.',
       url: './',

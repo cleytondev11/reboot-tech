@@ -10,10 +10,15 @@ if (!process.env.TURSO_DATABASE_URL) {
   console.error('[Banco] Variável de ambiente TURSO_DATABASE_URL não definida. Veja server/DEPLOY.md.');
 }
 
-const client = createClient({
-  url: process.env.TURSO_DATABASE_URL,
-  authToken: process.env.TURSO_AUTH_TOKEN, // pode ficar vazio em bancos locais de teste
-});
+// Cria uma conexão com UM banco. O sistema agora atende vários clientes no mesmo
+// site: cada cliente tem o seu próprio banco (veja tenants.js), então tudo que
+// mexe no banco é criado por esta função — uma instância por cliente.
+function criarBanco({ url, authToken }) {
+  const client = createClient({
+    url,
+    authToken, // pode ficar vazio em bancos locais de teste
+  });
+
 
 function linhaParaObjeto(row) {
   // O driver do libSQL já retorna cada linha como um objeto com as colunas como
@@ -81,6 +86,8 @@ async function migrate() {
     notif_orc_novo INTEGER DEFAULT 1,
     notif_orc_status INTEGER DEFAULT 1,
     notif_venda INTEGER DEFAULT 1,
+    notif_estoque_baixo INTEGER DEFAULT 1,
+    notif_contas_pagar INTEGER DEFAULT 1,
     criado_em TEXT
   )`);
   // Bancos que já existiam antes das novas opções de notificação.
@@ -89,6 +96,10 @@ async function migrate() {
   await tryAdd(`ALTER TABLE push_subscricoes ADD COLUMN notif_orc_novo INTEGER DEFAULT 1`);
   await tryAdd(`ALTER TABLE push_subscricoes ADD COLUMN notif_orc_status INTEGER DEFAULT 1`);
   await tryAdd(`ALTER TABLE push_subscricoes ADD COLUMN notif_venda INTEGER DEFAULT 1`);
+  await tryAdd(`ALTER TABLE push_subscricoes ADD COLUMN notif_estoque_baixo INTEGER DEFAULT 1`);
+  await tryAdd(`ALTER TABLE push_subscricoes ADD COLUMN notif_contas_pagar INTEGER DEFAULT 1`);
+  // Controle dos avisos diários (evita mandar o mesmo resumo duas vezes no dia).
+  await client.execute(`CREATE TABLE IF NOT EXISTS push_avisos (chave TEXT PRIMARY KEY, criado_em TEXT)`);
   await client.execute(`CREATE TABLE IF NOT EXISTS push_config (chave TEXT PRIMARY KEY, valor TEXT)`);
 
   const existeEmpresa = await get('SELECT id FROM configuracoes_empresa WHERE id = 1');
@@ -100,4 +111,15 @@ async function migrate() {
   }
 }
 
-module.exports = { all, get, run, insert, initSchema, client };
+  return { all, get, run, insert, initSchema, client, fechar: () => { try { client.close(); } catch (e) { /* ignora */ } } };
+}
+
+// Banco "principal" (variáveis TURSO_DATABASE_URL / TURSO_AUTH_TOKEN): guarda o
+// cadastro dos clientes (tabelas rt_clientes e rt_logins) e também pode ser o
+// banco de um cliente.
+const principal = criarBanco({
+  url: process.env.TURSO_DATABASE_URL,
+  authToken: process.env.TURSO_AUTH_TOKEN,
+});
+
+module.exports = { ...principal, criarBanco, principal };

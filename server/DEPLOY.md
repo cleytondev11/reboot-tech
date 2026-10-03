@@ -107,6 +107,10 @@ Este guia usa duas ferramentas **gratuitas para começar**:
 
 ## Criar o primeiro usuário (administrador)
 
+> **Novo:** com o painel `/admin` (seção abaixo, "Vários clientes no mesmo site") você
+> não precisa mais fazer isto à mão — o administrador de cada cliente é criado
+> automaticamente. O passo a passo abaixo só é necessário se você **não** usar o painel.
+
 Como o backend novo começa com o banco vazio, use o painel do Turso para
 inserir o primeiro administrador diretamente (só dessa vez — depois disso,
 crie os demais usuários normalmente pela tela **Usuários** do próprio
@@ -127,6 +131,68 @@ sistema).
    ```
 4. Pronto — já dá pra fazer login no site com usuário `admin` e a senha que
    você escolheu.
+
+---
+
+## Vários clientes no mesmo site (um banco para cada um)
+
+**Um único site e um único servidor atendem todos os seus clientes.** Você não
+cria mais um site no Render para cada cliente: para cadastrar alguém basta
+informar o **nome**, um **login** e uma **senha** — o sistema cria um banco de
+dados novo e exclusivo para ele e o usuário administrador. O cliente entra no
+mesmo endereço de sempre, só com login e senha, e vê apenas os dados dele (os
+bancos são totalmente separados).
+
+### Configurar (uma vez só)
+
+No Render, no serviço do backend (**Environment**), adicione:
+
+| Variável | Para que serve |
+| --- | --- |
+| `ADMIN_SENHA` | Senha que protege o painel de cadastro de clientes (invente uma longa). |
+| `TURSO_API_TOKEN` | Token da API do Turso, para criar os bancos sozinho. Gere no terminal: `turso auth api-tokens mint reboot-tech --org SUA_ORG` |
+| `TURSO_ORG` | Nome da sua conta/organização no Turso (aparece em `turso org list`). |
+| `TURSO_GROUP` | (opcional) Grupo onde os bancos são criados. Padrão: `default`. |
+
+Se preferir **não** usar a criação automática, deixe `TURSO_API_TOKEN`/`TURSO_ORG`
+em branco: no painel você cria o banco à mão no site do Turso e cola a URL e o
+token no cadastro do cliente.
+
+### Cadastrar um cliente
+
+1. Abra `https://SEU-BACKEND.onrender.com/admin` (o endereço do **backend**) e entre com a `ADMIN_SENHA`.
+2. Em **Novo cliente**, preencha nome, login e senha → **Criar cliente**.
+3. Pronto: passe para o cliente o endereço do **seu site** (o mesmo para todos), o login e a senha.
+
+No painel você também pode **bloquear/liberar** um cliente (vale em até 1 minuto)
+e definir **nova senha** do administrador dele. Nada é apagado: bloquear só
+impede o acesso e os dados ficam guardados.
+
+### Trazer clientes que já tinham site próprio
+
+Em **Importar um banco que já existe**, informe o nome, a `TURSO_DATABASE_URL` e o
+`TURSO_AUTH_TOKEN` do serviço antigo do cliente (estão no Render dele). Os dados
+e os usuários continuam como estavam; ele passa a entrar pelo site único. Depois
+que todos estiverem no site novo, os sites antigos (`rt-nome-do-cliente...`)
+podem ser apagados no Render.
+
+### Regras para lembrar
+
+- **O login é único em todo o sistema** (dois clientes não podem ter o mesmo
+  login, nem em maiúsculas/minúsculas diferentes). Use algo como `paulo.silva`
+  em vez de `admin`. O mesmo vale para os funcionários que o cliente cadastra na
+  tela **Usuários**: se o login já existir em outra empresa, o sistema avisa
+  para escolher outro.
+- Instalações que já existiam continuam funcionando: o banco configurado em
+  `TURSO_DATABASE_URL` vira o "cliente 1" automaticamente e os usuários dele
+  seguem entrando normalmente. Ele também guarda o cadastro dos clientes.
+- Quem já tinha o sistema instalado no celular pelo endereço antigo precisa abrir
+  o endereço novo, instalar de novo na tela inicial e **ativar as notificações
+  de novo** (o navegador guarda isso por endereço).
+- O resumo diário de contas a pagar passa por todos os clientes ativos (veja a
+  seção de notificações).
+- Opcional: `MAX_BANCOS_ABERTOS` (padrão 30) limita quantos bancos de clientes
+  ficam conectados ao mesmo tempo no servidor.
 
 ---
 

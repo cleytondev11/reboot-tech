@@ -6,9 +6,11 @@ if (!SECRET || SECRET.length < 16) {
   console.error('[Auth] Defina uma variável de ambiente JWT_SECRET forte (>=16 caracteres) antes de usar em produção. Veja server/DEPLOY.md.');
 }
 
-function gerarToken(usuario) {
+// "cid" = id do cliente (empresa) dono do login. É ele que faz cada requisição
+// usar o banco do cliente certo; como o token é assinado, ninguém consegue trocá-lo.
+function gerarToken(usuario, cid = 1) {
   return jwt.sign(
-    { id: usuario.id, nome: usuario.nome, usuario: usuario.usuario, papel: usuario.papel },
+    { id: usuario.id, nome: usuario.nome, usuario: usuario.usuario, papel: usuario.papel, cid },
     SECRET || 'chave-temporaria-troque-isto',
     { expiresIn: '12h' }
   );
