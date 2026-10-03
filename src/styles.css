@@ -516,3 +516,21 @@ tbody tr:last-child td { border-bottom: none; }
   .dl-painel { padding: 14px; }
   .sp-numero { font-size: 22px; }
 }
+
+
+/* ---- Visualizador de PDF / recibo (Voltar, Imprimir, Baixar, WhatsApp) ---- */
+.vz-overlay { position: fixed; inset: 0; z-index: 200; display: flex; flex-direction: column; background: var(--bg); padding-top: env(safe-area-inset-top, 0px); }
+.vz-barra { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 14px; background: var(--bg-elev); border-bottom: 1px solid var(--border); }
+.vz-voltar { font-weight: 700; }
+.vz-titulo { flex: 1 1 140px; min-width: 0; font-weight: 700; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.vz-acoes { display: flex; gap: 8px; flex-wrap: wrap; }
+.vz-corpo { flex: 1; min-height: 0; display: flex; justify-content: center; background: #4a4d52; overflow: auto; padding-bottom: env(safe-area-inset-bottom, 0px); }
+.vz-quadro { border: 0; background: #fff; width: 100%; height: 100%; }
+.vz-recibo { max-width: 100%; margin: 12px 0; height: calc(100% - 24px); box-shadow: 0 4px 24px rgba(0, 0, 0, 0.5); }
+.vz-cartao { margin: auto; max-width: 360px; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 10px; padding: 26px 22px; border-radius: 14px; background: var(--bg-elev); border: 1px solid var(--border); font-size: 13.5px; }
+.vz-cartao-icone { font-size: 38px; }
+@media (max-width: 900px) {
+  .vz-barra { padding: 8px 10px; gap: 8px; }
+  .vz-titulo { order: 3; flex-basis: 100%; font-size: 13px; }
+  .vz-acoes { margin-left: auto; }
+}

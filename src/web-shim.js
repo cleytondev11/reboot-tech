@@ -1,3 +1,6 @@
+import { criarApiPdf } from './pdf-web.js';
+import { criarApiImpressora } from './impressao-web.js';
+
 // ---------- MODO WEB/NUVEM: window.api via HTTP, em vez do Electron ----------
 // Quando este app roda dentro do Electron, o preload.cjs já expõe "window.api"
 // antes desta página carregar — nesse caso não fazemos nada aqui. Quando o app
@@ -78,18 +81,6 @@
         localStorage.removeItem('rt-user');
         return { ok: true };
       },
-    },
-    seguranca: {
-      adbDisponivel: indisponivelNoNavegador('A Remoção de Vírus (análise via cabo USB) só está disponível no programa instalado no computador.'),
-      listarDispositivos: indisponivelNoNavegador(),
-      analisar: indisponivelNoNavegador(),
-      pararApp: indisponivelNoNavegador(),
-      removerAdmin: indisponivelNoNavegador(),
-      desativarPacote: indisponivelNoNavegador(),
-      reativarPacote: indisponivelNoNavegador(),
-      desinstalar: indisponivelNoNavegador(),
-      formatar: indisponivelNoNavegador(),
-      historico: (cliente_id, equipamento_id) => invoke('adb:historico', { cliente_id, equipamento_id }),
     },
     usuarios: {
       list: () => invoke('usuarios:list'),
@@ -265,16 +256,8 @@
     backup: {
       manual: indisponivelNoNavegador('O backup do banco de dados é feito automaticamente pelo Turso (nuvem). Este botão só existe no programa instalado.'),
     },
-    pdf: {
-      exportarOS: indisponivelNoNavegador('Exportar PDF ainda só está disponível no programa instalado no computador.'),
-      exportarChecklist: indisponivelNoNavegador(),
-      exportarGarantia: indisponivelNoNavegador(),
-      exportarOrcamento: indisponivelNoNavegador(),
-      exportarComprovante: indisponivelNoNavegador(),
-      exportarVendaGarantia: indisponivelNoNavegador(),
-      exportarVendaRecibo: indisponivelNoNavegador(),
-      exportarRelatorio: indisponivelNoNavegador(),
-    },
+    // PDF gerado no próprio navegador (abre numa tela com Voltar / Imprimir / Baixar / WhatsApp).
+    pdf: criarApiPdf({ invoke }),
     empresa: {
       get: () => invoke('empresa:get'),
       save: (atual, empresa) => invoke('empresa:save', { empresa }),
@@ -293,22 +276,8 @@
     app: {
       getVersion: async () => 'Web',
     },
-    // Rede Multi-PC e Impressora Térmica são recursos do programa instalado
-    // (dependem do computador físico) — no navegador, simplesmente não existem.
-    rede: {
-      status: async () => ({ modo: 'standalone', ipsLocais: [], servidorAtivo: false }),
-      ipsLocais: async () => [],
-      configurar: indisponivelNoNavegador(),
-      testarConexao: indisponivelNoNavegador(),
-    },
-    impressora: {
-      listar: async () => [],
-      configuracao: async () => ({}),
-      salvarConfiguracao: indisponivelNoNavegador(),
-      imprimirCupomVenda: indisponivelNoNavegador('Impressão térmica só está disponível no programa instalado no computador.'),
-      imprimirCupomOS: indisponivelNoNavegador('Impressão térmica só está disponível no programa instalado no computador.'),
-      testar: indisponivelNoNavegador(),
-    },
+    // Impressão: o documento abre numa tela com "Voltar" e "Imprimir"; a janela do navegador mostra as impressoras.
+    impressora: criarApiImpressora({ invoke }),
   };
 
   // A licença da versão web é decidida pelo próprio servidor (variáveis de

@@ -198,14 +198,18 @@ export default function Orcamentos() {
   }
 
   async function exportarPdf() {
-    const res = await window.api.pdf.exportarOrcamento(form.id);
-    if (res.ok) showToast('PDF exportado com sucesso.');
+    try {
+      const res = await window.api.pdf.exportarOrcamento(form.id);
+      if (res.ok && !res.web) showToast('PDF exportado com sucesso.');
+    } catch (err) {
+      showToast(String(err.message || err), 'error');
+    }
   }
 
   async function exportarPdfListagem(row) {
     try {
       const res = await window.api.pdf.exportarOrcamento(row.id);
-      if (res.ok) showToast('PDF exportado com sucesso.');
+      if (res.ok && !res.web) showToast('PDF exportado com sucesso.');
     } catch (err) {
       showToast(String(err.message || err), 'error');
     }
@@ -259,13 +263,12 @@ export default function Orcamentos() {
     try {
       const telefone = row.cliente_whatsapp || row.cliente_telefone;
       if (!telefone) return showToast('Este cliente não possui WhatsApp/telefone cadastrado.', 'error');
-      const res = await window.api.pdf.exportarOrcamento(row.id);
+      const msg = `Olá! Segue o orçamento ${row.numero}${row.cliente_nome ? ' referente ao atendimento de ' + row.cliente_nome : ''}. Estou enviando o PDF em anexo.`;
+      const res = await window.api.pdf.exportarOrcamento(row.id, { whatsapp: { telefone, mensagem: msg } });
       if (!res.ok) return; // usuário cancelou o salvamento do PDF
-      const msg = `Olá! Segue o orçamento ${row.numero}${row.cliente_nome ? ' referente ao atendimento de ' + row.cliente_nome : ''}. Anexei o PDF aqui, um momento.`;
+      if (res.web) return; // versão web: a janelinha "PDF pronto" cuida do envio pelo WhatsApp
       await window.api.whatsapp.abrirConversa(telefone, msg);
-      showToast(window.api.ehWeb
-        ? 'WhatsApp aberto. Salve o PDF na janela de impressão e anexe o arquivo na conversa.'
-        : 'PDF salvo. O WhatsApp foi aberto — anexe o arquivo que acabou de ser revelado na pasta.');
+      showToast('PDF salvo. O WhatsApp foi aberto — anexe o arquivo que acabou de ser revelado na pasta.');
     } catch (err) {
       showToast(String(err.message || err), 'error');
     }

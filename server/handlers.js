@@ -60,7 +60,7 @@ async function caixaAberto(db) {
 }
 
 const STATUS_LIST = [
-  'Recebido', 'Em análise', 'Aguardando orçamento', 'Orçamento enviado',
+  'Recebido', 'Em análise',
   'Aguardando aprovação', 'Aguardando peça', 'Em manutenção', 'Teste',
   'Pronto', 'Entregue', 'Cancelado',
 ];
@@ -713,33 +713,6 @@ const handlers = {
     if (tabela === 'usuarios') await tenants.sincronizarLogins(tenants.clienteIdDe(req), db);
     await log(db, req, 'IMPORTAR', tabela, null, `Migração do banco local: ${importadas} registro(s) importado(s)`);
     return { ok: true, importadas };
-  },
-
-  // ---------- SEGURANÇA / REMOÇÃO DE VÍRUS (histórico na nuvem) ----------
-  // A análise em si (conexão USB/ADB) só roda no computador desktop, mas quando
-  // esse computador está em "Modo Nuvem" o registro do que foi feito é salvo
-  // aqui, no banco central — assim o histórico fica visível pra loja inteira,
-  // de qualquer computador, e não fica preso ao HD de uma única máquina.
-  'seguranca:registrar': async (db, dados, req) => {
-    await db.insert(
-      `INSERT INTO seguranca_acoes (dispositivo_serial, dispositivo_modelo, pacote, acao, nivel_risco, resultado, cliente_id, equipamento_id, usuario_id, usuario_nome, criado_em)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
-      [
-        dados.serial || null, dados.modelo || null, dados.pacote || null, dados.acao, dados.nivel || null, dados.resultado || null,
-        dados.cliente_id || null, dados.equipamento_id || null,
-        dados.usuario_id || req.usuario?.id || null, dados.usuario_nome || req.usuario?.nome || 'Sistema', nowIso(),
-      ]
-    );
-    return { ok: true };
-  },
-
-  'adb:historico': async (db, { cliente_id, equipamento_id } = {}) => {
-    let sql = `SELECT s.*, c.nome as cliente_nome FROM seguranca_acoes s LEFT JOIN clientes c ON c.id = s.cliente_id WHERE 1=1`;
-    const params = [];
-    if (cliente_id) { sql += ' AND s.cliente_id = ?'; params.push(cliente_id); }
-    if (equipamento_id) { sql += ' AND s.equipamento_id = ?'; params.push(equipamento_id); }
-    sql += ' ORDER BY s.id DESC LIMIT 200';
-    return db.all(sql, params);
   },
 
   // ---------- DADOS COMPOSTOS (usados pelo app desktop pra gerar PDF/impressão

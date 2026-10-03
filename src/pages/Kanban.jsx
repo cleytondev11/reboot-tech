@@ -10,7 +10,7 @@ import AvisoProntoModal from '../components/AvisoProntoModal.jsx';
 //   Entregue -> pede a forma de pagamento e dá baixa (ou gera as parcelas, se for "A prazo");
 //   voltar de Pronto para uma etapa anterior -> desfaz o "A receber" automático.
 const COLUNAS = [
-  { key: 'analise', titulo: 'Em análise', icon: '🔍', destino: 'Em análise', status: ['Recebido', 'Em análise', 'Aguardando orçamento', 'Orçamento enviado', 'Aguardando aprovação'] },
+  { key: 'analise', titulo: 'Em análise', icon: '🔍', destino: 'Em análise', status: ['Recebido', 'Em análise', 'Aguardando aprovação'] },
   { key: 'peca', titulo: 'Aguardando peça', icon: '📦', destino: 'Aguardando peça', status: ['Aguardando peça'] },
   { key: 'manutencao', titulo: 'Em manutenção', icon: '🔧', destino: 'Em manutenção', status: ['Em manutenção', 'Teste'] },
   { key: 'pronto', titulo: 'Pronto', icon: '✅', destino: 'Pronto', status: ['Pronto'] },

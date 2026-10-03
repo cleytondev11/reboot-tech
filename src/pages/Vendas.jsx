@@ -115,8 +115,8 @@ export default function Vendas() {
 
   async function imprimirCupom(row, formato) {
     try {
-      await window.api.impressora.imprimirCupomVenda(row.id, formato);
-      showToast('Cupom enviado para a impressora.');
+      const res = await window.api.impressora.imprimirCupomVenda(row.id, formato);
+      if (!res || !res.web) showToast('Cupom enviado para a impressora.');
     } catch (err) {
       showToast(String(err.message || err), 'error');
     }
@@ -164,7 +164,7 @@ export default function Vendas() {
   async function exportarGarantia(row) {
     try {
       const res = await window.api.pdf.exportarVendaGarantia(row.id);
-      if (res.ok) showToast('Termo de Garantia exportado com sucesso.');
+      if (res.ok && !res.web) showToast('Termo de Garantia exportado com sucesso.');
     } catch (err) {
       showToast(String(err.message || err), 'error');
     }
@@ -173,7 +173,7 @@ export default function Vendas() {
   async function exportarRecibo(row) {
     try {
       const res = await window.api.pdf.exportarVendaRecibo(row.id);
-      if (res.ok) showToast('Comprovante de Compra exportado com sucesso.');
+      if (res.ok && !res.web) showToast('Comprovante de Compra exportado com sucesso.');
     } catch (err) {
       showToast(String(err.message || err), 'error');
     }

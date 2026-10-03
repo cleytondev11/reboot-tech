@@ -89,7 +89,7 @@ export default function Relatorios() {
     }
     try {
       const res = await window.api.pdf.exportarRelatorio(user, active.label, periodoTexto, displayData.resumo, displayData.columns, displayData.rows);
-      if (res.ok) showToast('PDF exportado com sucesso.');
+      if (res.ok && !res.web) showToast('PDF exportado com sucesso.');
     } catch (err) {
       showToast(String(err.message || err), 'error');
     }

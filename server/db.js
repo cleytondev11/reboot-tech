@@ -71,6 +71,8 @@ async function migrate() {
   await tryAdd(`ALTER TABLE lancamentos_financeiros ADD COLUMN cliente_id INTEGER`);
   await tryAdd(`ALTER TABLE lancamentos_financeiros ADD COLUMN parcela TEXT`);
   await tryAdd(`ALTER TABLE lancamentos_financeiros ADD COLUMN cobrado_em TEXT`);
+  // Status removidos da OS ("Aguardando orçamento" e "Orçamento enviado"): quem estava neles volta para "Em análise".
+  try { await client.execute(`UPDATE ordens_servico SET status = 'Em análise' WHERE status IN ('Aguardando orçamento', 'Orçamento enviado')`); } catch (e) { /* tabela ainda sem dados */ }
   await tryAdd(`ALTER TABLE configuracoes_rede ADD COLUMN servidor_url TEXT`);
   await tryAdd(`ALTER TABLE configuracoes_rede ADD COLUMN token_nuvem TEXT`);
   await tryAdd(`ALTER TABLE configuracoes_rede ADD COLUMN usuario_nuvem TEXT`);

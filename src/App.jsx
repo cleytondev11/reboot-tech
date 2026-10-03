@@ -15,7 +15,6 @@ import Financeiro from './pages/Financeiro.jsx';
 import Relatorios from './pages/Relatorios.jsx';
 import Usuarios from './pages/Usuarios.jsx';
 import Configuracoes from './pages/Configuracoes.jsx';
-import RemocaoVirus from './pages/RemocaoVirus.jsx';
 import Kanban from './pages/Kanban.jsx';
 import Cobrancas from './pages/Cobrancas.jsx';
 import Suporte from './pages/Suporte.jsx';
@@ -36,7 +35,6 @@ const NAV = [
   { key: 'servicos', label: 'Serviços', icon: '🔧' },
   { key: 'vendas', label: 'Vendas', icon: '🛒' },
   { key: 'cobrancas', label: 'Cobranças', icon: '💸', restrictTo: ['Administrador', 'Financeiro', 'Atendente'] },
-  { key: 'antivirus', label: 'Remoção de Vírus', icon: '🛡️' },
   { key: 'financeiro', label: 'Financeiro', icon: '💰', restrictTo: ['Administrador', 'Financeiro'] },
   { key: 'relatorios', label: 'Relatórios', icon: '📈', adminOnly: true },
   { key: 'usuarios', label: 'Usuários', icon: '🔐', adminOnly: true },
@@ -48,38 +46,8 @@ const NAV = [
 const TITLES = {
   dashboard: 'Dashboard', clientes: 'Clientes', equipamentos: 'Equipamentos',
   os: 'Ordens de Serviço', kanban: 'Bancada — Kanban', cobrancas: 'Cobranças', suporte: 'Fale com o Suporte', download: 'Download App', orcamentos: 'Orçamentos', compras: 'Compras', estoque: 'Estoque', servicos: 'Serviços', vendas: 'Vendas', financeiro: 'Financeiro',
-  relatorios: 'Relatórios', usuarios: 'Usuários', config: 'Configurações', antivirus: 'Remoção de Vírus',
+  relatorios: 'Relatórios', usuarios: 'Usuários', config: 'Configurações',
 };
-
-function RedeBadge() {
-  const [status, setStatus] = useState(null);
-
-  useEffect(() => {
-    let ativo = true;
-    async function checar() {
-      try {
-        const res = await window.api.rede.status();
-        if (ativo) setStatus(res);
-      } catch (e) { /* silencioso */ }
-    }
-    checar();
-    const t = setInterval(checar, 20000);
-    return () => { ativo = false; clearInterval(t); };
-  }, []);
-
-  if (!status || status.modo === 'standalone') return null;
-  if (status.modo === 'servidor') {
-    return <span className="pill" title="Este computador é o Servidor da rede multi-PC">🌐 Servidor</span>;
-  }
-  if (status.modo === 'nuvem') {
-    return (
-      <span className="pill" title={status.conectadoNuvem ? `Conectado à nuvem em ${status.servidor_url}` : 'Modo Nuvem configurado, mas ainda sem sessão ativa'}>
-        ☁️ Nuvem{status.conectadoNuvem ? '' : ' (desconectado)'}
-      </span>
-    );
-  }
-  return <span className="pill" title={`Conectado ao servidor em ${status.servidor_ip}`}>🌐 Cliente</span>;
-}
 
 function Shell() {
   const { user, setUser, theme, toggleTheme } = useApp();
@@ -125,7 +93,6 @@ function Shell() {
       case 'estoque': return <Estoque />;
       case 'servicos': return <Servicos />;
       case 'vendas': return <Vendas />;
-      case 'antivirus': return <RemocaoVirus />;
       case 'financeiro': return <Financeiro />;
       case 'relatorios': return <Relatorios />;
       case 'usuarios': return <Usuarios />;
@@ -171,7 +138,6 @@ function Shell() {
           <button className="icon-btn menu-toggle" aria-label="Abrir menu" onClick={() => setMenuAberto((v) => !v)}>☰</button>
           <h1>{TITLES[page]}</h1>
           <div className="topbar-actions">
-            <RedeBadge />
             <button className="icon-btn" title="Alternar tema" onClick={toggleTheme}>{theme === 'dark' ? '☀️' : '🌙'}</button>
           </div>
         </div>

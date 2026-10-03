@@ -23,6 +23,8 @@ Aplicação desktop (Windows) para gestão de assistência técnica de celulares
 
 **v1.24.0 (web/nuvem):** **Venda a prazo** (fiado/parcelado, 1x a 24x) em Vendas, Ordens de Serviço e na entrega · menu **Cobranças** (contas a receber por cliente, cobrar no WhatsApp, receber, prorrogar vencimento) · menu **Bancada (Kanban)** (mover a OS entre Em análise, Aguardando peça, Em manutenção, Pronto e Entregue atualiza o status e o financeiro) · menus **Fale com o Suporte** e **Download App** (tutorial de instalação PWA).
 
+**v1.25.0 (web/nuvem):** Removidos o menu **Remoção de Vírus** e a aba **Rede Multi-PC** · status **Aguardando orçamento** e **Orçamento enviado** removidos da OS (OS que estavam neles passam para "Em análise") · **Exportar PDF**, **Termo de Garantia** e **Compartilhar no WhatsApp** agora funcionam no navegador: o documento abre numa tela com **← Voltar**, **Imprimir**, **Baixar PDF** e **WhatsApp** (mensagem editável) · **Impressão** de recibo/cupom abre o documento e a janela do navegador lista as impressoras.
+
 ---
 
 ## 1. Como usar (usuário final)

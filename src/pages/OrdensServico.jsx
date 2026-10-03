@@ -281,7 +281,7 @@ export default function OrdensServico() {
   async function exportarPdf() {
     try {
       const res = await window.api.pdf.exportarOS(form.id);
-      if (res.ok) showToast('PDF exportado com sucesso.');
+      if (res.ok && !res.web) showToast('PDF exportado com sucesso.');
     } catch (err) {
       showToast(String(err.message || err), 'error');
     }
@@ -290,7 +290,7 @@ export default function OrdensServico() {
   async function exportarChecklistPdf() {
     try {
       const res = await window.api.pdf.exportarChecklist(form.id);
-      if (res.ok) showToast('Checklist em PDF exportado com sucesso.');
+      if (res.ok && !res.web) showToast('Checklist em PDF exportado com sucesso.');
     } catch (err) {
       showToast(String(err.message || err), 'error');
     }
@@ -299,7 +299,7 @@ export default function OrdensServico() {
   async function exportarGarantiaPdf(id) {
     try {
       const res = await window.api.pdf.exportarGarantia(id);
-      if (res.ok) showToast('Termo de Garantia exportado com sucesso.');
+      if (res.ok && !res.web) showToast('Termo de Garantia exportado com sucesso.');
     } catch (err) {
       showToast(String(err.message || err), 'error');
     }
@@ -318,8 +318,8 @@ export default function OrdensServico() {
 
   async function imprimirCupom(id, formato) {
     try {
-      await window.api.impressora.imprimirCupomOS(id, formato);
-      showToast('Recibo enviado para a impressora.');
+      const res = await window.api.impressora.imprimirCupomOS(id, formato);
+      if (!res || !res.web) showToast('Recibo enviado para a impressora.');
     } catch (err) {
       showToast(String(err.message || err), 'error');
     }
@@ -328,7 +328,7 @@ export default function OrdensServico() {
   async function exportarPdfListagem(row) {
     try {
       const res = await window.api.pdf.exportarOS(row.id);
-      if (res.ok) showToast('PDF exportado com sucesso.');
+      if (res.ok && !res.web) showToast('PDF exportado com sucesso.');
     } catch (err) {
       showToast(String(err.message || err), 'error');
     }
@@ -338,7 +338,7 @@ export default function OrdensServico() {
     try {
       const telefone = row.cliente_whatsapp || row.cliente_telefone;
       if (!telefone) return showToast('Este cliente não possui WhatsApp/telefone cadastrado.', 'error');
-      const msg = `Olá! Segue a Ordem de Serviço ${row.numero}${row.cliente_nome ? ' de ' + row.cliente_nome : ''}. Anexei o PDF aqui, um momento.`;
+      const msg = `Olá! Segue a Ordem de Serviço ${row.numero}${row.cliente_nome ? ' de ' + row.cliente_nome : ''}. Estou enviando o PDF em anexo.`;
       const res = await window.api.pdf.exportarOS(row.id, { whatsapp: { telefone, mensagem: msg } });
       if (!res.ok) return;
       if (res.web) return; // versão web: a janelinha "PDF pronto" cuida do envio pelo WhatsApp

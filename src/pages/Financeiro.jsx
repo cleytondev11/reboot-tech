@@ -104,7 +104,7 @@ function Contas({ user, showToast }) {
   async function exportarComprovante(l) {
     try {
       const res = await window.api.pdf.exportarComprovante(l.id);
-      if (res.ok) showToast('Comprovante exportado com sucesso.');
+      if (res.ok && !res.web) showToast('Comprovante exportado com sucesso.');
     } catch (err) {
       showToast(String(err.message || err), 'error');
     }
