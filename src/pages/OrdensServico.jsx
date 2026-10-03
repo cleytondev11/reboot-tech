@@ -4,7 +4,6 @@ import { formatCurrency, formatDateTime, toInputDate, todayInputValue, statusCla
 import SignaturePad from '../components/SignaturePad.jsx';
 import PatternLock from '../components/PatternLock.jsx';
 import ImprimirMenu from '../components/ImprimirMenu.jsx';
-import AvisoProntoModal, { foiAvisada } from '../components/AvisoProntoModal.jsx';
 
 const EMPTY = {
   id: null, cliente_id: '', equipamento_id: '', defeito_informado: '', diagnostico: '',
@@ -31,9 +30,6 @@ export default function OrdensServico() {
   const [equipFotos, setEquipFotos] = useState([]);
   const [formatoImpressao, setFormatoImpressao] = useState('termica');
   const [equipFotosLoading, setEquipFotosLoading] = useState(false);
-  const [statusOriginal, setStatusOriginal] = useState(''); // status de quando a OS foi aberta (detecta a virada para "Pronto")
-  const [avisoPronto, setAvisoPronto] = useState(null);   // dados do aviso "OS pronta" aberto na tela
-  const [, setAvisoTick] = useState(0);                   // só para redesenhar o ✅ de "cliente avisado"
 
   async function load() {
     const res = await window.api.os.list(termo, statusFiltro);
@@ -112,13 +108,11 @@ export default function OrdensServico() {
       checklist_acessorios: [],
     });
     setTab('dados');
-    setStatusOriginal('');
     setModalOpen(true);
   }
 
   async function openEdit(row) {
     const full = await window.api.os.get(row.id);
-    setStatusOriginal(full.status || '');
     let checklist = [];
     try { checklist = JSON.parse(full.checklist || '[]'); } catch { checklist = []; }
     if (checklist.length === 0) checklist = CHECKLIST_ITENS.map((item) => ({ item, status: '', obs: '' }));
@@ -217,20 +211,6 @@ export default function OrdensServico() {
     return Math.max(0, mao + pecas - desc);
   }, [form.valor_mao_obra, form.valor_pecas, form.desconto]);
 
-  // Monta os dados do aviso a partir de uma linha da lista
-  function dadosAvisoDaLinha(row) {
-    return {
-      id: row.id, numero: row.numero, cliente_nome: row.cliente_nome,
-      whatsapp: row.cliente_whatsapp, telefone: row.cliente_telefone,
-      equipamento: [row.equip_marca, row.equip_modelo].filter(Boolean).join(' '),
-      valor_total: row.valor_total,
-    };
-  }
-
-  function abrirAviso(dados) {
-    setAvisoPronto(dados);
-  }
-
   async function save(e) {
     e.preventDefault();
     if (!form.cliente_id) return showToast('Selecione o cliente.', 'error');
@@ -248,17 +228,6 @@ export default function OrdensServico() {
       };
       const res = await window.api.os.save(user, payload);
       showToast(`Ordem de Serviço ${res.numero || form.numero || ''} salva com sucesso.`);
-      const virouPronto = payload.status === 'Pronto' && statusOriginal !== 'Pronto';
-      if (virouPronto) {
-        const cli = clientes.find((c) => String(c.id) === String(form.cliente_id));
-        const eq = equipCliente.find((e) => String(e.id) === String(form.equipamento_id));
-        abrirAviso({
-          id: res.id || form.id, numero: res.numero || form.numero, cliente_nome: cli?.nome,
-          whatsapp: cli?.whatsapp, telefone: cli?.telefone,
-          equipamento: eq ? [eq.marca, eq.modelo].filter(Boolean).join(' ') : '',
-          valor_total: total,
-        });
-      }
       setModalOpen(false);
       load();
     } catch (err) {
@@ -269,7 +238,6 @@ export default function OrdensServico() {
   async function quickStatus(row, status) {
     try {
       await window.api.os.setStatus(user, row.id, status);
-      if (status === 'Pronto' && row.status !== 'Pronto') abrirAviso(dadosAvisoDaLinha(row));
       load();
     } catch (err) {
       showToast(String(err.message || err), 'error');
@@ -277,21 +245,13 @@ export default function OrdensServico() {
   }
 
   async function exportarPdf() {
-    try {
-      const res = await window.api.pdf.exportarOS(form.id);
-      if (res.ok) showToast('PDF exportado com sucesso.');
-    } catch (err) {
-      showToast(String(err.message || err), 'error');
-    }
+    const res = await window.api.pdf.exportarOS(form.id);
+    if (res.ok) showToast('PDF exportado com sucesso.');
   }
 
   async function exportarChecklistPdf() {
-    try {
-      const res = await window.api.pdf.exportarChecklist(form.id);
-      if (res.ok) showToast('Checklist em PDF exportado com sucesso.');
-    } catch (err) {
-      showToast(String(err.message || err), 'error');
-    }
+    const res = await window.api.pdf.exportarChecklist(form.id);
+    if (res.ok) showToast('Checklist em PDF exportado com sucesso.');
   }
 
   async function exportarGarantiaPdf(id) {
@@ -336,12 +296,13 @@ export default function OrdensServico() {
     try {
       const telefone = row.cliente_whatsapp || row.cliente_telefone;
       if (!telefone) return showToast('Este cliente não possui WhatsApp/telefone cadastrado.', 'error');
-      const msg = `Olá! Segue a Ordem de Serviço ${row.numero}${row.cliente_nome ? ' de ' + row.cliente_nome : ''}. Anexei o PDF aqui, um momento.`;
-      const res = await window.api.pdf.exportarOS(row.id, { whatsapp: { telefone, mensagem: msg } });
+      const res = await window.api.pdf.exportarOS(row.id);
       if (!res.ok) return;
-      if (res.web) return; // versão web: a janelinha "PDF pronto" cuida do envio pelo WhatsApp
+      const msg = `Olá! Segue a Ordem de Serviço ${row.numero}${row.cliente_nome ? ' de ' + row.cliente_nome : ''}. Anexei o PDF aqui, um momento.`;
       await window.api.whatsapp.abrirConversa(telefone, msg);
-      showToast('PDF salvo. O WhatsApp foi aberto — anexe o arquivo que acabou de ser revelado na pasta.');
+      showToast(window.api.ehWeb
+        ? 'WhatsApp aberto. Salve o PDF na janela de impressão e anexe o arquivo na conversa.'
+        : 'PDF salvo. O WhatsApp foi aberto — anexe o arquivo que acabou de ser revelado na pasta.');
     } catch (err) {
       showToast(String(err.message || err), 'error');
     }
@@ -387,9 +348,6 @@ export default function OrdensServico() {
                   <button className="icon-btn" title="Exportar PDF" onClick={() => exportarPdfListagem(o)}>📄</button>
                   <ImprimirMenu formatoPadrao={formatoImpressao} title="Imprimir Recibo" onImprimir={(fmt) => imprimirCupom(o.id, fmt)} />
                   <button className="icon-btn" title="Compartilhar no WhatsApp" onClick={() => compartilharWhatsapp(o)}>📲</button>
-                  {o.status === 'Pronto' && (
-                    <button className="icon-btn" title={foiAvisada(o.id) ? 'Cliente já avisado — avisar de novo' : 'Avisar cliente que a OS está pronta'} onClick={() => abrirAviso(dadosAvisoDaLinha(o))}>{foiAvisada(o.id) ? '✅' : '🔔'}</button>
-                  )}
                   {o.status === 'Entregue' && <button className="icon-btn" title="Termo de Garantia" onClick={() => exportarGarantiaPdf(o.id)}>🛡️</button>}
                   {user.papel === 'Administrador' && <button className="icon-btn" title="Excluir" onClick={() => excluir(o)}>🗑️</button>}
                 </td>
@@ -646,12 +604,6 @@ export default function OrdensServico() {
             </div>
           </form>
         </div>
-      )}
-      {avisoPronto && (
-        <AvisoProntoModal
-          dados={avisoPronto}
-          onClose={() => { setAvisoPronto(null); setAvisoTick((n) => n + 1); }}
-        />
       )}
     </div>
   );

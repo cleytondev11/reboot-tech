@@ -204,9 +204,18 @@ Fornecedores), Serviços, Vendas, Financeiro (incluindo metas mensais e DRE)
 e Caixa, e Relatórios. Ou seja: todos os módulos de dados do sistema já
 funcionam pela nuvem, exatamente como no programa instalado.
 
+**PDF e WhatsApp também funcionam no site (v1.24.0).** Os botões de PDF (OS,
+checklist, termo de garantia, orçamento, comprovantes, recibo e garantia de
+venda, relatórios) abrem o mesmo documento do programa instalado numa nova aba,
+já na tela de impressão: escolha **Salvar como PDF** (no celular, "Salvar como
+PDF" ou "Compartilhar"). O botão de WhatsApp abre a conversa com o cliente
+(link `wa.me`, no WhatsApp Web ou no app do celular); o WhatsApp não aceita
+anexo por link, então salve o PDF e anexe o arquivo na conversa. Se o navegador
+bloquear pop-ups, libere para o endereço do sistema.
+
 **Continuam sendo recursos exclusivos do programa instalado** (por
 dependerem do computador físico e não terem equivalente possível num
-navegador): geração de PDF, impressão térmica, leitor de código de barras
+navegador): impressão térmica, leitor de código de barras
 (esse funciona igual no navegador, só não tem o atalho automático de Estoque
 ainda), Rede Multi-PC local, backup manual do arquivo local e Remoção de
 Vírus via cabo USB (o histórico de ações, esse sim, já aparece também na

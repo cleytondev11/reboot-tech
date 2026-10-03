@@ -198,12 +198,8 @@ export default function Orcamentos() {
   }
 
   async function exportarPdf() {
-    try {
-      const res = await window.api.pdf.exportarOrcamento(form.id);
-      if (res.ok) showToast('PDF exportado com sucesso.');
-    } catch (err) {
-      showToast(String(err.message || err), 'error');
-    }
+    const res = await window.api.pdf.exportarOrcamento(form.id);
+    if (res.ok) showToast('PDF exportado com sucesso.');
   }
 
   async function exportarPdfListagem(row) {
@@ -263,12 +259,13 @@ export default function Orcamentos() {
     try {
       const telefone = row.cliente_whatsapp || row.cliente_telefone;
       if (!telefone) return showToast('Este cliente não possui WhatsApp/telefone cadastrado.', 'error');
-      const msg = `Olá! Segue o orçamento ${row.numero}${row.cliente_nome ? ' referente ao atendimento de ' + row.cliente_nome : ''}. Anexei o PDF aqui, um momento.`;
-      const res = await window.api.pdf.exportarOrcamento(row.id, { whatsapp: { telefone, mensagem: msg } });
+      const res = await window.api.pdf.exportarOrcamento(row.id);
       if (!res.ok) return; // usuário cancelou o salvamento do PDF
-      if (res.web) return; // versão web: a janelinha "PDF pronto" cuida do envio pelo WhatsApp
+      const msg = `Olá! Segue o orçamento ${row.numero}${row.cliente_nome ? ' referente ao atendimento de ' + row.cliente_nome : ''}. Anexei o PDF aqui, um momento.`;
       await window.api.whatsapp.abrirConversa(telefone, msg);
-      showToast('PDF salvo. O WhatsApp foi aberto — anexe o arquivo que acabou de ser revelado na pasta.');
+      showToast(window.api.ehWeb
+        ? 'WhatsApp aberto. Salve o PDF na janela de impressão e anexe o arquivo na conversa.'
+        : 'PDF salvo. O WhatsApp foi aberto — anexe o arquivo que acabou de ser revelado na pasta.');
     } catch (err) {
       showToast(String(err.message || err), 'error');
     }

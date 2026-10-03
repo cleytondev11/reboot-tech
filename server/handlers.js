@@ -808,7 +808,7 @@ const handlers = {
 
   'os:get': async (db, { id }) => db.get(
     `SELECT os.*, c.nome as cliente_nome, c.telefone as cliente_telefone, c.whatsapp as cliente_whatsapp, c.cpf_cnpj as cliente_cpf_cnpj,
-            eq.marca as equip_marca, eq.modelo as equip_modelo, eq.imei as equip_imei, u.nome as tecnico_nome
+            eq.marca as equip_marca, eq.modelo as equip_modelo, eq.imei as equip_imei, eq.fotos as equip_fotos, u.nome as tecnico_nome
      FROM ordens_servico os
      LEFT JOIN clientes c ON c.id = os.cliente_id
      LEFT JOIN equipamentos eq ON eq.id = os.equipamento_id
@@ -1399,6 +1399,8 @@ const handlers = {
     sql += ` ORDER BY COALESCE(data_vencimento, criado_em) DESC, id DESC`;
     return db.all(sql, params);
   },
+
+  'financeiro:get': async (db, { id }) => db.get('SELECT * FROM lancamentos_financeiros WHERE id = ?', [id]),
 
   'financeiro:save': async (db, { lancamento }, req) => {
     const l = lancamento;
