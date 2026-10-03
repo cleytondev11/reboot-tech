@@ -212,6 +212,9 @@ PDF" ou "Compartilhar"). O botão de WhatsApp abre a conversa com o cliente
 (link `wa.me`, no WhatsApp Web ou no app do celular); o WhatsApp não aceita
 anexo por link, então salve o PDF e anexe o arquivo na conversa. Se o navegador
 bloquear pop-ups, libere para o endereço do sistema.
+Em cada documento há o botão **Fechar e voltar ao sistema** (ou a tecla Esc).
+Ao mudar uma OS para **Pronto**, o sistema pergunta se quer avisar o cliente e,
+confirmando, abre o WhatsApp dele com a mensagem de retirada já escrita.
 
 **Continuam sendo recursos exclusivos do programa instalado** (por
 dependerem do computador físico e não terem equivalente possível num

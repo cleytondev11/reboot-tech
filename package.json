@@ -1,12 +1,15 @@
 {
   "name": "reboottech-assistencia",
-  "version": "1.23.0",
+  "version": "1.25.0",
   "description": "Reboot Tech - Sistema de Gestão de Assistência Técnica",
   "author": "Reboot Tech",
   "main": "electron/main.cjs",
   "type": "module",
   "scripts": {
     "sync:schema": "node scripts/sync-schema.cjs",
+    "sync:pdf-web": "node scripts/sync-pdf-web.cjs",
+    "predev:vite": "node scripts/sync-pdf-web.cjs",
+    "prebuild:vite": "node scripts/sync-pdf-web.cjs",
     "dev:vite": "vite",
     "build:vite": "vite build",
     "dist": "npm run sync:schema && npm run build:vite && electron-builder"

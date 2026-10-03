@@ -226,10 +226,19 @@ export default function OrdensServico() {
           .filter((i) => i.produto_id)
           .map((i) => ({ ...i, quantidade: parseIntSafe(i.quantidade) || 1, valor_unit: parseDecimal(i.valor_unit) })),
       };
+      const statusAnterior = form.id ? (list.find((o) => o.id === form.id) || {}).status : null;
       const res = await window.api.os.save(user, payload);
       showToast(`Ordem de Serviço ${res.numero || form.numero || ''} salva com sucesso.`);
       setModalOpen(false);
       load();
+      if (payload.status === 'Pronto' && statusAnterior !== 'Pronto') {
+        const cli = clientes.find((c) => String(c.id) === String(form.cliente_id)) || {};
+        const eq = equipCliente.find((x) => String(x.id) === String(form.equipamento_id)) || {};
+        avisarProntoWhatsapp({
+          numero: res.numero || form.numero, cliente_nome: cli.nome, cliente_whatsapp: cli.whatsapp, cliente_telefone: cli.telefone,
+          equip_marca: eq.marca, equip_modelo: eq.modelo, valor_total: total,
+        });
+      }
     } catch (err) {
       showToast(String(err.message || err), 'error');
     }
@@ -239,6 +248,27 @@ export default function OrdensServico() {
     try {
       await window.api.os.setStatus(user, row.id, status);
       load();
+      if (status === 'Pronto' && row.status !== 'Pronto') avisarProntoWhatsapp(row);
+    } catch (err) {
+      showToast(String(err.message || err), 'error');
+    }
+  }
+
+  // Quando a OS fica "Pronto", oferece abrir o WhatsApp do cliente já com a
+  // mensagem de aviso escrita (é só enviar).
+  async function avisarProntoWhatsapp(os) {
+    try {
+      const telefone = os.cliente_whatsapp || os.cliente_telefone;
+      if (!telefone) return showToast(`OS ${os.numero} pronta. O cliente não tem WhatsApp/telefone cadastrado para avisar.`, 'error');
+      const nome = os.cliente_nome || 'cliente';
+      if (!confirm(`A OS ${os.numero} ficou PRONTA.\n\nEnviar o aviso de retirada para ${nome} pelo WhatsApp?`)) return;
+      let empresaNome = '';
+      try { const emp = await window.api.empresa.get(); empresaNome = (emp && (emp.nome_fantasia || emp.nome)) || ''; } catch (e) { /* segue sem o nome */ }
+      const aparelho = [os.equip_marca, os.equip_modelo].filter(Boolean).join(' ');
+      const primeiroNome = String(nome).trim().split(/\s+/)[0];
+      const valor = Number(os.valor_total) > 0 ? `\nValor: ${formatCurrency(os.valor_total)}.` : '';
+      const msg = `Olá, ${primeiroNome}! Boa notícia: ${aparelho ? `seu ${aparelho}` : 'seu aparelho'} (OS ${os.numero}) já está pronto para retirada. ✅${valor}\nQualquer dúvida, é só chamar.${empresaNome ? `\n— ${empresaNome}` : ''}`;
+      await window.api.whatsapp.abrirConversa(telefone, msg);
     } catch (err) {
       showToast(String(err.message || err), 'error');
     }

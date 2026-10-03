@@ -22,7 +22,24 @@ const CSS_WEB = `
   .print-foot { padding-top: 4mm; }
   .no-print.bar { position: sticky; top: 0; z-index: 10; background: #1f2937; color: #fff; padding: 10px 14px; margin: 0 -4mm 4mm; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; font-size: 13px; }
   .no-print.bar button { background: #d4af37; color: #1a1a1a; border: 0; border-radius: 6px; padding: 9px 16px; font-size: 14px; font-weight: bold; cursor: pointer; }
+  .no-print.bar button.fechar { background: transparent; color: #fff; border: 1px solid rgba(255,255,255,.55); }
   .no-print.bar span { opacity: .85; }
+  /* Títulos e totais um pouco menores que no programa instalado (na tela do
+     navegador e no celular os tamanhos originais ficavam exagerados). */
+  h1.doc-title { font-size: 15px; margin: 2mm 0 1mm; }
+  .doc-subtitle { font-size: 10px; margin-bottom: 4mm; }
+  .section-title { font-size: 10.5px; margin: 5mm 0 2.5mm; }
+  .total-box { font-size: 13px; }
+  .resumo-card .value { font-size: 12px; }
+  .declaracao-titulo { font-size: 10.5px; }
+  /* Na tela, mostra o documento como uma folha A4 centralizada (como um PDF). */
+  @media screen {
+    html { background: #d1d5db; }
+    body { background: transparent; }
+    table.print-wrap { max-width: 210mm; margin: 0 auto 8mm; background: #fff; padding: 6mm 8mm; box-shadow: 0 2px 14px rgba(0,0,0,.25); }
+    .no-print.bar { margin: 0 -4mm 6mm; }
+  }
+  @media (max-width: 600px) { table.print-wrap { padding: 3mm; } }
 `;
 
 function agoraBr() {
@@ -47,7 +64,7 @@ export function montarDocumento({ empresa, title, subtitle, innerHtml, footerSub
     .replace('<span class="date"></span>', escapeHtml(agoraBr()))
     .replace(/<span>Página <span class="pageNumber"><\/span> de <span class="totalPages"><\/span><\/span>/, '<span></span>');
 
-  const barra = `<div class="no-print bar"><button onclick="window.print()">🖨️ Imprimir / Salvar como PDF</button><span>Na janela que abrir, escolha “Salvar como PDF” como destino.</span></div>`;
+  const barra = `<div class="no-print bar"><button class="fechar" onclick="fecharDocumento()">✕ Fechar e voltar ao sistema</button><button onclick="window.print()">🖨️ Imprimir / Salvar como PDF</button><span>Na janela de impressão, escolha “Salvar como PDF” como destino.</span></div>`;
 
   html = html.replace('<meta charset="utf-8">', `<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${escapeHtml(nomeArquivoSeguro(nomeArquivo || title))}</title>`);
   html = html.replace('</style>', `${CSS_WEB}</style>`);
@@ -55,7 +72,18 @@ export function montarDocumento({ empresa, title, subtitle, innerHtml, footerSub
     `<body>${barra}<table class="print-wrap"><thead><tr><td><div class="print-head">${cabecalho}</div></td></tr></thead>`
     + `<tfoot><tr><td><div class="print-foot">${rodape}</div></td></tr></tfoot>`
     + `<tbody><tr><td>${corpo}</td></tr></tbody></table>`
-    + `<script>window.addEventListener('load',function(){setTimeout(function(){try{window.focus();window.print();}catch(e){}},400);});</script></body>`);
+    + `<script>
+function fecharDocumento(){
+  try{window.close();}catch(e){}
+  setTimeout(function(){
+    if(window.closed) return;
+    if(window.history.length>1){window.history.back();}
+    else{document.body.innerHTML='<p style="font-family:Arial,sans-serif;padding:24px;font-size:16px">Você já pode fechar esta aba e voltar ao sistema.</p>';}
+  },200);
+}
+window.addEventListener('keydown',function(e){if(e.key==='Escape'){fecharDocumento();}});
+window.addEventListener('load',function(){setTimeout(function(){try{window.focus();window.print();}catch(e){}},400);});
+</script></body>`);
   return html;
 }
 
