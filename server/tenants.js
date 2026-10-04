@@ -18,6 +18,13 @@ const TTL_CACHE_MS = 60 * 1000; // bloquear/liberar um cliente vale em até 1 mi
 const MAX_ABERTOS = Math.max(3, Number(process.env.MAX_BANCOS_ABERTOS) || 30);
 const OCIOSO_MS = 60 * 1000;
 
+const dataIsoValida = (d) => /^\d{4}-\d{2}-\d{2}$/.test(String(d || '')) && !Number.isNaN(Date.parse(`${d}T00:00:00Z`));
+function hojeIso() { return new Date(Date.now() - 3 * 3600 * 1000).toISOString().slice(0, 10); } // dia no Brasil (UTC-3)
+function somarDiasIso(iso, dias) {
+  const [a, m, d] = iso.split('-').map(Number);
+  return new Date(Date.UTC(a, m - 1, d + dias)).toISOString().slice(0, 10);
+}
+
 function erro(msg, status = 400) {
   const e = new Error(msg);
   e.status = status;
@@ -44,6 +51,10 @@ async function iniciarRegistro() {
     login TEXT PRIMARY KEY COLLATE NOCASE,
     cliente_id INTEGER NOT NULL
   )`);
+  // Plano do cliente (Meu Plano): data contratada e data de vencimento (30 dias). Preenchidas no /admin.
+  for (const col of ['data_contratada', 'data_vencimento']) {
+    try { await dbPrincipal.run(`ALTER TABLE rt_clientes ADD COLUMN ${col} TEXT`); } catch (e) { /* coluna já existe */ }
+  }
   let nome = 'Banco principal';
   try {
     const emp = await dbPrincipal.get('SELECT nome FROM configuracoes_empresa WHERE id = 1');
@@ -220,7 +231,7 @@ async function removerRegistro(id) {
 
 // Cria um cliente novo: banco novo (automático no Turso, ou o endereço informado)
 // + o usuário administrador com o login e a senha informados.
-async function criarCliente({ nome, login, senha, nomeUsuario, dbUrl, dbToken }) {
+async function criarCliente({ nome, login, senha, nomeUsuario, dbUrl, dbToken, dataContratada, dataVencimento }) {
   nome = String(nome || '').trim();
   login = String(login || '').trim();
   senha = String(senha || '');
@@ -228,6 +239,7 @@ async function criarCliente({ nome, login, senha, nomeUsuario, dbUrl, dbToken })
   if (!/^[A-Za-z0-9._@-]{3,60}$/.test(login)) throw erro('O login deve ter de 3 a 60 caracteres, sem espaços (letras, números, ponto, hífen, _ ou @).');
   if (senha.length < 6) throw erro('A senha deve ter pelo menos 6 caracteres.');
   await garantirLoginLivre(login, -1);
+  const plano = normalizarPlano(dataContratada, dataVencimento, true);
 
   let info;
   let criadoAuto = false;
@@ -246,8 +258,8 @@ async function criarCliente({ nome, login, senha, nomeUsuario, dbUrl, dbToken })
   let id = null;
   try {
     id = await dbPrincipal.insert(
-      `INSERT INTO rt_clientes (nome, db_url, db_token, db_nome, ativo, principal, criado_em) VALUES (?,?,?,?,1,0,?)`,
-      [nome, info.url, info.token, info.nome, agoraIso()]
+      `INSERT INTO rt_clientes (nome, db_url, db_token, db_nome, ativo, principal, criado_em, data_contratada, data_vencimento) VALUES (?,?,?,?,1,0,?,?,?)`,
+      [nome, info.url, info.token, info.nome, agoraIso(), plano.dataContratada, plano.dataVencimento]
     );
     const cliente = await buscarCliente(id);
     const db = await bancoDoCliente(cliente);
@@ -269,14 +281,15 @@ async function criarCliente({ nome, login, senha, nomeUsuario, dbUrl, dbToken })
 }
 
 // Cadastra um banco que já existe (ex.: o de uma instalação antiga de um cliente).
-async function importarCliente({ nome, dbUrl, dbToken }) {
+async function importarCliente({ nome, dbUrl, dbToken, dataContratada, dataVencimento }) {
   nome = String(nome || '').trim();
   if (nome.length < 2) throw erro('Informe o nome do cliente.');
   await garantirBancoNaoCadastrado(dbUrl);
   validarUrlBanco(dbUrl);
+  const plano = normalizarPlano(dataContratada, dataVencimento, true);
   const id = await dbPrincipal.insert(
-    `INSERT INTO rt_clientes (nome, db_url, db_token, db_nome, ativo, principal, criado_em) VALUES (?,?,?,?,1,0,?)`,
-    [nome, String(dbUrl).trim(), dbToken ? String(dbToken).trim() : null, null, agoraIso()]
+    `INSERT INTO rt_clientes (nome, db_url, db_token, db_nome, ativo, principal, criado_em, data_contratada, data_vencimento) VALUES (?,?,?,?,1,0,?,?,?)`,
+    [nome, String(dbUrl).trim(), dbToken ? String(dbToken).trim() : null, null, agoraIso(), plano.dataContratada, plano.dataVencimento]
   );
   try {
     const cliente = await buscarCliente(id);
@@ -315,18 +328,57 @@ async function redefinirSenha(id, login, senha) {
   return { usuario: usuario.usuario };
 }
 
+// Valida as datas do plano. Com `padrao`, quem não informou recebe: contratada = hoje, vencimento = contratada + 30 dias.
+// Datas vazias (sem padrão) significam "plano sem datas cadastradas".
+function normalizarPlano(dataContratada, dataVencimento, padrao) {
+  let c = String(dataContratada || '').trim().slice(0, 10);
+  let v = String(dataVencimento || '').trim().slice(0, 10);
+  if (c && !dataIsoValida(c)) throw erro('Data contratada inválida.');
+  if (v && !dataIsoValida(v)) throw erro('Data de vencimento inválida.');
+  if (padrao) {
+    if (!c) c = hojeIso();
+    if (!v) v = somarDiasIso(c, 30);
+  }
+  if (c && v && v < c) throw erro('O vencimento não pode ser antes da data contratada.');
+  return { dataContratada: c || null, dataVencimento: v || null };
+}
+
+async function definirPlano(id, { dataContratada, dataVencimento }) {
+  const cliente = await buscarCliente(id);
+  if (!cliente) throw erro('Cliente não encontrado.', 404);
+  const plano = normalizarPlano(dataContratada, dataVencimento, false);
+  await dbPrincipal.run('UPDATE rt_clientes SET data_contratada = ?, data_vencimento = ? WHERE id = ?', [plano.dataContratada, plano.dataVencimento, id]);
+  invalidar(id);
+  return plano;
+}
+
+// Renovação rápida: soma `dias` (30) a partir do vencimento atual (ou de hoje, se já venceu ou está sem data).
+async function renovarPlano(id, dias = 30) {
+  const cliente = await buscarCliente(id);
+  if (!cliente) throw erro('Cliente não encontrado.', 404);
+  const hoje = hojeIso();
+  const atual = cliente.data_vencimento && dataIsoValida(cliente.data_vencimento) ? cliente.data_vencimento : null;
+  const base = atual && atual > hoje ? atual : hoje;
+  const novoVenc = somarDiasIso(base, dias);
+  const contratada = cliente.data_contratada || hoje;
+  await dbPrincipal.run('UPDATE rt_clientes SET data_contratada = ?, data_vencimento = ? WHERE id = ?', [contratada, novoVenc, id]);
+  invalidar(id);
+  return { dataContratada: contratada, dataVencimento: novoVenc };
+}
+
 function hostDe(url) {
   return String(url || '').replace(/^[a-z]+:\/\//i, '').replace(/[/?#].*$/, '');
 }
 
 async function listarClientes() {
   const linhas = await dbPrincipal.all(
-    `SELECT c.id, c.nome, c.ativo, c.principal, c.db_nome, c.db_url, c.criado_em,
+    `SELECT c.id, c.nome, c.ativo, c.principal, c.db_nome, c.db_url, c.criado_em, c.data_contratada, c.data_vencimento,
             (SELECT COUNT(*) FROM rt_logins l WHERE l.cliente_id = c.id) AS usuarios
      FROM rt_clientes c ORDER BY c.id`
   );
   return linhas.map((c) => ({
     id: c.id, nome: c.nome, ativo: !!c.ativo, principal: !!c.principal, criado_em: c.criado_em,
+    dataContratada: c.data_contratada || '', dataVencimento: c.data_vencimento || '',
     usuarios: c.usuarios, banco: c.principal ? 'banco principal' : (c.db_nome || hostDe(c.db_url)),
   }));
 }
@@ -351,6 +403,8 @@ module.exports = {
   sincronizarCliente,
   definirAtivo,
   redefinirSenha,
+  definirPlano,
+  renovarPlano,
   listarClientes,
   listarClientesAtivos,
 };

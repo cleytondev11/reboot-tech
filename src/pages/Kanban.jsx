@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from '../context.jsx';
-import { formatCurrency, formatDiaCurto, diasAte, toInputDate, FORMAS_PAGAMENTO_COM_PRAZO, FORMA_A_PRAZO } from '../utils.js';
-import PrazoCampos from '../components/PrazoCampos.jsx';
+import { formatCurrency, formatDiaCurto, diasAte, toInputDate, FORMAS_PAGAMENTO_COM_PRAZO, FORMA_A_PRAZO, ROTULO_A_PRAZO } from '../utils.js';
+import PrazoCampos, { valorEntrada } from '../components/PrazoCampos.jsx';
 import AvisoProntoModal from '../components/AvisoProntoModal.jsx';
 
 // Bancada (Kanban): arraste a OS entre as colunas (ou toque em → / ⋮ no celular).
@@ -238,7 +238,7 @@ export default function Kanban() {
                         <div className="kb-tags">
                           {o.tecnico_nome && <span className="kb-tag">🔧 {o.tecnico_nome}</span>}
                           {o.status === 'Entregue' && o.forma_pagamento && (
-                            <span className={`kb-tag ${o.forma_pagamento === FORMA_A_PRAZO ? 'prazo' : 'pago'}`}>{o.forma_pagamento === FORMA_A_PRAZO ? '🗓️ A prazo' : `💳 ${o.forma_pagamento}`}</span>
+                            <span className={`kb-tag ${o.forma_pagamento === FORMA_A_PRAZO ? 'prazo' : 'pago'}`}>{o.forma_pagamento === FORMA_A_PRAZO ? '🗓️ A prazo / parcelado' : `💳 ${o.forma_pagamento}`}</span>
                           )}
                         </div>
                         <div className="kb-card-foot">
@@ -279,7 +279,7 @@ function EntregaModal({ os, onClose, onConfirm }) {
   const { showToast } = useApp();
   const total = parseFloat(os.valor_total) || 0;
   const [forma, setForma] = useState(os.forma_pagamento || '');
-  const [prazo, setPrazo] = useState({ parcelas: 1, vencimento: '' });
+  const [prazo, setPrazo] = useState({ parcelas: 1, vencimento: '', entrada: '', entradaForma: 'Dinheiro', entradaRecebida: 1 });
   const aPrazo = forma === FORMA_A_PRAZO;
 
   function confirmar(e) {
@@ -287,7 +287,14 @@ function EntregaModal({ os, onClose, onConfirm }) {
     if (total > 0 && !forma) return showToast('Selecione a forma de pagamento.', 'error');
     if (aPrazo && !prazo.vencimento) return showToast('Informe a data do 1º vencimento.', 'error');
     onConfirm(os, total > 0
-      ? { forma_pagamento: forma, parcelas: aPrazo ? prazo.parcelas : undefined, primeiro_vencimento: aPrazo ? prazo.vencimento : undefined }
+      ? {
+          forma_pagamento: forma,
+          parcelas: aPrazo ? prazo.parcelas : undefined,
+          primeiro_vencimento: aPrazo ? prazo.vencimento : undefined,
+          entrada: aPrazo ? valorEntrada(prazo.entrada) : undefined,
+          entrada_forma: aPrazo ? prazo.entradaForma : undefined,
+          entrada_recebida: aPrazo ? (prazo.entradaRecebida ? 1 : 0) : undefined,
+        }
       : null);
   }
 
@@ -309,12 +316,12 @@ function EntregaModal({ os, onClose, onConfirm }) {
               <label>Forma de pagamento *</label>
               <select value={forma} onChange={(e) => setForma(e.target.value)} autoFocus>
                 <option value="">Selecione...</option>
-                {FORMAS_PAGAMENTO_COM_PRAZO.map((f) => <option key={f} value={f}>{f === FORMA_A_PRAZO ? 'A prazo (fiado / parcelado)' : f}</option>)}
+                {FORMAS_PAGAMENTO_COM_PRAZO.map((f) => <option key={f} value={f}>{f === FORMA_A_PRAZO ? ROTULO_A_PRAZO : f}</option>)}
               </select>
             </div>
             {aPrazo ? (
               <div style={{ marginTop: 12 }}>
-                <PrazoCampos total={total} parcelas={prazo.parcelas} vencimento={prazo.vencimento} onChange={setPrazo} />
+                <PrazoCampos total={total} parcelas={prazo.parcelas} vencimento={prazo.vencimento} entrada={prazo.entrada} entradaForma={prazo.entradaForma} entradaRecebida={prazo.entradaRecebida} onChange={setPrazo} />
               </div>
             ) : (
               <p className="muted" style={{ fontSize: 12, marginBottom: 0 }}>

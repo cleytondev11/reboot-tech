@@ -1,10 +1,10 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useApp } from '../context.jsx';
-import { formatCurrency, formatDateTime, toInputDate, todayInputValue, sanitizeDecimalInput, parseDecimal, sanitizeIntegerInput, parseIntSafe, FORMAS_PAGAMENTO_COM_PRAZO, FORMA_A_PRAZO } from '../utils.js';
-import PrazoCampos from '../components/PrazoCampos.jsx';
+import { formatCurrency, formatDateTime, toInputDate, todayInputValue, sanitizeDecimalInput, parseDecimal, sanitizeIntegerInput, parseIntSafe, FORMAS_PAGAMENTO_COM_PRAZO, FORMA_A_PRAZO, ROTULO_A_PRAZO } from '../utils.js';
+import PrazoCampos, { valorEntrada } from '../components/PrazoCampos.jsx';
 import ImprimirMenu from '../components/ImprimirMenu.jsx';
 
-const EMPTY = { id: null, cliente_id: '', itens: [], desconto: 0, forma_pagamento: 'Dinheiro', observacoes: '', garantia_dias: 90, data_venda: todayInputValue(), prazo_parcelas: 1, prazo_vencimento: '' };
+const EMPTY = { id: null, cliente_id: '', itens: [], desconto: 0, forma_pagamento: 'Dinheiro', observacoes: '', garantia_dias: 90, data_venda: todayInputValue(), prazo_parcelas: 1, prazo_vencimento: '', prazo_entrada: '', prazo_entrada_forma: 'Dinheiro', prazo_entrada_recebida: 1 };
 
 function novoItem() { return { produto_id: '', descricao: '', quantidade: 1, valor_unit: 0 }; }
 
@@ -65,6 +65,9 @@ export default function Vendas() {
       data_venda: toInputDate(full.criado_em) || todayInputValue(),
       prazo_parcelas: full.prazo_parcelas || 1,
       prazo_vencimento: full.prazo_vencimento || '',
+      prazo_entrada: full.prazo_entrada ? String(full.prazo_entrada).replace('.', ',') : '',
+      prazo_entrada_forma: full.prazo_entrada_forma || 'Dinheiro',
+      prazo_entrada_recebida: full.prazo_entrada_recebida === undefined ? 1 : full.prazo_entrada_recebida,
     });
     setModalOpen(true);
   }
@@ -139,6 +142,9 @@ export default function Vendas() {
         desconto: parseDecimal(form.desconto),
         garantia_dias: parseIntSafe(form.garantia_dias) || 0,
         prazo_parcelas: parseIntSafe(form.prazo_parcelas) || 1,
+        prazo_entrada: valorEntrada(form.prazo_entrada),
+        prazo_entrada_forma: form.prazo_entrada_forma || 'Dinheiro',
+        prazo_entrada_recebida: form.prazo_entrada_recebida ? 1 : 0,
         itens: form.itens.filter((i) => i.descricao).map((i) => ({ ...i, quantidade: parseIntSafe(i.quantidade) || 1, valor_unit: parseDecimal(i.valor_unit) })),
       };
       const res = await window.api.vendas.save(user, payload);
@@ -279,7 +285,7 @@ export default function Vendas() {
               <div className="field">
                 <label>Forma de Pagamento *</label>
                 <select value={form.forma_pagamento} onChange={(e) => set('forma_pagamento', e.target.value)}>
-                  {FORMAS_PAGAMENTO_COM_PRAZO.map((f) => <option key={f} value={f}>{f === FORMA_A_PRAZO ? 'A prazo (fiado / parcelado)' : f}</option>)}
+                  {FORMAS_PAGAMENTO_COM_PRAZO.map((f) => <option key={f} value={f}>{f === FORMA_A_PRAZO ? ROTULO_A_PRAZO : f}</option>)}
                 </select>
               </div>
               <div className="field">
@@ -290,7 +296,7 @@ export default function Vendas() {
 
             {form.forma_pagamento === FORMA_A_PRAZO && (
               <div style={{ marginTop: 14 }}>
-                <PrazoCampos total={total} parcelas={form.prazo_parcelas} vencimento={form.prazo_vencimento} onChange={(p) => setForm((f) => ({ ...f, prazo_parcelas: p.parcelas, prazo_vencimento: p.vencimento }))} />
+                <PrazoCampos total={total} parcelas={form.prazo_parcelas} vencimento={form.prazo_vencimento} entrada={form.prazo_entrada} entradaForma={form.prazo_entrada_forma} entradaRecebida={form.prazo_entrada_recebida} onChange={(p) => setForm((f) => ({ ...f, prazo_parcelas: p.parcelas, prazo_vencimento: p.vencimento, prazo_entrada: p.entrada, prazo_entrada_forma: p.entradaForma, prazo_entrada_recebida: p.entradaRecebida }))} />
               </div>
             )}
 

@@ -91,9 +91,10 @@ export const CATEGORIAS_PRODUTO = ['Tela', 'Bateria', 'Conector de Carga', 'Plac
 
 export const FORMAS_PAGAMENTO = ['Dinheiro', 'PIX', 'Cartão Débito', 'Cartão Crédito', 'Boleto', 'Transferência'];
 
-// "A prazo" (fiado/parcelado): só vale ao vender/entregar — gera contas a receber em vez de entrar no caixa.
+// "A prazo / parcelado" (com ou sem entrada): só vale ao vender/entregar — gera contas a receber em vez de entrar no caixa.
 // Por isso NÃO entra em FORMAS_PAGAMENTO, que também é usada para registrar o recebimento de uma conta.
-export const FORMA_A_PRAZO = 'A prazo';
+export const FORMA_A_PRAZO = 'A prazo'; // valor guardado no banco (não mudar: vendas antigas usam esse texto)
+export const ROTULO_A_PRAZO = 'A prazo / parcelado'; // como aparece na tela
 export const FORMAS_PAGAMENTO_COM_PRAZO = [...FORMAS_PAGAMENTO, FORMA_A_PRAZO];
 
 export const ACESSORIOS_OPCOES = ['Capinha', 'Película', 'Cartão SIM', 'Cartão SD', 'Carregador', 'Fone de ouvido', 'Caixa/embalagem'];

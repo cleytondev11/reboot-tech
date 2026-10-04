@@ -534,3 +534,28 @@ tbody tr:last-child td { border-bottom: none; }
   .vz-titulo { order: 3; flex-basis: 100%; font-size: 13px; }
   .vz-acoes { margin-left: auto; }
 }
+
+
+/* ---- Meu Plano e aviso de vencimento ---- */
+.plano-card { padding: 22px; }
+.plano-topo { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.plano-selo { font-size: 12.5px; font-weight: 800; padding: 5px 12px; border-radius: 999px; border: 1px solid var(--border); }
+.plano-selo.ok { color: var(--success); border-color: var(--success); }
+.plano-selo.aviso { color: var(--warning); border-color: var(--warning); }
+.plano-selo.vencido { color: var(--danger); border-color: var(--danger); }
+.plano-datas { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 18px 0 14px; }
+.plano-data { background: var(--bg-elev-2); border: 1px solid var(--border); border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 4px; }
+.plano-data span { font-size: 11.5px; color: var(--text-dim); }
+.plano-data b { font-size: 17px; }
+.plano-barra { height: 9px; border-radius: 999px; background: var(--bg-elev-2); border: 1px solid var(--border); overflow: hidden; }
+.plano-barra-fill { height: 100%; background: var(--success); transition: width 0.4s; }
+.plano-barra-fill.aviso { background: var(--warning); }
+.plano-barra-fill.vencido { background: var(--danger); }
+.plano-alerta { display: flex; flex-direction: column; gap: 3px; padding: 12px 14px; border-radius: 10px; margin-bottom: 14px; font-size: 13.5px; border: 1px solid var(--warning); background: rgba(224, 168, 60, 0.12); }
+.plano-alerta.vencido { border-color: var(--danger); background: rgba(224, 85, 85, 0.12); }
+.plano-faixa { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 9px 16px; font-size: 13px; font-weight: 600; background: rgba(224, 168, 60, 0.16); border-bottom: 1px solid var(--warning); }
+.plano-faixa.vencido { background: rgba(224, 85, 85, 0.16); border-bottom-color: var(--danger); }
+.plano-faixa-texto { flex: 1 1 260px; }
+.plano-faixa-acoes { display: flex; align-items: center; gap: 8px; }
+.nav-alerta { margin-left: auto; min-width: 18px; height: 18px; border-radius: 50%; background: var(--warning); color: #17170e; font-size: 11px; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; }
+@media (max-width: 600px) { .plano-datas { grid-template-columns: 1fr; } }

@@ -152,40 +152,78 @@ function somarMeses(dataIso, meses) {
   return alvo.toISOString().slice(0, 10);
 }
 
-// Valida e normaliza { parcelas, primeiroVencimento }. Sem data informada, o 1º vencimento é daqui a 1 mês.
-function normalizarPrazo(prazo) {
+// Valida e normaliza { parcelas, primeiroVencimento, entrada, entradaForma, entradaRecebida }.
+// Sem data informada, o 1º vencimento é daqui a 1 mês. A entrada (opcional) é um valor pago/combinado
+// à parte: o restante (total - entrada) é dividido nas parcelas.
+function normalizarPrazo(prazo, valorTotal) {
   let n = parseInt(prazo && prazo.parcelas, 10);
   if (!n || n < 1) n = 1;
   if (n > 24) n = 24;
   let venc = prazo && prazo.primeiroVencimento;
   if (venc && !dataValida(venc)) throw new Error('Data do 1º vencimento inválida.');
   if (!venc) venc = somarMeses(nowIso().slice(0, 10), 1);
-  return { parcelas: n, primeiroVencimento: venc };
-}
-
-// Cria as parcelas (contas a receber pendentes) de uma venda/OS a prazo. Nada entra no caixa/faturamento
-// agora: o dinheiro só "entra" quando cada parcela for marcada como paga (Financeiro / Cobranças).
-async function lancarParcelasAPrazo(db, req, { osId, clienteId, numero, categoria, descricao, valorTotal, prazo }) {
-  const { parcelas, primeiroVencimento } = normalizarPrazo(prazo);
+  const entradaCent = Math.round((parseFloat(prazo && prazo.entrada) || 0) * 100);
   const totalCent = Math.round((parseFloat(valorTotal) || 0) * 100);
-  const base = Math.floor(totalCent / parcelas);
-  const resto = totalCent - base * parcelas; // centavos que sobram vão na última parcela
+  if (entradaCent < 0) throw new Error('O valor da entrada não pode ser negativo.');
+  if (entradaCent > 0 && totalCent > 0 && entradaCent >= totalCent) throw new Error('A entrada deve ser menor que o valor total (o restante vira parcela).');
+  const entradaForma = (prazo && prazo.entradaForma) || 'Dinheiro';
+  if (entradaCent > 0 && !FORMAS_ENTRADA.includes(entradaForma)) throw new Error('Forma de pagamento da entrada inválida.');
+  const recebida = !prazo || prazo.entradaRecebida === undefined || prazo.entradaRecebida === null ? true : !(prazo.entradaRecebida === false || prazo.entradaRecebida === 0 || prazo.entradaRecebida === '0' || prazo.entradaRecebida === 'false');
+  return { parcelas: n, primeiroVencimento: venc, entradaCent, entradaForma, entradaRecebida: recebida };
+}
+const FORMAS_ENTRADA = ['Dinheiro', 'PIX', 'Cartão Débito', 'Cartão Crédito', 'Boleto', 'Transferência'];
+
+// Cria a entrada (se houver) e as parcelas (contas a receber pendentes) de uma venda/OS a prazo.
+// Entrada recebida agora: entra como Pago (e no caixa, se for dinheiro). Entrada "a receber": fica pendente
+// em Cobranças com vencimento hoje. As parcelas só entram no caixa/faturamento quando forem pagas.
+async function lancarParcelasAPrazo(db, req, { osId, clienteId, numero, categoria, descricao, valorTotal, prazo }) {
+  const { parcelas, primeiroVencimento, entradaCent, entradaForma, entradaRecebida } = normalizarPrazo(prazo, valorTotal);
+  const totalCent = Math.round((parseFloat(valorTotal) || 0) * 100);
+  const hoje = nowIso().slice(0, 10);
+  const colunas = `(tipo, categoria, descricao, valor, forma_pagamento, status, data_vencimento, data_pagamento, referencia, os_id, observacoes, origem_automatica, usuario_id, usuario_nome, criado_em, cliente_id, parcela) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`;
+
+  if (entradaCent > 0) {
+    const valorEntrada = entradaCent / 100;
+    await db.insert(
+      `INSERT INTO lancamentos_financeiros ${colunas}`,
+      ['receita', categoria, `${descricao} — entrada`, valorEntrada, entradaRecebida ? entradaForma : FORMA_A_PRAZO, entradaRecebida ? 'Pago' : 'Pendente', hoje, entradaRecebida ? hoje : null, numero, osId || null, 'Entrada da venda a prazo — lançada automaticamente.', 1, req.usuario?.id, req.usuario?.nome, nowIso(), clienteId || null, 'Entrada']
+    );
+    if (entradaRecebida && entradaForma === 'Dinheiro') {
+      const sessao = await caixaAberto(db);
+      if (sessao) {
+        await db.insert(
+          `INSERT INTO caixa_movimentos (sessao_id, tipo, valor, forma_pagamento, descricao, referencia, usuario_id, usuario_nome, criado_em) VALUES (?,?,?,?,?,?,?,?,?)`,
+          [sessao.id, 'entrada', valorEntrada, entradaForma, `${descricao} — entrada`, numero, req.usuario?.id, req.usuario?.nome, nowIso()]
+        );
+      }
+    }
+  }
+
+  const restante = totalCent - entradaCent;
+  const base = Math.floor(restante / parcelas);
+  const resto = restante - base * parcelas; // centavos que sobram vão na última parcela
   for (let i = 1; i <= parcelas; i++) {
     const cent = base + (i === parcelas ? resto : 0);
     const desc = parcelas > 1 ? `${descricao} — parcela ${i}/${parcelas}` : `${descricao} (a prazo)`;
     await db.insert(
-      `INSERT INTO lancamentos_financeiros (tipo, categoria, descricao, valor, forma_pagamento, status, data_vencimento, data_pagamento, referencia, os_id, observacoes, origem_automatica, usuario_id, usuario_nome, criado_em, cliente_id, parcela) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      `INSERT INTO lancamentos_financeiros ${colunas}`,
       ['receita', categoria, desc, cent / 100, FORMA_A_PRAZO, 'Pendente', somarMeses(primeiroVencimento, i - 1), null, numero, osId || null, 'Venda a prazo — lançada automaticamente.', 1, req.usuario?.id, req.usuario?.nome, nowIso(), clienteId || null, parcelas > 1 ? `${i}/${parcelas}` : null]
     );
   }
   return parcelas;
 }
 
+// Lê do objeto (OS/venda/pagamento) os campos de prazo no formato que normalizarPrazo espera.
+function prazoDe(o, prefixo) {
+  const g = (k) => (o ? o[(prefixo ? prefixo + '_' : '') + k] : undefined);
+  return { parcelas: g('parcelas'), primeiroVencimento: g('vencimento') !== undefined ? g('vencimento') : g('primeiro_vencimento'), entrada: g('entrada'), entradaForma: g('entrada_forma'), entradaRecebida: g('entrada_recebida') };
+}
+
 async function baixarOuLancarRecebimentoDaOs(db, req, osId, osNumero, valorTotal, formaPagamento, prazo) {
   if (formaPagamento === FORMA_A_PRAZO) {
     const os = await db.get('SELECT cliente_id FROM ordens_servico WHERE id = ?', [osId]);
     if (!os?.cliente_id) throw new Error('Para entregar a prazo, a OS precisa ter um cliente.');
-    normalizarPrazo(prazo); // valida antes de mexer no financeiro
+    normalizarPrazo(prazo, valorTotal); // valida antes de mexer no financeiro
     // O "A receber" automático (OS pronta) é substituído pelas parcelas.
     await db.run(`DELETE FROM lancamentos_financeiros WHERE os_id = ? AND tipo = 'receita' AND status = 'Pendente' AND origem_automatica = 1`, [osId]);
     if (valorTotal > 0) {
@@ -297,10 +335,13 @@ async function nextVendaNumero(db) {
 
 async function reverterEfeitosVenda(db, req, vendaAntiga) {
   if (vendaAntiga.forma_pagamento === FORMA_A_PRAZO) {
-    const pagas = await db.get(`SELECT COUNT(*) c FROM lancamentos_financeiros WHERE referencia = ? AND origem_automatica = 1 AND status = 'Pago'`, [vendaAntiga.numero]);
+    // A entrada recebida no ato não impede a edição; parcela já paga, sim (para não perder o histórico).
+    const pagas = await db.get(`SELECT COUNT(*) c FROM lancamentos_financeiros WHERE referencia = ? AND origem_automatica = 1 AND status = 'Pago' AND (parcela IS NULL OR parcela <> 'Entrada')`, [vendaAntiga.numero]);
     if (pagas && Number(pagas.c) > 0) {
       throw new Error('Esta venda a prazo já tem parcela(s) recebida(s). Para não perder o histórico de pagamentos, ela não pode ser editada nem excluída.');
     }
+    // Desfaz a entrada em dinheiro lançada no caixa (só se o caixa daquele dia ainda estiver aberto).
+    await db.run(`DELETE FROM caixa_movimentos WHERE referencia = ? AND sessao_id IN (SELECT id FROM caixa_sessoes WHERE status = 'Aberto')`, [vendaAntiga.numero]);
   }
   let itensAntigos = [];
   try { itensAntigos = JSON.parse(vendaAntiga.itens || '[]'); } catch { itensAntigos = []; }
@@ -675,6 +716,17 @@ const handlers = {
     return { ok: true };
   },
 
+  // ---------- MEU PLANO ----------
+  // Datas cadastradas pelo dono no painel /admin (data contratada e vencimento) do cliente que está logado.
+  'plano:get': async (db, _args, req) => {
+    const c = await tenants.buscarCliente(tenants.clienteIdDe(req));
+    return {
+      empresa: (c && c.nome) || '',
+      dataContratada: (c && c.data_contratada) || '',
+      dataVencimento: (c && c.data_vencimento) || '',
+    };
+  },
+
   // ---------- LOGS ----------
   'logs:list': async (db, { limit } = {}) => db.all('SELECT * FROM logs ORDER BY id DESC LIMIT ?', [limit || 200]),
 
@@ -879,7 +931,7 @@ const handlers = {
         await db.run('UPDATE ordens_servico SET financeiro_receber_lancado = 1 WHERE id = ?', [o.id]);
       }
       if (!before?.financeiro_lancado && o.status === 'Entregue' && o.forma_pagamento) {
-        await baixarOuLancarRecebimentoDaOs(db, req, o.id, before?.numero, o.valor_total, o.forma_pagamento, { parcelas: o.prazo_parcelas, primeiroVencimento: o.prazo_vencimento });
+        await baixarOuLancarRecebimentoDaOs(db, req, o.id, before?.numero, o.valor_total, o.forma_pagamento, prazoDe(o, 'prazo'));
         await db.run('UPDATE ordens_servico SET financeiro_lancado = 1 WHERE id = ?', [o.id]);
       }
       if (before && before.status !== o.status) {
@@ -906,7 +958,7 @@ const handlers = {
         await db.run('UPDATE ordens_servico SET financeiro_receber_lancado = 1 WHERE id = ?', [id]);
       }
       if (o.status === 'Entregue' && o.forma_pagamento) {
-        await baixarOuLancarRecebimentoDaOs(db, req, id, numero, o.valor_total, o.forma_pagamento, { parcelas: o.prazo_parcelas, primeiroVencimento: o.prazo_vencimento });
+        await baixarOuLancarRecebimentoDaOs(db, req, id, numero, o.valor_total, o.forma_pagamento, prazoDe(o, 'prazo'));
         await db.run('UPDATE ordens_servico SET financeiro_lancado = 1 WHERE id = ?', [id]);
       }
       await push.avisarOsNova(db, id, o.status || 'Recebido');
@@ -931,8 +983,8 @@ const handlers = {
       const forma = (pagamento && pagamento.forma_pagamento) || before.forma_pagamento || '';
       const valor = parseFloat(before.valor_total) || 0;
       if (valor > 0 && !forma) throw new Error('Informe a forma de pagamento para entregar a OS.');
-      const prazo = { parcelas: pagamento && pagamento.parcelas, primeiroVencimento: pagamento && pagamento.primeiro_vencimento };
-      if (forma === FORMA_A_PRAZO) normalizarPrazo(prazo); // valida antes de alterar qualquer coisa
+      const prazo = prazoDe(pagamento || {});
+      if (forma === FORMA_A_PRAZO) normalizarPrazo(prazo, valor); // valida antes de alterar qualquer coisa
       const hoje = nowIso().slice(0, 10);
       await db.run(
         `UPDATE ordens_servico SET status = ?, forma_pagamento = ?, data_saida = COALESCE(NULLIF(data_saida, ''), ?), atualizado_em = ? WHERE id = ?`,
@@ -1201,10 +1253,14 @@ const handlers = {
       [id]
     );
     if (v && v.forma_pagamento === FORMA_A_PRAZO) {
-      // Para reabrir a venda a prazo na edição: quantas parcelas e quando vence a primeira.
-      const r = await db.get(`SELECT COUNT(*) AS qtd, MIN(data_vencimento) AS primeiro FROM lancamentos_financeiros WHERE referencia = ? AND origem_automatica = 1 AND categoria = 'Vendas'`, [v.numero]);
+      // Para reabrir a venda a prazo na edição: entrada, quantas parcelas e quando vence a primeira.
+      const r = await db.get(`SELECT COUNT(*) AS qtd, MIN(data_vencimento) AS primeiro FROM lancamentos_financeiros WHERE referencia = ? AND origem_automatica = 1 AND categoria = 'Vendas' AND (parcela IS NULL OR parcela <> 'Entrada')`, [v.numero]);
       v.prazo_parcelas = Number(r?.qtd) || 1;
       v.prazo_vencimento = r?.primeiro || '';
+      const e = await db.get(`SELECT valor, forma_pagamento, status FROM lancamentos_financeiros WHERE referencia = ? AND origem_automatica = 1 AND categoria = 'Vendas' AND parcela = 'Entrada' LIMIT 1`, [v.numero]);
+      v.prazo_entrada = e ? e.valor : '';
+      v.prazo_entrada_forma = e && e.status === 'Pago' ? e.forma_pagamento : 'Dinheiro';
+      v.prazo_entrada_recebida = e && e.status !== 'Pago' ? 0 : 1;
     }
     return v;
   },
@@ -1218,10 +1274,10 @@ const handlers = {
     const garantiaDias = v.garantia_dias === '' || v.garantia_dias === null || v.garantia_dias === undefined ? 90 : parseInt(v.garantia_dias, 10) || 0;
     const dataVenda = v.data_venda || nowIso().slice(0, 10);
     const aPrazo = v.forma_pagamento === FORMA_A_PRAZO;
-    const prazoVenda = { parcelas: v.prazo_parcelas, primeiroVencimento: v.prazo_vencimento };
+    const prazoVenda = prazoDe(v, 'prazo');
     if (aPrazo) {
       if (!v.cliente_id) throw new Error('Para vender a prazo, selecione o cliente.');
-      normalizarPrazo(prazoVenda); // valida antes de alterar estoque/financeiro
+      normalizarPrazo(prazoVenda, valorTotal); // valida antes de alterar estoque/financeiro
     }
 
     let numero;

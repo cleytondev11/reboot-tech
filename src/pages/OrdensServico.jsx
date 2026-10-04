@@ -1,18 +1,18 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useApp } from '../context.jsx';
-import { formatCurrency, formatDateTime, toInputDate, todayInputValue, statusClass, CHECKLIST_ITENS, FORMAS_PAGAMENTO_COM_PRAZO, FORMA_A_PRAZO, sanitizeDecimalInput, parseDecimal, sanitizeIntegerInput, parseIntSafe, ACESSORIOS_OPCOES, TERMOS_ACEITE_ITENS, DECLARACAO_CONDICAO_APARELHO } from '../utils.js';
+import { formatCurrency, formatDateTime, toInputDate, todayInputValue, statusClass, CHECKLIST_ITENS, FORMAS_PAGAMENTO_COM_PRAZO, FORMA_A_PRAZO, ROTULO_A_PRAZO, sanitizeDecimalInput, parseDecimal, sanitizeIntegerInput, parseIntSafe, ACESSORIOS_OPCOES, TERMOS_ACEITE_ITENS, DECLARACAO_CONDICAO_APARELHO } from '../utils.js';
 import SignaturePad from '../components/SignaturePad.jsx';
 import PatternLock from '../components/PatternLock.jsx';
 import ImprimirMenu from '../components/ImprimirMenu.jsx';
 import AvisoProntoModal, { foiAvisada } from '../components/AvisoProntoModal.jsx';
-import PrazoCampos from '../components/PrazoCampos.jsx';
+import PrazoCampos, { valorEntrada } from '../components/PrazoCampos.jsx';
 
 const EMPTY = {
   id: null, cliente_id: '', equipamento_id: '', defeito_informado: '', diagnostico: '',
   servicos_executados: '', pecas_utilizadas: '', valor_mao_obra: 0, valor_pecas: 0, desconto: 0,
   garantia_dias: 90, data_entrada: todayInputValue(), previsao: '', data_saida: '',
   status: 'Recebido', observacoes: '', assinatura_cliente: '', checklist: [], itens_pecas: [], estoque_baixado: 0,
-  forma_pagamento: '', financeiro_lancado: 0, tecnico_id: '', prazo_parcelas: 1, prazo_vencimento: '',
+  forma_pagamento: '', financeiro_lancado: 0, tecnico_id: '', prazo_parcelas: 1, prazo_vencimento: '', prazo_entrada: '', prazo_entrada_forma: 'Dinheiro', prazo_entrada_recebida: 1,
   termos_aceite: TERMOS_ACEITE_ITENS.map(() => false), senha_tipo: 'texto', senha_valor: '', checklist_acessorios: [],
 };
 
@@ -244,6 +244,9 @@ export default function OrdensServico() {
         desconto: parseDecimal(form.desconto),
         garantia_dias: parseIntSafe(form.garantia_dias) || 90,
         prazo_parcelas: parseIntSafe(form.prazo_parcelas) || 1,
+        prazo_entrada: valorEntrada(form.prazo_entrada),
+        prazo_entrada_forma: form.prazo_entrada_forma || 'Dinheiro',
+        prazo_entrada_recebida: form.prazo_entrada_recebida ? 1 : 0,
         itens_pecas: form.itens_pecas
           .filter((i) => i.produto_id)
           .map((i) => ({ ...i, quantidade: parseIntSafe(i.quantidade) || 1, valor_unit: parseDecimal(i.valor_unit) })),
@@ -623,11 +626,11 @@ export default function OrdensServico() {
                     <label>Forma de Pagamento {!form.financeiro_lancado && <span style={{ color: 'var(--danger)' }}>*</span>}</label>
                     <select value={form.forma_pagamento || ''} onChange={(e) => set('forma_pagamento', e.target.value)} disabled={!!form.financeiro_lancado}>
                       <option value="">Selecione...</option>
-                      {FORMAS_PAGAMENTO_COM_PRAZO.map((f) => <option key={f} value={f}>{f === FORMA_A_PRAZO ? 'A prazo (fiado / parcelado)' : f}</option>)}
+                      {FORMAS_PAGAMENTO_COM_PRAZO.map((f) => <option key={f} value={f}>{f === FORMA_A_PRAZO ? ROTULO_A_PRAZO : f}</option>)}
                     </select>
                     {form.forma_pagamento === FORMA_A_PRAZO && !form.financeiro_lancado && (
                       <div style={{ marginTop: 10 }}>
-                        <PrazoCampos total={total} parcelas={form.prazo_parcelas} vencimento={form.prazo_vencimento} onChange={(p) => setForm((f) => ({ ...f, prazo_parcelas: p.parcelas, prazo_vencimento: p.vencimento }))} />
+                        <PrazoCampos total={total} parcelas={form.prazo_parcelas} vencimento={form.prazo_vencimento} entrada={form.prazo_entrada} entradaForma={form.prazo_entrada_forma} entradaRecebida={form.prazo_entrada_recebida} onChange={(p) => setForm((f) => ({ ...f, prazo_parcelas: p.parcelas, prazo_vencimento: p.vencimento, prazo_entrada: p.entrada, prazo_entrada_forma: p.entradaForma, prazo_entrada_recebida: p.entradaRecebida }))} />
                       </div>
                     )}
                     {form.financeiro_lancado ? (

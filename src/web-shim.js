@@ -256,6 +256,9 @@ import { criarApiImpressora } from './impressao-web.js';
     backup: {
       manual: indisponivelNoNavegador('O backup do banco de dados é feito automaticamente pelo Turso (nuvem). Este botão só existe no programa instalado.'),
     },
+    // Meu Plano: datas cadastradas pelo dono no painel /admin.
+    plano: { get: () => invoke('plano:get') },
+
     // PDF gerado no próprio navegador (abre numa tela com Voltar / Imprimir / Baixar / WhatsApp).
     pdf: criarApiPdf({ invoke }),
     empresa: {

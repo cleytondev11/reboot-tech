@@ -19,6 +19,9 @@ import Kanban from './pages/Kanban.jsx';
 import Cobrancas from './pages/Cobrancas.jsx';
 import Suporte from './pages/Suporte.jsx';
 import DownloadApp from './pages/DownloadApp.jsx';
+import MeuPlano from './pages/MeuPlano.jsx';
+import PlanoAviso from './components/PlanoAviso.jsx';
+import { statusPlano, precisaAviso } from './plano.js';
 
 // No programa instalado no Windows (Electron) não faz sentido o menu de instalar o app no celular.
 const EH_ELECTRON = typeof navigator !== 'undefined' && /Electron/i.test(navigator.userAgent);
@@ -39,19 +42,21 @@ const NAV = [
   { key: 'relatorios', label: 'Relatórios', icon: '📈', adminOnly: true },
   { key: 'usuarios', label: 'Usuários', icon: '🔐', adminOnly: true },
   { key: 'config', label: 'Configurações', icon: '⚙️' },
+  { key: 'plano', label: 'Meu Plano', icon: '🪪', hideInElectron: true },
   { key: 'suporte', label: 'Fale com o Suporte', icon: '💬' },
   { key: 'download', label: 'Download App', icon: '📲', hideInElectron: true },
 ];
 
 const TITLES = {
   dashboard: 'Dashboard', clientes: 'Clientes', equipamentos: 'Equipamentos',
-  os: 'Ordens de Serviço', kanban: 'Bancada — Kanban', cobrancas: 'Cobranças', suporte: 'Fale com o Suporte', download: 'Download App', orcamentos: 'Orçamentos', compras: 'Compras', estoque: 'Estoque', servicos: 'Serviços', vendas: 'Vendas', financeiro: 'Financeiro',
+  os: 'Ordens de Serviço', kanban: 'Bancada — Kanban', cobrancas: 'Cobranças', plano: 'Meu Plano', suporte: 'Fale com o Suporte', download: 'Download App', orcamentos: 'Orçamentos', compras: 'Compras', estoque: 'Estoque', servicos: 'Serviços', vendas: 'Vendas', financeiro: 'Financeiro',
   relatorios: 'Relatórios', usuarios: 'Usuários', config: 'Configurações',
 };
 
 function Shell() {
-  const { user, setUser, theme, toggleTheme } = useApp();
+  const { user, setUser, theme, toggleTheme, showToast } = useApp();
   const [page, setPage] = useState('dashboard');
+  const [plano, setPlano] = useState(null); // datas do plano (cadastradas no /admin)
   const [menuAberto, setMenuAberto] = useState(false); // só afeta o celular/tablet
 
   // Fecha o menu com a tecla ESC (útil em tablet com teclado)
@@ -76,6 +81,23 @@ function Shell() {
     return remover;
   }, [setUser]);
 
+  // Meu Plano: busca as datas ao entrar e de tempos em tempos; avisa (uma vez por entrada) quando faltam 5 dias ou menos.
+  useEffect(() => {
+    if (!user || !window.api?.plano?.get) return undefined;
+    let vivo = true;
+    let avisou = false;
+    const buscar = () => window.api.plano.get().then((p) => {
+      if (!vivo) return;
+      setPlano(p);
+      const st = statusPlano(p);
+      if (precisaAviso(st) && !avisou) { avisou = true; showToast(st.texto, 'error'); }
+    }).catch(() => {});
+    buscar();
+    const t = setInterval(buscar, 6 * 60 * 60 * 1000);
+    return () => { vivo = false; clearInterval(t); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
+
   if (!user) return <Login />;
 
   function renderPage() {
@@ -86,6 +108,7 @@ function Shell() {
       case 'os': return <OrdensServico />;
       case 'kanban': return <Kanban />;
       case 'cobrancas': return <Cobrancas />;
+      case 'plano': return <MeuPlano />;
       case 'suporte': return <Suporte />;
       case 'download': return <DownloadApp />;
       case 'orcamentos': return <Orcamentos />;
@@ -114,6 +137,7 @@ function Shell() {
           {NAV.filter((n) => (!n.adminOnly || user.papel === 'Administrador') && (!n.restrictTo || n.restrictTo.includes(user.papel)) && !(n.hideInElectron && EH_ELECTRON)).map((n) => (
             <button key={n.key} className={`nav-item ${page === n.key ? 'active' : ''}`} onClick={() => irPara(n.key)}>
               <span className="icon">{n.icon}</span> {n.label}
+              {n.key === 'plano' && plano && precisaAviso(statusPlano(plano)) && <span className="nav-alerta" title="Plano perto do vencimento">!</span>}
             </button>
           ))}
         </nav>
@@ -141,6 +165,7 @@ function Shell() {
             <button className="icon-btn" title="Alternar tema" onClick={toggleTheme}>{theme === 'dark' ? '☀️' : '🌙'}</button>
           </div>
         </div>
+        <PlanoAviso plano={plano} onVerPlano={() => irPara('plano')} />
         <div className="content">{renderPage()}</div>
       </div>
     </div>
