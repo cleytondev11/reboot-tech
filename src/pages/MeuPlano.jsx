@@ -1,11 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { useApp } from '../context.jsx';
 import { formatDiaCurto } from '../utils.js';
-import { statusPlano, renovarPeloWhatsapp, DIAS_PLANO, DIAS_AVISO } from '../plano.js';
+import { statusPlano, DIAS_PLANO, DIAS_AVISO } from '../plano.js';
 
 // Meu Plano: data contratada, vencimento (30 dias), dias que faltam e botão para renovar pelo WhatsApp.
-export default function MeuPlano() {
-  const { user, showToast } = useApp();
+export default function MeuPlano({ onRenovar }) {
   const [plano, setPlano] = useState(null);
   const [erro, setErro] = useState('');
 
@@ -18,10 +17,6 @@ export default function MeuPlano() {
     }
   }
   useEffect(() => { carregar(); }, []);
-
-  function renovar() {
-    renovarPeloWhatsapp(plano, user).catch((err) => showToast(String((err && err.message) || err), 'error'));
-  }
 
   if (erro) return <div className="empty-state">Não foi possível carregar o plano: {erro}</div>;
   if (!plano) return <div className="empty-state">Carregando...</div>;
@@ -64,14 +59,14 @@ export default function MeuPlano() {
         <p className="muted" style={{ fontSize: 12.5, margin: '10px 0 0' }}>
           {st.nivel === 'sem'
             ? st.texto
-            : `Avisamos você quando faltarem ${DIAS_AVISO} dias para o vencimento. Para renovar, fale com o suporte.`}
+            : `Avisamos você quando faltarem ${DIAS_AVISO} dias para o vencimento. Para renovar, toque em "Renovar plano".`}
         </p>
 
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 16 }}>
-          <button className="btn btn-primary" onClick={renovar}>🔄 Renovar plano</button>
+          <button className="btn btn-primary" onClick={onRenovar}>🔄 Renovar plano</button>
           <button className="btn btn-secondary" onClick={carregar}>Atualizar</button>
         </div>
-        <p className="muted" style={{ fontSize: 12, margin: '10px 0 0' }}>O botão abre o WhatsApp do suporte com o pedido de renovação pronto.</p>
+        <p className="muted" style={{ fontSize: 12, margin: '10px 0 0' }}>O botão mostra o QR Code do Pix para pagar; depois você envia o comprovante pelo WhatsApp.</p>
       </div>
     </div>
   );

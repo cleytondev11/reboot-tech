@@ -21,6 +21,7 @@ import Suporte from './pages/Suporte.jsx';
 import DownloadApp from './pages/DownloadApp.jsx';
 import MeuPlano from './pages/MeuPlano.jsx';
 import PlanoAviso from './components/PlanoAviso.jsx';
+import RenovarPlanoModal from './components/RenovarPlanoModal.jsx';
 import { statusPlano, precisaAviso } from './plano.js';
 
 // No programa instalado no Windows (Electron) não faz sentido o menu de instalar o app no celular.
@@ -57,6 +58,7 @@ function Shell() {
   const { user, setUser, theme, toggleTheme, showToast } = useApp();
   const [page, setPage] = useState('dashboard');
   const [plano, setPlano] = useState(null); // datas do plano (cadastradas no /admin)
+  const [renovando, setRenovando] = useState(false); // tela do QR Code Pix para renovar o plano
   const [menuAberto, setMenuAberto] = useState(false); // só afeta o celular/tablet
 
   // Fecha o menu com a tecla ESC (útil em tablet com teclado)
@@ -108,7 +110,7 @@ function Shell() {
       case 'os': return <OrdensServico />;
       case 'kanban': return <Kanban />;
       case 'cobrancas': return <Cobrancas />;
-      case 'plano': return <MeuPlano />;
+      case 'plano': return <MeuPlano onRenovar={() => setRenovando(true)} />;
       case 'suporte': return <Suporte />;
       case 'download': return <DownloadApp />;
       case 'orcamentos': return <Orcamentos />;
@@ -165,9 +167,10 @@ function Shell() {
             <button className="icon-btn" title="Alternar tema" onClick={toggleTheme}>{theme === 'dark' ? '☀️' : '🌙'}</button>
           </div>
         </div>
-        <PlanoAviso plano={plano} onVerPlano={() => irPara('plano')} />
+        <PlanoAviso plano={plano} onVerPlano={() => irPara('plano')} onRenovar={() => setRenovando(true)} />
         <div className="content">{renderPage()}</div>
       </div>
+      {renovando && <RenovarPlanoModal plano={plano} onClose={() => setRenovando(false)} />}
     </div>
   );
 }
