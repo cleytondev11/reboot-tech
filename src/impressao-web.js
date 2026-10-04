@@ -4,6 +4,7 @@
 // o botão "← Voltar" e o botão "Imprimir", que abre a janela do navegador com a lista de
 // impressoras (e as opções de cópias, papel etc.) para o usuário escolher.
 import { abrirVisualizador } from './visualizador.js';
+import { criarApiPdf } from './pdf-web.js';
 
 function escapeHtml(str) {
   if (str === null || str === undefined) return '';
@@ -183,6 +184,7 @@ function envelopeA4(conteudo) {
 
 function cabecalhoEmpresaA4(empresa) {
   const linhas = [];
+  if (empresa && empresa.logo) linhas.push(`<img src="${empresa.logo}" style="height:56px;max-width:170px;object-fit:contain;margin-bottom:6px;" />`);
   linhas.push(`<div class="titulo">${escapeHtml((empresa && (empresa.nome_fantasia || empresa.nome)) || 'Assistência Técnica')}</div>`);
   const dados = [
     empresa && empresa.cnpj ? `CNPJ: ${empresa.cnpj}` : null,
@@ -270,6 +272,8 @@ function lerCfg() {
 }
 
 export function criarApiImpressora({ invoke }) {
+  // Folha A4 = o MESMO documento do "Exportar PDF" (logomarca, dados e layout da empresa); o botão Imprimir imprime o PDF.
+  const pdf = criarApiPdf({ invoke });
   function mostrar(titulo, html, cfg, formato) {
     abrirVisualizador({ titulo, html, formato, larguraMm: Number(cfg.largura_papel) === 58 ? 58 : 80 });
     return { ok: true, web: true };
@@ -285,6 +289,7 @@ export function criarApiImpressora({ invoke }) {
     imprimirCupomVenda: async (id, formato) => {
       const cfg = lerCfg();
       const fmt = formato || cfg.formato;
+      if (fmt === 'a4') return pdf.exportarVendaRecibo(id);
       const venda = await invoke('dados:vendaCompleta', { id });
       if (!venda) throw new Error('Venda não encontrada.');
       const empresa = await invoke('empresa:get');
@@ -294,6 +299,7 @@ export function criarApiImpressora({ invoke }) {
     imprimirCupomOS: async (id, formato) => {
       const cfg = lerCfg();
       const fmt = formato || cfg.formato;
+      if (fmt === 'a4') return pdf.exportarOS(id);
       const os = await invoke('dados:osCompleta', { id });
       if (!os) throw new Error('Ordem de Serviço não encontrada.');
       const empresa = await invoke('empresa:get');
