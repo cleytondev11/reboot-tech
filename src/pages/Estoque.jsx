@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { useApp } from '../context.jsx';
+import { fotoDoProduto } from '../imagem.js';
 import { formatCurrency, formatDateTime, CATEGORIAS_PRODUTO, sanitizeDecimalInput, parseDecimal, sanitizeIntegerInput, parseIntSafe } from '../utils.js';
 
 const EMPTY_PRODUTO = {
   id: null, nome: '', categoria: '', fabricante: '', fornecedor_id: '', codigo_interno: '',
   codigo_barras: '', quantidade: 0, estoque_minimo: 1, valor_compra: 0, valor_venda: 0, localizacao: '',
+  imagem: '', imagem_mini: '',
 };
 const EMPTY_FORNECEDOR = { id: null, nome: '', cnpj_cpf: '', telefone: '', email: '', endereco: '', observacoes: '' };
 
@@ -38,7 +40,25 @@ export default function Estoque() {
   }, [termo, apenasBaixo]);
 
   function openNewProduto() { setFormProduto(EMPTY_PRODUTO); setModalProduto(true); }
-  function openEditProduto(p) { setFormProduto(p); setModalProduto(true); }
+  async function openEditProduto(p) {
+    // A lista só traz a miniatura; a foto inteira vem do cadastro do produto.
+    setFormProduto({ ...p, imagem: p.imagem || '', imagem_mini: p.imagem_mini || '' });
+    setModalProduto(true);
+    if (p.tem_imagem) {
+      try {
+        const full = await window.api.produtos.get(p.id);
+        setFormProduto((f) => (f.id === p.id ? { ...f, imagem: (full && full.imagem) || '', imagem_mini: (full && full.imagem_mini) || f.imagem_mini } : f));
+      } catch { /* mostra só a miniatura */ }
+    }
+  }
+  async function anexarFoto(arquivo) {
+    try {
+      const { imagem, imagem_mini } = await fotoDoProduto(arquivo);
+      setFormProduto((f) => ({ ...f, imagem, imagem_mini }));
+    } catch (err) {
+      showToast(String((err && err.message) || err), 'error');
+    }
+  }
   function setP(field, v) { setFormProduto((f) => ({ ...f, [field]: v })); }
 
   async function saveProduto(e) {
@@ -161,7 +181,12 @@ export default function Estoque() {
               <tbody>
                 {produtos.map((p) => (
                   <tr key={p.id}>
-                    <td><b>{p.nome}</b>{p.codigo_interno ? <div className="muted" style={{ fontSize: 11 }}>{p.codigo_interno}</div> : null}</td>
+                    <td>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        {p.imagem_mini ? <img className="prod-mini" src={p.imagem_mini} alt="" /> : <span className="prod-mini prod-mini-vazio">📦</span>}
+                        <div><b>{p.nome}</b>{p.codigo_interno ? <div className="muted" style={{ fontSize: 11 }}>{p.codigo_interno}</div> : null}</div>
+                      </div>
+                    </td>
                     <td>{p.categoria || '-'}</td>
                     <td>{p.fornecedor_nome || '-'}</td>
                     <td className={p.quantidade <= p.estoque_minimo ? 'low-stock' : ''}>{p.quantidade}</td>
@@ -214,6 +239,19 @@ export default function Estoque() {
             <div className="modal-header">
               <h3>{formProduto.id ? 'Editar Produto' : 'Novo Produto'}</h3>
               <button type="button" className="icon-btn" onClick={() => setModalProduto(false)}>✕</button>
+            </div>
+            <div className="foto-produto">
+              {(formProduto.imagem || formProduto.imagem_mini)
+                ? <img src={formProduto.imagem || formProduto.imagem_mini} alt="Foto do produto" />
+                : <span className="foto-produto-vazio">📷</span>}
+              <div className="foto-produto-acoes">
+                <label className="btn btn-secondary btn-sm" style={{ cursor: 'pointer' }}>
+                  {formProduto.imagem || formProduto.imagem_mini ? 'Trocar foto' : 'Anexar foto do produto'}
+                  <input type="file" accept="image/*" style={{ display: 'none' }} onChange={(e) => { const f = e.target.files && e.target.files[0]; e.target.value = ''; if (f) anexarFoto(f); }} />
+                </label>
+                {(formProduto.imagem || formProduto.imagem_mini) && <button type="button" className="btn btn-ghost btn-sm" onClick={() => setFormProduto((f) => ({ ...f, imagem: '', imagem_mini: '' }))}>Remover foto</button>}
+                <span className="muted" style={{ fontSize: 11.5 }}>A foto vai sozinha para a venda e aparece nos PDFs.</span>
+              </div>
             </div>
             <div className="form-grid">
               <div className="field span-2"><label>Nome do Produto *</label><input value={formProduto.nome} onChange={(e) => setP('nome', e.target.value)} /></div>

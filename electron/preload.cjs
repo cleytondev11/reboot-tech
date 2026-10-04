@@ -10,24 +10,6 @@ contextBridge.exposeInMainWorld('api', {
     verificarAgora: () => invoke('licenca:verificarAgora'),
     ativar: (chave) => invoke('licenca:ativar', { chave }),
   },
-  seguranca: {
-    adbDisponivel: () => invoke('adb:disponivel'),
-    listarDispositivos: () => invoke('adb:dispositivos'),
-    analisar: (atual, serial, modelo, cliente_id, equipamento_id) =>
-      invoke('adb:analisar', { atual, serial, modelo, cliente_id, equipamento_id }),
-    pararApp: (serial, pacote) => invoke('adb:pararApp', { serial, pacote }),
-    removerAdmin: (atual, serial, modelo, pacote, componente, nivel, cliente_id, equipamento_id) =>
-      invoke('adb:removerAdmin', { atual, serial, modelo, pacote, componente, nivel, cliente_id, equipamento_id }),
-    desativarPacote: (atual, serial, modelo, pacote, nivel, cliente_id, equipamento_id) =>
-      invoke('adb:desativarPacote', { atual, serial, modelo, pacote, nivel, cliente_id, equipamento_id }),
-    reativarPacote: (atual, serial, modelo, pacote, cliente_id, equipamento_id) =>
-      invoke('adb:reativarPacote', { atual, serial, modelo, pacote, cliente_id, equipamento_id }),
-    desinstalar: (atual, serial, modelo, pacote, nivel, cliente_id, equipamento_id) =>
-      invoke('adb:desinstalar', { atual, serial, modelo, pacote, nivel, cliente_id, equipamento_id }),
-    formatar: (atual, serial, modelo, confirmacao, cliente_id, equipamento_id) =>
-      invoke('adb:formatar', { atual, serial, modelo, confirmacao, cliente_id, equipamento_id }),
-    historico: (cliente_id, equipamento_id) => invoke('adb:historico', { cliente_id, equipamento_id }),
-  },
   auth: {
     login: (usuario, senha) => invoke('auth:login', { usuario, senha }),
     // Só relevante no Modo Nuvem: dispara quando uma chamada qualquer volta com
@@ -65,7 +47,7 @@ contextBridge.exposeInMainWorld('api', {
     list: (termo, status) => invoke('os:list', { termo, status }),
     get: (id) => invoke('os:get', { id }),
     save: (atual, os) => invoke('os:save', { atual, os }),
-    setStatus: (atual, id, status) => invoke('os:setStatus', { atual, id, status }),
+    setStatus: (atual, id, status, pagamento) => invoke('os:setStatus', { atual, id, status, pagamento }),
     delete: (atual, id) => invoke('os:delete', { atual, id }),
   },
   fornecedores: {
@@ -123,6 +105,8 @@ contextBridge.exposeInMainWorld('api', {
     save: (atual, lancamento) => invoke('financeiro:save', { atual, lancamento }),
     marcarPago: (atual, id, forma_pagamento, data_pagamento) => invoke('financeiro:marcarPago', { atual, id, forma_pagamento, data_pagamento }),
     cancelar: (atual, id) => invoke('financeiro:cancelar', { atual, id }),
+    registrarCobranca: (id) => invoke('financeiro:registrarCobranca', { id }),
+    reprogramar: (id, data_vencimento) => invoke('financeiro:reprogramar', { id, data_vencimento }),
     delete: (atual, id) => invoke('financeiro:delete', { atual, id }),
     dre: (mes) => invoke('financeiro:dre', { mes }),
   },

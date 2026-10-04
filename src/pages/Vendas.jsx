@@ -2,34 +2,13 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { useApp } from '../context.jsx';
 import { formatCurrency, formatDateTime, toInputDate, todayInputValue, sanitizeDecimalInput, parseDecimal, sanitizeIntegerInput, parseIntSafe, FORMAS_PAGAMENTO_COM_PRAZO, FORMA_A_PRAZO, ROTULO_A_PRAZO } from '../utils.js';
 import PrazoCampos, { valorEntrada } from '../components/PrazoCampos.jsx';
+import { reduzirImagem } from '../imagem.js';
 import ImprimirMenu from '../components/ImprimirMenu.jsx';
 
 const EMPTY = { id: null, cliente_id: '', itens: [], desconto: 0, forma_pagamento: 'Dinheiro', observacoes: '', garantia_dias: 90, data_venda: todayInputValue(), prazo_parcelas: 1, prazo_vencimento: '', prazo_entrada: '', prazo_entrada_forma: 'Dinheiro', prazo_entrada_recebida: 1 };
 
 function novoItem() { return { produto_id: '', descricao: '', quantidade: 1, valor_unit: 0, imagem: '' }; }
 
-// Reduz a foto (máx. 900px, JPEG) antes de guardar: fica leve para salvar e sai nítida no PDF.
-function reduzirImagem(arquivo, max = 900, qualidade = 0.78) {
-  return new Promise((resolve, reject) => {
-    if (!arquivo || !/^image\//.test(arquivo.type)) return reject(new Error('Escolha um arquivo de imagem (JPG, PNG ou WEBP).'));
-    const url = URL.createObjectURL(arquivo);
-    const img = new Image();
-    img.onload = () => {
-      const escala = Math.min(1, max / Math.max(img.width, img.height));
-      const w = Math.max(1, Math.round(img.width * escala));
-      const h = Math.max(1, Math.round(img.height * escala));
-      const canvas = document.createElement('canvas');
-      canvas.width = w; canvas.height = h;
-      const ctx = canvas.getContext('2d');
-      ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h); // PNG com fundo transparente fica branco
-      ctx.drawImage(img, 0, 0, w, h);
-      URL.revokeObjectURL(url);
-      resolve(canvas.toDataURL('image/jpeg', qualidade));
-    };
-    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Não foi possível ler esta imagem.')); };
-    img.src = url;
-  });
-}
 
 // Itens da venda ficam guardados como texto JSON; aqui vira uma lista legível.
 function itensDaVenda(v) {
@@ -41,7 +20,7 @@ function ProdutosVendidos({ venda }) {
   if (itens.length === 0) return <span className="muted">-</span>;
   const linha = (i) => `${i.quantidade > 1 ? i.quantidade + 'x ' : ''}${i.descricao}`;
   return (
-    <div title={itens.map(linha).join('\n')} style={{ minWidth: 160, maxWidth: 320, lineHeight: 1.35 }}>
+    <div title={itens.map(linha).join('\n')} style={{ minWidth: 140, maxWidth: 230, lineHeight: 1.35 }}>
       {itens.slice(0, 3).map((i, idx) => <div key={idx}>{linha(i)}</div>)}
       {itens.length > 3 && <div className="muted" style={{ fontSize: 12 }}>+ {itens.length - 3} item(ns)</div>}
     </div>
@@ -103,7 +82,7 @@ export default function Vendas() {
       const it = { ...itens[idx], [field]: value };
       if (field === 'produto_id' && value) {
         const p = produtos.find((p) => String(p.id) === String(value));
-        if (p) { it.descricao = p.nome; it.valor_unit = p.valor_venda; }
+        if (p) { it.descricao = p.nome; it.valor_unit = p.valor_venda; if (p.tem_imagem) { it.imagem = ''; preencherImagemDoProduto(p.id); } }
       }
       itens[idx] = it;
       return { ...f, itens };
@@ -116,6 +95,15 @@ export default function Vendas() {
     } catch (err) {
       showToast(String((err && err.message) || err), 'error');
     }
+  }
+  // Produto do estoque com foto: a foto vem sozinha para o item da venda (e vai para os PDFs).
+  async function preencherImagemDoProduto(produtoId) {
+    if (!produtoId) return;
+    try {
+      const full = await window.api.produtos.get(produtoId);
+      if (!full || !full.imagem) return;
+      setForm((f) => ({ ...f, itens: f.itens.map((it) => (String(it.produto_id) === String(produtoId) && !it.imagem ? { ...it, imagem: full.imagem } : it)) }));
+    } catch { /* sem foto: segue normal */ }
   }
   function addItem() { setForm((f) => ({ ...f, itens: [...f.itens, novoItem()] })); }
   function removeItem(idx) { setForm((f) => ({ ...f, itens: f.itens.filter((_, i) => i !== idx) })); }
@@ -144,6 +132,7 @@ export default function Vendas() {
       }
       return { ...f, itens };
     });
+    if (produto.tem_imagem) preencherImagemDoProduto(produto.id);
     showToast(`${produto.nome} adicionado.`);
   }
 

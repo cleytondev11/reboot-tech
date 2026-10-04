@@ -25,6 +25,8 @@ Aplicação desktop (Windows) para gestão de assistência técnica de celulares
 
 **v1.25.0 (web/nuvem):** Removidos o menu **Remoção de Vírus** e a aba **Rede Multi-PC** · status **Aguardando orçamento** e **Orçamento enviado** removidos da OS (OS que estavam neles passam para "Em análise") · **Exportar PDF**, **Termo de Garantia** e **Compartilhar no WhatsApp** agora funcionam no navegador: o documento abre numa tela com **← Voltar**, **Imprimir**, **Baixar PDF** e **WhatsApp** (mensagem editável) · **Impressão** de recibo/cupom abre o documento e a janela do navegador lista as impressoras.
 
+**v1.26.0 (web/nuvem):** forma de pagamento renomeada para **A prazo / parcelado**, agora com **entrada + parcelas** (Vendas, Ordens de Serviço e entrega pela Bancada; entrada recebida agora ou "a receber" em Cobranças) · menu **Meu Plano** (data contratada, vencimento de 30 dias, aviso quando faltam 5 dias e botão **Renovar plano** pelo WhatsApp) · no painel **/admin** cada cliente tem **Data contratada** e **Vencimento** (botão **+30 dias** para renovar).
+
 ---
 
 ## 1. Como usar (usuário final)

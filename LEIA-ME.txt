@@ -1,0 +1,4 @@
+COMO SUBIR NO GITHUB
+1) Copie TODAS as pastas deste zip por cima do seu projeto (substituir os arquivos).
+2) Apague do projeto o arquivo: src/pages/RemocaoVirus.jsx (não é mais usado).
+3) Faça o commit e o push. O Render atualiza sozinho.

@@ -529,24 +529,37 @@ function buildComprovanteHtml(l) {
 
 // Foto do produto dentro da linha do item (só aceita imagem em data URL; vem da venda).
 const IMG_ITEM_RE = /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/;
-function imagemDoItemHtml(it) {
-  if (!it || typeof it.imagem !== 'string' || !IMG_ITEM_RE.test(it.imagem)) return '';
-  return `<div style="margin-top:2mm;"><img src="${it.imagem}" alt="" style="max-height:30mm;max-width:48mm;object-fit:contain;border:1px solid #d5d5d5;border-radius:2mm;display:block;" /></div>`;
+
+// Célula "Descrição": a foto pequena à esquerda e o nome do produto na frente (ao lado) dela.
+function celulaProdutoHtml(it) {
+  const nome = escapeHtml(it.descricao);
+  if (!it || typeof it.imagem !== 'string' || !IMG_ITEM_RE.test(it.imagem)) return nome;
+  return `<div style="display:flex;align-items:center;gap:3mm;"><img src="${it.imagem}" alt="" style="width:15mm;height:15mm;flex:0 0 15mm;object-fit:cover;border:1px solid #d5d5d5;border-radius:1.5mm;display:block;" /><span>${nome}</span></div>`;
 }
+
+// Uma linha da tabela de itens da venda, com o valor unitário e o subtotal DE CADA ITEM.
+function linhaItemVendaHtml(it) {
+  const qtd = parseFloat(it.quantidade) || 0;
+  const unit = parseFloat(it.valor_unit) || 0;
+  return `
+    <tr>
+      <td>${celulaProdutoHtml(it)}</td>
+      <td style="text-align:center;">${escapeHtml(String(it.quantidade ?? ''))}</td>
+      <td style="text-align:right;">${formatCurrency(unit)}</td>
+      <td style="text-align:right;">${formatCurrency(qtd * unit)}</td>
+    </tr>
+  `;
+}
+
+// Cabeçalho da tabela de itens da venda: a coluna do produto mais curta, valores com espaço para não quebrar.
+const CABECALHO_ITENS_VENDA = '<thead><tr><th style="width:50%;">Descrição</th><th style="width:10%;text-align:center;">Qtd.</th><th style="width:20%;text-align:right;">Valor Unit.</th><th style="width:20%;text-align:right;">Subtotal</th></tr></thead>';
 
 function buildVendaGarantiaHtml(venda, empresa) {
   const nomeEmpresa = escapeHtml(empresa?.nome_fantasia || empresa?.nome || 'Assistência Técnica');
   let itens = [];
   try { itens = JSON.parse(venda.itens || '[]'); } catch { itens = []; }
   const garantiaDias = venda.garantia_dias || 90;
-  const itensRows = itens.map((it) => `
-    <tr>
-      <td>${escapeHtml(it.descricao)}${imagemDoItemHtml(it)}</td>
-      <td style="text-align:center;">${it.quantidade}</td>
-      <td style="text-align:right;">${formatCurrency(venda.valor_total)}</td>
-      <td style="text-align:right;">${formatCurrency(venda.valor_total)}</td>
-    </tr>
-  `).join('');
+  const itensRows = itens.map(linhaItemVendaHtml).join('');
 
   return `
     <div class="info-grid">
@@ -560,7 +573,7 @@ function buildVendaGarantiaHtml(venda, empresa) {
 
     <div class="section-title">Produto(s) / Serviço(s) Cobertos</div>
     <table>
-      <thead><tr><th>Descrição</th><th style="width:60px;">Qtd.</th><th style="width:100px;">Valor Unit.</th><th style="width:110px;">Subtotal</th></tr></thead>
+      ${CABECALHO_ITENS_VENDA}
       <tbody>${itensRows || '<tr><td colspan="4" class="muted">Nenhum item cadastrado.</td></tr>'}</tbody>
     </table>
     <div class="total-box">Valor Total da Compra: ${formatCurrency(venda.valor_total)}</div>
@@ -587,14 +600,7 @@ function buildVendaGarantiaHtml(venda, empresa) {
 function buildVendaReciboHtml(venda, empresa) {
   let itens = [];
   try { itens = JSON.parse(venda.itens || '[]'); } catch { itens = []; }
-  const itensRows = itens.map((it) => `
-    <tr>
-      <td>${escapeHtml(it.descricao)}${imagemDoItemHtml(it)}</td>
-      <td style="text-align:center;">${it.quantidade}</td>
-      <td style="text-align:right;">${formatCurrency(venda.valor_total)}</td>
-      <td style="text-align:right;">${formatCurrency(venda.valor_total)}</td>
-    </tr>
-  `).join('');
+  const itensRows = itens.map(linhaItemVendaHtml).join('');
   const enderecoCliente = [venda.cliente_endereco, venda.cliente_numero].filter(Boolean).join(', ');
   const cidadeUfCliente = [venda.cliente_cidade, venda.cliente_uf].filter(Boolean).join('/');
   const descontoVenda = parseFloat(venda.desconto) || 0;
@@ -627,7 +633,7 @@ function buildVendaReciboHtml(venda, empresa) {
 
     <div class="section-title">Itens Adquiridos</div>
     <table>
-      <thead><tr><th>Descrição</th><th style="width:60px;">Qtd.</th><th style="width:100px;">Valor Unit.</th><th style="width:110px;">Subtotal</th></tr></thead>
+      ${CABECALHO_ITENS_VENDA}
       <tbody>${itensRows || '<tr><td colspan="4" class="muted">Nenhum item cadastrado.</td></tr>'}</tbody>
     </table>
     ${totalsHtml}

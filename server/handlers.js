@@ -140,6 +140,14 @@ async function lancarReceberDaOs(db, req, osId, osNumero, valorTotal, previsaoOu
 // Cada item da venda pode ter uma foto (data URL jpeg/png/webp, já reduzida pelo navegador).
 const IMAGEM_ITEM_RE = /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/;
 const IMAGEM_ITEM_MAX = 1500000; // ~1,5 MB de texto (a foto reduzida tem bem menos que isso)
+function validarImagemData(valor, max, rotulo) {
+  if (valor === undefined) return undefined; // não veio no pedido: mantém o que já está salvo
+  if (!valor) return null; // vazio: remove a imagem
+  if (typeof valor !== 'string' || !IMAGEM_ITEM_RE.test(valor)) throw new Error(`${rotulo} inválida. Anexe uma foto JPG, PNG ou WEBP.`);
+  if (valor.length > max) throw new Error(`${rotulo} é muito grande. Escolha uma foto menor.`);
+  return valor;
+}
+
 function limparImagemItem(item) {
   if (!item || !item.imagem) { if (item && 'imagem' in item) { const { imagem, ...resto } = item; return resto; } return item; }
   if (typeof item.imagem !== 'string' || !IMAGEM_ITEM_RE.test(item.imagem)) throw new Error('A imagem do produto é inválida. Anexe uma foto JPG, PNG ou WEBP.');
@@ -1075,7 +1083,12 @@ const handlers = {
 
   // ---------- PRODUTOS / ESTOQUE ----------
   'produtos:list': async (db, { termo, apenasBaixo } = {}) => {
-    let sql = `SELECT p.*, f.nome as fornecedor_nome FROM produtos p LEFT JOIN fornecedores f ON f.id = p.fornecedor_id WHERE p.ativo = 1`;
+    // Não traz a foto grande (pesada): só a miniatura, para a lista do estoque ficar leve.
+    let sql = `SELECT p.id, p.nome, p.categoria, p.fabricante, p.fornecedor_id, p.codigo_interno, p.codigo_barras, p.quantidade, p.estoque_minimo,
+                      p.valor_compra, p.valor_venda, p.localizacao, p.ativo, p.criado_em, p.atualizado_em, p.imagem_mini,
+                      CASE WHEN p.imagem IS NOT NULL AND p.imagem <> '' THEN 1 ELSE 0 END AS tem_imagem,
+                      f.nome as fornecedor_nome
+               FROM produtos p LEFT JOIN fornecedores f ON f.id = p.fornecedor_id WHERE p.ativo = 1`;
     const params = [];
     if (termo) {
       sql += ` AND (p.nome LIKE ? OR p.codigo_interno LIKE ? OR p.codigo_barras LIKE ? OR p.categoria LIKE ? OR p.fabricante LIKE ?)`;
@@ -1091,11 +1104,17 @@ const handlers = {
 
   'produtos:save': async (db, { produto }, req) => {
     const p = produto;
+    const imagem = validarImagemData(p.imagem, 1500000, 'A foto do produto');
+    const imagemMini = validarImagemData(p.imagem_mini, 80000, 'A miniatura da foto');
     if (p.id) {
       await db.run(
         `UPDATE produtos SET nome=?, categoria=?, fabricante=?, fornecedor_id=?, codigo_interno=?, codigo_barras=?, estoque_minimo=?, valor_compra=?, valor_venda=?, localizacao=?, atualizado_em=? WHERE id=?`,
         [p.nome, p.categoria, p.fabricante, p.fornecedor_id || null, p.codigo_interno, p.codigo_barras, p.estoque_minimo || 0, p.valor_compra || 0, p.valor_venda || 0, p.localizacao, nowIso(), p.id]
       );
+      // Foto: só mexe se veio no pedido (undefined = mantém; vazio = remove).
+      if (imagem !== undefined) {
+        await db.run('UPDATE produtos SET imagem = ?, imagem_mini = ? WHERE id = ?', [imagem, imagem ? (imagemMini === undefined ? null : imagemMini) : null, p.id]);
+      }
       await log(db, req, 'EDITAR', 'produtos', p.id, p.nome);
       return { ok: true, id: p.id };
     } else {
@@ -1103,6 +1122,7 @@ const handlers = {
         `INSERT INTO produtos (nome, categoria, fabricante, fornecedor_id, codigo_interno, codigo_barras, quantidade, estoque_minimo, valor_compra, valor_venda, localizacao, ativo, criado_em) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
         [p.nome, p.categoria, p.fabricante, p.fornecedor_id || null, p.codigo_interno, p.codigo_barras, p.quantidade || 0, p.estoque_minimo || 0, p.valor_compra || 0, p.valor_venda || 0, p.localizacao, 1, nowIso()]
       );
+      if (imagem) await db.run('UPDATE produtos SET imagem = ?, imagem_mini = ? WHERE id = ?', [imagem, imagemMini || null, id]);
       if ((p.quantidade || 0) > 0) {
         await db.insert(
           `INSERT INTO movimentacoes_estoque (produto_id, tipo, quantidade, motivo, referencia, usuario_id, usuario_nome, criado_em) VALUES (?,?,?,?,?,?,?,?)`,
