@@ -7,16 +7,6 @@ const WHATSAPP_SUPORTE = '5561992040024';
 // A cada quantos minutos o sistema reconfirma a licença enquanto está aberto.
 const INTERVALO_REVERIFICACAO_MIN = 60;
 
-function TelaCarregando() {
-  return (
-    <div className="login-screen">
-      <div className="login-card">
-        <p className="sub">Verificando licença...</p>
-      </div>
-    </div>
-  );
-}
-
 function TelaAtivacao({ onAtivado }) {
   const [chave, setChave] = useState('');
   const [error, setError] = useState('');
@@ -169,7 +159,9 @@ export default function LicencaGate({ children }) {
     return () => { clearInterval(id); window.removeEventListener('rt-licenca-bloqueada', verificar); };
   }, [verificar]);
 
-  if (estado === 'carregando') return <TelaCarregando />;
+  // Enquanto confere a licença, já mostra o sistema (sem a tela "Verificando licença...").
+  // Se a licença estiver bloqueada/vencida, a tela de bloqueio aparece assim que a resposta chegar.
+  if (estado === 'carregando') return children;
   if (estado === 'ativacao_necessaria') return <TelaAtivacao onAtivado={verificar} />;
   if (estado === 'bloqueada') return <TelaBloqueada info={info} />;
   if (estado === 'requer_conexao') return <TelaRequerConexao onTentarNovamente={verificar} />;

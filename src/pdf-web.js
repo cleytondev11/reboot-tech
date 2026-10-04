@@ -527,6 +527,13 @@ function buildComprovanteHtml(l) {
   `;
 }
 
+// Foto do produto dentro da linha do item (só aceita imagem em data URL; vem da venda).
+const IMG_ITEM_RE = /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/;
+function imagemDoItemHtml(it) {
+  if (!it || typeof it.imagem !== 'string' || !IMG_ITEM_RE.test(it.imagem)) return '';
+  return `<div style="margin-top:2mm;"><img src="${it.imagem}" alt="" style="max-height:30mm;max-width:48mm;object-fit:contain;border:1px solid #d5d5d5;border-radius:2mm;display:block;" /></div>`;
+}
+
 function buildVendaGarantiaHtml(venda, empresa) {
   const nomeEmpresa = escapeHtml(empresa?.nome_fantasia || empresa?.nome || 'Assistência Técnica');
   let itens = [];
@@ -534,7 +541,7 @@ function buildVendaGarantiaHtml(venda, empresa) {
   const garantiaDias = venda.garantia_dias || 90;
   const itensRows = itens.map((it) => `
     <tr>
-      <td>${escapeHtml(it.descricao)}</td>
+      <td>${escapeHtml(it.descricao)}${imagemDoItemHtml(it)}</td>
       <td style="text-align:center;">${it.quantidade}</td>
       <td style="text-align:right;">${formatCurrency(venda.valor_total)}</td>
       <td style="text-align:right;">${formatCurrency(venda.valor_total)}</td>
@@ -582,7 +589,7 @@ function buildVendaReciboHtml(venda, empresa) {
   try { itens = JSON.parse(venda.itens || '[]'); } catch { itens = []; }
   const itensRows = itens.map((it) => `
     <tr>
-      <td>${escapeHtml(it.descricao)}</td>
+      <td>${escapeHtml(it.descricao)}${imagemDoItemHtml(it)}</td>
       <td style="text-align:center;">${it.quantidade}</td>
       <td style="text-align:right;">${formatCurrency(venda.valor_total)}</td>
       <td style="text-align:right;">${formatCurrency(venda.valor_total)}</td>

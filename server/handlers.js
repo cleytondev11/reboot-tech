@@ -136,6 +136,18 @@ async function lancarReceberDaOs(db, req, osId, osNumero, valorTotal, previsaoOu
   );
 }
 
+// ---------- IMAGEM DO PRODUTO NA VENDA ----------
+// Cada item da venda pode ter uma foto (data URL jpeg/png/webp, já reduzida pelo navegador).
+const IMAGEM_ITEM_RE = /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/;
+const IMAGEM_ITEM_MAX = 1500000; // ~1,5 MB de texto (a foto reduzida tem bem menos que isso)
+function limparImagemItem(item) {
+  if (!item || !item.imagem) { if (item && 'imagem' in item) { const { imagem, ...resto } = item; return resto; } return item; }
+  if (typeof item.imagem !== 'string' || !IMAGEM_ITEM_RE.test(item.imagem)) throw new Error('A imagem do produto é inválida. Anexe uma foto JPG, PNG ou WEBP.');
+  if (item.imagem.length > IMAGEM_ITEM_MAX) throw new Error('A imagem do produto é muito grande. Escolha uma foto menor.');
+  const { tem_imagem, ...resto } = item;
+  return resto;
+}
+
 // ---------- VENDA A PRAZO / COBRANÇA: helpers ----------
 const FORMA_A_PRAZO = 'A prazo';
 
@@ -1233,6 +1245,17 @@ const handlers = {
 
   // ---------- VENDAS (venda avulsa de produtos/serviços, fora de OS/Orçamento) ----------
   'vendas:list': async (db, { termo } = {}) => {
+    const linhas = await handlers['vendas:listCompleta'](db, { termo });
+    // A lista não precisa das fotos (são pesadas): tira a imagem e só marca que o item tem foto.
+    return linhas.map((v) => {
+      try {
+        const itens = JSON.parse(v.itens || '[]').map((i) => { if (!i.imagem) return i; const { imagem, ...resto } = i; return { ...resto, tem_imagem: true }; });
+        return { ...v, itens: JSON.stringify(itens) };
+      } catch { return v; }
+    });
+  },
+
+  'vendas:listCompleta': async (db, { termo } = {}) => {
     let sql = `SELECT v.*, c.nome as cliente_nome FROM vendas v LEFT JOIN clientes c ON c.id = v.cliente_id WHERE 1=1`;
     const params = [];
     if (termo) {
@@ -1267,7 +1290,7 @@ const handlers = {
 
   'vendas:save': async (db, { venda }, req) => {
     const v = venda;
-    const itens = (v.itens || []).filter((i) => i.descricao);
+    const itens = (v.itens || []).filter((i) => i.descricao).map(limparImagemItem);
     const valorItens = itens.reduce((s, i) => s + (parseFloat(i.quantidade) || 0) * (parseFloat(i.valor_unit) || 0), 0);
     const desconto = parseFloat(v.desconto) || 0;
     const valorTotal = Math.max(0, valorItens - desconto);

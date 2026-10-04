@@ -6,7 +6,30 @@ import ImprimirMenu from '../components/ImprimirMenu.jsx';
 
 const EMPTY = { id: null, cliente_id: '', itens: [], desconto: 0, forma_pagamento: 'Dinheiro', observacoes: '', garantia_dias: 90, data_venda: todayInputValue(), prazo_parcelas: 1, prazo_vencimento: '', prazo_entrada: '', prazo_entrada_forma: 'Dinheiro', prazo_entrada_recebida: 1 };
 
-function novoItem() { return { produto_id: '', descricao: '', quantidade: 1, valor_unit: 0 }; }
+function novoItem() { return { produto_id: '', descricao: '', quantidade: 1, valor_unit: 0, imagem: '' }; }
+
+// Reduz a foto (máx. 900px, JPEG) antes de guardar: fica leve para salvar e sai nítida no PDF.
+function reduzirImagem(arquivo, max = 900, qualidade = 0.78) {
+  return new Promise((resolve, reject) => {
+    if (!arquivo || !/^image\//.test(arquivo.type)) return reject(new Error('Escolha um arquivo de imagem (JPG, PNG ou WEBP).'));
+    const url = URL.createObjectURL(arquivo);
+    const img = new Image();
+    img.onload = () => {
+      const escala = Math.min(1, max / Math.max(img.width, img.height));
+      const w = Math.max(1, Math.round(img.width * escala));
+      const h = Math.max(1, Math.round(img.height * escala));
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h); // PNG com fundo transparente fica branco
+      ctx.drawImage(img, 0, 0, w, h);
+      URL.revokeObjectURL(url);
+      resolve(canvas.toDataURL('image/jpeg', qualidade));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Não foi possível ler esta imagem.')); };
+    img.src = url;
+  });
+}
 
 // Itens da venda ficam guardados como texto JSON; aqui vira uma lista legível.
 function itensDaVenda(v) {
@@ -85,6 +108,14 @@ export default function Vendas() {
       itens[idx] = it;
       return { ...f, itens };
     });
+  }
+  async function anexarImagem(idx, arquivo) {
+    try {
+      const dataUrl = await reduzirImagem(arquivo);
+      setItem(idx, 'imagem', dataUrl);
+    } catch (err) {
+      showToast(String((err && err.message) || err), 'error');
+    }
   }
   function addItem() { setForm((f) => ({ ...f, itens: [...f.itens, novoItem()] })); }
   function removeItem(idx) { setForm((f) => ({ ...f, itens: f.itens.filter((_, i) => i !== idx) })); }
@@ -276,6 +307,15 @@ export default function Vendas() {
                 <div className="field"><label>Qtd</label><input type="text" inputMode="numeric" value={it.quantidade} onChange={(e) => setItem(idx, 'quantidade', sanitizeIntegerInput(e.target.value))} /></div>
                 <div className="field"><label>Valor Unit.</label><input type="text" inputMode="decimal" placeholder="0,00" value={it.valor_unit} onChange={(e) => setItem(idx, 'valor_unit', sanitizeDecimalInput(e.target.value))} /></div>
                 <button type="button" className="icon-btn" onClick={() => removeItem(idx)}>🗑️</button>
+                <div className="item-img">
+                  {it.imagem ? <img src={it.imagem} alt="Imagem do produto" /> : <span className="item-img-vazio">📷</span>}
+                  <label className="btn btn-secondary btn-sm" style={{ cursor: 'pointer' }}>
+                    {it.imagem ? 'Trocar imagem' : 'Anexar imagem do produto'}
+                    <input type="file" accept="image/*" style={{ display: 'none' }} onChange={(e) => { const f = e.target.files && e.target.files[0]; e.target.value = ''; if (f) anexarImagem(idx, f); }} />
+                  </label>
+                  {it.imagem && <button type="button" className="btn btn-ghost btn-sm" onClick={() => setItem(idx, 'imagem', '')}>Remover</button>}
+                  <span className="muted" style={{ fontSize: 11.5 }}>A imagem aparece nos PDFs (comprovante e garantia).</span>
+                </div>
               </div>
             ))}
             <button type="button" className="btn btn-secondary btn-sm" onClick={addItem}>+ Adicionar item</button>

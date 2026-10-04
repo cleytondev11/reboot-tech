@@ -566,3 +566,9 @@ tbody tr:last-child td { border-bottom: none; }
 .rn-qr { display: flex; justify-content: center; margin: 6px auto; width: 232px; max-width: 100%; border-radius: 12px; overflow: hidden; border: 6px solid #fff; background: #fff; }
 .rn-qr svg { display: block; width: 100%; height: auto; }
 .rn-codigo { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 11.5px; word-break: break-all; resize: none; }
+
+
+/* ---- Imagem do produto na venda ---- */
+.item-img { grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 6px 0 4px; border-bottom: 1px dashed var(--border); margin-bottom: 4px; }
+.item-img img { width: 48px; height: 48px; object-fit: cover; border-radius: 8px; border: 1px solid var(--border); background: #fff; }
+.item-img-vazio { width: 48px; height: 48px; display: inline-flex; align-items: center; justify-content: center; border-radius: 8px; border: 1px dashed var(--border); font-size: 20px; opacity: 0.7; }

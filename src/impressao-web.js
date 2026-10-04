@@ -123,10 +123,7 @@ export function buildCupomOsHtml(os, empresa, larguraMm) {
     <div class="small bold">Defeito informado:</div>
     <div class="small">${escapeHtml(os.defeito_informado || '-')}</div>
     <div class="linha"></div>
-    <div class="item small"><span>Mão de obra</span><span>${formatCurrency(os.valor_mao_obra)}</span></div>
-    <div class="item small"><span>Peças</span><span>${formatCurrency(os.valor_pecas)}</span></div>
-    ${parseFloat(os.desconto) > 0 ? `<div class="item small"><span>Desconto</span><span>-${formatCurrency(os.desconto)}</span></div>` : ''}
-    <div class="item bold"><span>TOTAL</span><span>${formatCurrency(os.valor_total)}</span></div>
+    <div class="item bold"><span>VALOR TOTAL</span><span>${formatCurrency(os.valor_total)}</span></div>
     <div class="small">Status: ${escapeHtml(os.status)}</div>
     ${os.garantia_dias ? `<div class="small">Garantia: ${os.garantia_dias} dias</div>` : ''}
     ${rodape('Guarde este recibo para a retirada do aparelho.')}
