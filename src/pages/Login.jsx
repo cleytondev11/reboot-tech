@@ -35,7 +35,7 @@ export default function Login() {
 
         <div className="field">
           <label>Usuário</label>
-          <input autoFocus value={usuario} onChange={(e) => setUsuario(e.target.value)} placeholder="admin" />
+          <input data-sem-maiuscula autoFocus value={usuario} onChange={(e) => setUsuario(e.target.value)} placeholder="admin" />
         </div>
         <div className="field">
           <label>Senha</label>

@@ -232,7 +232,7 @@ function CobrancaModal({ dados, onClose, onEnviada }) {
         {!dados.telefone && <p style={{ color: 'var(--danger)', fontSize: 13, marginTop: 0 }}>⚠️ Este cliente não tem WhatsApp/telefone cadastrado. Cadastre em Clientes ou copie a mensagem.</p>}
         <div className="field">
           <label>Mensagem (você pode editar antes de enviar)</label>
-          <textarea rows={10} value={mensagem} disabled={!pronto} onChange={(e) => setMensagem(e.target.value)} />
+          <textarea data-sem-maiuscula rows={10} value={mensagem} disabled={!pronto} onChange={(e) => setMensagem(e.target.value)} />
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>
           <button type="button" className="btn btn-primary" disabled={!pronto || !dados.telefone} onClick={enviar}>💬 Enviar pelo WhatsApp</button>

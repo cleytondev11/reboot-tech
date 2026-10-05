@@ -123,7 +123,7 @@ export default function Usuarios() {
           <form className="modal" style={{ width: 420 }} onSubmit={save}>
             <div className="modal-header"><h3>{form.id ? 'Editar Usuário' : 'Novo Usuário'}</h3><button type="button" className="icon-btn" onClick={() => setModalOpen(false)}>✕</button></div>
             <div className="field" style={{ marginBottom: 12 }}><label>Nome</label><input value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} autoFocus /></div>
-            <div className="field" style={{ marginBottom: 12 }}><label>Usuário (login)</label><input value={form.usuario} onChange={(e) => setForm({ ...form, usuario: e.target.value })} /></div>
+            <div className="field" style={{ marginBottom: 12 }}><label>Usuário (login)</label><input data-sem-maiuscula value={form.usuario} onChange={(e) => setForm({ ...form, usuario: e.target.value })} /></div>
             {!form.id && (
               <div className="field" style={{ marginBottom: 12 }}><label>Senha</label><input type="password" value={form.senha} onChange={(e) => setForm({ ...form, senha: e.target.value })} /></div>
             )}

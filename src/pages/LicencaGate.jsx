@@ -40,6 +40,7 @@ function TelaAtivacao({ onAtivado }) {
         <div className="field">
           <label>Chave de licença</label>
           <input
+            data-sem-maiuscula
             autoFocus
             value={chave}
             onChange={(e) => setChave(e.target.value)}

@@ -235,9 +235,9 @@ export default function Configuracoes() {
             <div className="field"><label>WhatsApp</label><input value={empresa.whatsapp} onChange={(e) => setE('whatsapp', e.target.value)} /></div>
 
             <div className="field"><label>E-mail</label><input type="email" value={empresa.email} onChange={(e) => setE('email', e.target.value)} /></div>
-            <div className="field"><label>Site</label><input value={empresa.site} onChange={(e) => setE('site', e.target.value)} /></div>
+            <div className="field"><label>Site</label><input data-sem-maiuscula value={empresa.site} onChange={(e) => setE('site', e.target.value)} /></div>
 
-            <div className="field span-2"><label>Redes Sociais</label><input placeholder="Ex: @reboottech (Instagram)" value={empresa.redes_sociais} onChange={(e) => setE('redes_sociais', e.target.value)} /></div>
+            <div className="field span-2"><label>Redes Sociais</label><input data-sem-maiuscula placeholder="Ex: @reboottech (Instagram)" value={empresa.redes_sociais} onChange={(e) => setE('redes_sociais', e.target.value)} /></div>
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 20 }}>

@@ -533,7 +533,7 @@ export default function OrdensServico() {
                   <PatternLock value={form.senha_valor} onChange={(v) => set('senha_valor', v)} />
                 ) : (
                   <div className="field" style={{ maxWidth: 320 }}>
-                    <input placeholder="Ex: 1234 ou 0000" value={form.senha_valor} onChange={(e) => set('senha_valor', e.target.value)} />
+                    <input data-sem-maiuscula placeholder="Ex: 1234 ou 0000" value={form.senha_valor} onChange={(e) => set('senha_valor', e.target.value)} />
                   </div>
                 )}
 

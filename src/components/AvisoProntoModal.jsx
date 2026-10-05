@@ -108,7 +108,7 @@ export default function AvisoProntoModal({ dados, onClose }) {
 
         <div className="field">
           <label>Mensagem (você pode editar antes de enviar)</label>
-          <textarea rows={8} value={mensagem} disabled={!pronto} onChange={(e) => setMensagem(e.target.value)} />
+          <textarea data-sem-maiuscula rows={8} value={mensagem} disabled={!pronto} onChange={(e) => setMensagem(e.target.value)} />
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>

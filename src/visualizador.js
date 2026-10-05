@@ -51,6 +51,7 @@ function abrirEnvioWhatsapp({ blob, nome, titulo, whatsapp }) {
   const aviso = el('p', { className: 'muted' });
   aviso.style.cssText = 'margin:10px 0 0;font-size:12.5px;';
   const area = el('textarea', { rows: 7, value: whatsapp.mensagem || '' });
+  area.setAttribute('data-sem-maiuscula', ''); // mensagem do WhatsApp: mantém como está escrita
 
   const botoes = el('div');
   botoes.style.cssText = 'display:flex;flex-direction:column;gap:8px;margin-top:12px;';

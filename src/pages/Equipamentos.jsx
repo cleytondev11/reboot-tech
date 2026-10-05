@@ -155,7 +155,7 @@ export default function Equipamentos() {
               <div className="field"><label>Número de Série</label><input value={form.numero_serie} onChange={(e) => set('numero_serie', e.target.value)} /></div>
 
               <div className="field"><label>Cor</label><input value={form.cor} onChange={(e) => set('cor', e.target.value)} /></div>
-              <div className="field"><label>Senha / Padrão</label><input value={form.senha_desbloqueio} onChange={(e) => set('senha_desbloqueio', e.target.value)} /></div>
+              <div className="field"><label>Senha / Padrão</label><input data-sem-maiuscula value={form.senha_desbloqueio} onChange={(e) => set('senha_desbloqueio', e.target.value)} /></div>
 
               <div className="field"><label>Capacidade</label><input placeholder="Ex: 128GB" value={form.capacidade} onChange={(e) => set('capacidade', e.target.value)} /></div>
               <div className="field"><label>Operadora</label><input value={form.operadora} onChange={(e) => set('operadora', e.target.value)} /></div>

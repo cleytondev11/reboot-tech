@@ -275,7 +275,7 @@ export default function Estoque() {
               <div className="field"><label>Localização</label><input placeholder="Ex: Gaveta 3" value={formProduto.localizacao} onChange={(e) => setP('localizacao', e.target.value)} /></div>
 
               <div className="field"><label>Código Interno</label><input value={formProduto.codigo_interno} onChange={(e) => setP('codigo_interno', e.target.value)} /></div>
-              <div className="field"><label>Código de Barras</label><input value={formProduto.codigo_barras} onChange={(e) => setP('codigo_barras', e.target.value)} /></div>
+              <div className="field"><label>Código de Barras</label><input data-sem-maiuscula value={formProduto.codigo_barras} onChange={(e) => setP('codigo_barras', e.target.value)} /></div>
 
               {!formProduto.id && (
                 <div className="field"><label>Quantidade Inicial</label><input type="text" inputMode="numeric" value={formProduto.quantidade} onChange={(e) => setP('quantidade', sanitizeIntegerInput(e.target.value))} /></div>
@@ -304,7 +304,7 @@ export default function Estoque() {
             <div className="field" style={{ marginBottom: 12 }}><label>Nome</label><input value={formFornecedor.nome} onChange={(e) => setF('nome', e.target.value)} /></div>
             <div className="field" style={{ marginBottom: 12 }}><label>CNPJ/CPF</label><input value={formFornecedor.cnpj_cpf} onChange={(e) => setF('cnpj_cpf', e.target.value)} /></div>
             <div className="field" style={{ marginBottom: 12 }}><label>Telefone</label><input value={formFornecedor.telefone} onChange={(e) => setF('telefone', e.target.value)} /></div>
-            <div className="field" style={{ marginBottom: 12 }}><label>E-mail</label><input value={formFornecedor.email} onChange={(e) => setF('email', e.target.value)} /></div>
+            <div className="field" style={{ marginBottom: 12 }}><label>E-mail</label><input data-sem-maiuscula value={formFornecedor.email} onChange={(e) => setF('email', e.target.value)} /></div>
             <div className="field" style={{ marginBottom: 12 }}><label>Endereço</label><input value={formFornecedor.endereco} onChange={(e) => setF('endereco', e.target.value)} /></div>
             <div className="field" style={{ marginBottom: 12 }}><label>Observações</label><textarea value={formFornecedor.observacoes} onChange={(e) => setF('observacoes', e.target.value)} /></div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 10 }}>

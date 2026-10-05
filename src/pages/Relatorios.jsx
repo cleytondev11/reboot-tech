@@ -139,6 +139,7 @@ export default function Relatorios() {
                   <input type="checkbox" checked={apenasAtivas} onChange={(e) => setApenasAtivas(e.target.checked)} /> Somente em garantia
                 </label>
                 <input
+                  data-sem-maiuscula
                   type="text"
                   placeholder="🔎 Pesquisar cliente, nº ou equipamento"
                   value={buscaGarantia}

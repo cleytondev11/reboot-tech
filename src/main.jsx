@@ -3,6 +3,10 @@ import ReactDOM from 'react-dom/client';
 import './web-shim.js';
 import App from './App.jsx';
 import './styles.css';
+import { ativarMaiusculas } from './maiusculas.js';
+
+// Padrão do sistema: tudo que o usuário digita fica em letra maiúscula.
+ativarMaiusculas();
 
 // Reforço extra contra o bug do Electron/Chromium (Windows) em que o campo em
 // foco para de receber o teclado depois que a janela volta a ficar em primeiro

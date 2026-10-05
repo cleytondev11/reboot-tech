@@ -262,6 +262,7 @@ export default function Vendas() {
             <div className="field" style={{ marginBottom: 4 }}>
               <label>🔫 Leitor de Código de Barras</label>
               <input
+                data-sem-maiuscula
                 value={leitor}
                 onChange={(e) => setLeitor(e.target.value)}
                 onKeyDown={handleLeitorKeyDown}

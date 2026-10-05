@@ -295,7 +295,7 @@ export default function Compras() {
               <div className="field span-2"><label>Nome *</label><input value={novoFornecedor.nome} onChange={(e) => setNovoFornecedor((f) => ({ ...f, nome: e.target.value }))} autoFocus /></div>
               <div className="field"><label>CNPJ/CPF</label><input value={novoFornecedor.cnpj_cpf} onChange={(e) => setNovoFornecedor((f) => ({ ...f, cnpj_cpf: e.target.value }))} /></div>
               <div className="field"><label>Telefone</label><input value={novoFornecedor.telefone} onChange={(e) => setNovoFornecedor((f) => ({ ...f, telefone: maskPhone(e.target.value) }))} /></div>
-              <div className="field span-2"><label>E-mail</label><input value={novoFornecedor.email} onChange={(e) => setNovoFornecedor((f) => ({ ...f, email: e.target.value }))} /></div>
+              <div className="field span-2"><label>E-mail</label><input data-sem-maiuscula value={novoFornecedor.email} onChange={(e) => setNovoFornecedor((f) => ({ ...f, email: e.target.value }))} /></div>
             </div>
             <p className="muted" style={{ fontSize: 11.5 }}>Você pode completar o cadastro (endereço, observações) depois, na tela de Estoque → Fornecedores.</p>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 16 }}>
