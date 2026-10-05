@@ -189,36 +189,55 @@ function buildOsHtml(os) {
     </div>
   ` : '';
 
+  // ---- Valores: produtos do estoque (cada um com o seu valor) + serviço (descrição e valor total do serviço) + total ----
+  // IMPORTANTE: a mão de obra é só controle interno. O valor do serviço no PDF já a inclui e a palavra
+  // "mão de obra" NÃO aparece no documento do cliente.
   let itensPecas = [];
   try { itensPecas = JSON.parse(os.itens_pecas || '[]'); } catch { itensPecas = []; }
   itensPecas = itensPecas.filter((i) => i.descricao);
-  const itensTableHtml = itensPecas.length ? `
-    <div class="section-title">Itens / Peças</div>
+  const maoObra = parseFloat(os.valor_mao_obra) || 0;
+  const pecasTotal = parseFloat(os.valor_pecas) || 0;
+  const descontoOs = parseFloat(os.desconto) || 0;
+  const cab = (titulo) => `<thead><tr><th style="width:50%;">${titulo}</th><th style="width:10%;text-align:center;">Qtd.</th><th style="width:20%;text-align:right;">Valor Unit.</th><th style="width:20%;text-align:right;">Subtotal</th></tr></thead>`;
+  const linha = (nome, qtd, unit) => `<tr><td>${nome}</td><td style="text-align:center;">${qtd}</td><td style="text-align:right;">${formatCurrency(unit)}</td><td style="text-align:right;">${formatCurrency((parseFloat(qtd) || 0) * unit)}</td></tr>`;
+
+  let linhasProdutos = itensPecas.map((it) => linha(escapeHtml(it.descricao), escapeHtml(String(it.quantidade ?? 1)), parseFloat(it.valor_unit) || 0));
+  const somaItens = itensPecas.reduce((t, it) => t + (parseFloat(it.quantidade) || 0) * (parseFloat(it.valor_unit) || 0), 0);
+  if (itensPecas.length && Math.abs(pecasTotal - somaItens) >= 0.005) {
+    linhasProdutos.push(linha('Ajuste no valor das peças', 1, Math.round((pecasTotal - somaItens) * 100) / 100));
+  } else if (!itensPecas.length && pecasTotal > 0) {
+    linhasProdutos = [linha('Peças / produtos', 1, pecasTotal)];
+  }
+  const produtosHtml = linhasProdutos.length ? `
+    <div class="section-title">Produtos do Estoque</div>
     <table>
-      <thead><tr><th>Descrição</th><th style="width:60px;">Qtd.</th><th style="width:100px;">Valor Unit.</th><th style="width:110px;">Subtotal</th></tr></thead>
-      <tbody>
-        ${itensPecas.map((it) => `
-          <tr>
-            <td>${escapeHtml(it.descricao)}</td>
-            <td style="text-align:center;">${it.quantidade}</td>
-            <td style="text-align:right;">${formatCurrency(os.valor_total)}</td>
-            <td style="text-align:right;">${formatCurrency(os.valor_total)}</td>
-          </tr>
-        `).join('')}
-      </tbody>
+      ${cab('Produto')}
+      <tbody>${linhasProdutos.join('')}</tbody>
     </table>
   ` : '';
 
-  const descontoOs = parseFloat(os.desconto) || 0;
-  const subtotalOs = (parseFloat(os.valor_mao_obra) || 0) + (parseFloat(os.valor_pecas) || 0);
-  const totalsHtml = descontoOs > 0 ? `
-    <table class="totals-table">
-      <tbody>
-        <tr><td>Subtotal</td><td>${formatCurrency(subtotalOs)}</td></tr>
-        <tr><td>Desconto concedido</td><td class="desconto-value">- ${formatCurrency(descontoOs)}</td></tr>
-      </tbody>
+  const descricaoServico = os.servicos_executados
+    ? escapeHtml(os.servicos_executados).replace(/\n/g, '<br>')
+    : 'Serviço';
+  const servicoHtml = (maoObra > 0 || os.servicos_executados) ? `
+    <div class="section-title">Serviço</div>
+    <table>
+      <thead><tr><th>Descrição do serviço</th><th style="width:25%;text-align:right;">Valor do serviço</th></tr></thead>
+      <tbody><tr><td>${descricaoServico}</td><td style="text-align:right;">${formatCurrency(maoObra)}</td></tr></tbody>
     </table>
   ` : '';
+
+  // Resumo no fim: produtos + serviço (- desconto) = total.
+  const linhasResumo = [];
+  if (pecasTotal > 0) linhasResumo.push(`<tr><td>Total dos produtos</td><td>${formatCurrency(pecasTotal)}</td></tr>`);
+  if (maoObra > 0) linhasResumo.push(`<tr><td>Total do serviço</td><td>${formatCurrency(maoObra)}</td></tr>`);
+  if (descontoOs > 0) linhasResumo.push(`<tr><td>Desconto concedido</td><td class="desconto-value">- ${formatCurrency(descontoOs)}</td></tr>`);
+  const totalsHtml = linhasResumo.length > 1 ? `
+    <table class="totals-table">
+      <tbody>${linhasResumo.join('')}</tbody>
+    </table>
+  ` : '';
+  const itensTableHtml = produtosHtml + servicoHtml;
 
   return `
     <div class="info-grid">
@@ -237,7 +256,6 @@ function buildOsHtml(os) {
     <p>${os.defeito_informado ? escapeHtml(os.defeito_informado) : '<span class="muted">Não informado.</span>'}</p>
 
     ${os.diagnostico ? `<div class="section-title">Diagnóstico Técnico</div><p>${escapeHtml(os.diagnostico)}</p>` : ''}
-    ${os.servicos_executados ? `<div class="section-title">Serviços Executados</div><p>${escapeHtml(os.servicos_executados)}</p>` : ''}
     ${os.pecas_utilizadas ? `<div class="section-title">Peças Utilizadas (observações)</div><p>${escapeHtml(os.pecas_utilizadas)}</p>` : ''}
 
     ${checklistHtml}

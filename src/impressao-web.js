@@ -233,9 +233,6 @@ export function buildCupomOsHtmlA4(os, empresa) {
     <div class="bold small">Defeito informado</div>
     <div class="small">${escapeHtml(os.defeito_informado || '-')}</div>
     <div class="totais">
-      <div class="item"><span>Mão de obra</span><span>${formatCurrency(os.valor_mao_obra)}</span></div>
-      <div class="item"><span>Peças</span><span>${formatCurrency(os.valor_pecas)}</span></div>
-      ${parseFloat(os.desconto) > 0 ? `<div class="item"><span>Desconto</span><span>-${formatCurrency(os.desconto)}</span></div>` : ''}
       <div class="item total bold"><span>TOTAL</span><span>${formatCurrency(os.valor_total)}</span></div>
     </div>
     <div class="linha"></div>
