@@ -104,6 +104,10 @@ export default function OrdensServico() {
     persistirFotosEquip(equipFotos.filter((_, i) => i !== idx));
   }
 
+  // Atalho da tela inicial / botão rápido do celular
+  useEffect(() => { if (window.__rtAcao === 'os') { window.__rtAcao = null; openNew(); } // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   function openNew() {
     setForm({
       ...EMPTY,

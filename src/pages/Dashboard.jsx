@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useApp } from '../context.jsx';
+import { useMobile, lerLS, gravarLS } from '../mobile.js';
+import Tour from '../components/Tour.jsx';
 import { formatDateTime, formatCurrency, statusClass, sanitizeDecimalInput, parseDecimal } from '../utils.js';
 
 function mesAtualStr() {
@@ -21,6 +23,17 @@ export default function Dashboard({ goTo }) {
   const [metaInput, setMetaInput] = useState('0');
   const [planejarOpen, setPlanejarOpen] = useState(false);
   const [metasFuturas, setMetasFuturas] = useState([]);
+  const mobile = useMobile();
+  const [empresa, setEmpresa] = useState(null);
+  const chaveTour = `rt-tour-${user?.id || 0}`;
+  const [tourVisto, setTourVisto] = useState(() => !!lerLS(chaveTour));
+  const [tourAberto, setTourAberto] = useState(false);
+  useEffect(() => { if (mobile) window.api?.empresa?.get?.().then(setEmpresa).catch(() => {}); }, [mobile]);
+  function fecharTour() { gravarLS(chaveTour, '1'); setTourVisto(true); setTourAberto(false); }
+  const hora = new Date().getHours();
+  const saudacao = hora < 12 ? 'Bom dia' : hora < 18 ? 'Boa tarde' : 'Boa noite';
+  const nomeApp = 'Reboot Tech';
+  function atalho(acao, pagina) { window.__rtAcao = acao; goTo(pagina); }
 
   async function load() {
     const res = await window.api.dashboard.resumo();
@@ -99,7 +112,26 @@ export default function Dashboard({ goTo }) {
   ];
 
   return (
-    <div>
+    <div className={mobile ? 'dash-mobile' : undefined}>
+      {mobile && (
+        <div className="dash-hero">
+          <div className="dash-saudacao">{saudacao}, {(user?.nome || '').split(' ')[0]} 👋</div>
+          <div className="muted dash-empresa">{empresa?.nome_fantasia || empresa?.nome || nomeApp}</div>
+          <div className="dash-atalhos">
+            <button className="btn btn-primary" onClick={() => atalho('venda', 'vendas')}>🛒 Nova venda</button>
+            <button className="btn btn-secondary" onClick={() => atalho('orcamento', 'orcamentos')}>📝 Novo orçamento</button>
+            <button className="btn btn-secondary" onClick={() => atalho('os', 'os')}>🧾 Nova OS</button>
+          </div>
+          {!tourVisto && (
+            <div className="tour-banner">
+              <div className="tour-banner-txt"><b>Primeira vez por aqui?</b> Tour rápido pelo sistema e como colocar o {nomeApp} como app no celular.</div>
+              <button className="btn btn-primary btn-sm" onClick={() => setTourAberto(true)}>Ver</button>
+              <button className="icon-btn" aria-label="Dispensar" onClick={fecharTour}>✕</button>
+            </div>
+          )}
+        </div>
+      )}
+      {tourAberto && <Tour app={nomeApp} onClose={fecharTour} />}
       <div className="grid grid-4">
         {cards.map((c) => (
           <div className="card kpi-card" key={c.label}>
@@ -535,17 +567,25 @@ function DonutGauge({ percentual, color, size = 64 }) {
 }
 
 function BarChart({ data, compact }) {
+  const mobile = useMobile();
   if (!data || data.length === 0) return <div className="muted">Sem dados ainda.</div>;
   const max = Math.max(1, ...data.map((d) => d.valor || 0));
+  // No celular, o gráfico de 12 meses mostra o valor de cada mês (em pé, sem "R$") em cima da barra.
+  const valoresMes = compact && mobile;
+  const alturaMax = valoresMes ? 90 : 120;
   return (
-    <div style={{ display: 'flex', alignItems: 'flex-end', gap: compact ? 4 : 10, height: 150, paddingTop: 10 }}>
+    <div style={{ display: 'flex', alignItems: 'flex-end', gap: compact ? 4 : 10, height: valoresMes ? 190 : 150, paddingTop: 10 }}>
       {data.map((d, i) => {
-        const h = Math.max(2, Math.round(((d.valor || 0) / max) * 120));
+        const h = Math.max(2, Math.round(((d.valor || 0) / max) * alturaMax));
         return (
-          <div key={i} title={`${d.label}: ${formatCurrency(d.valor)}`} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
-            <div style={{ fontSize: compact ? 9 : 10, color: 'var(--text-dim)', height: 14 }}>
-              {d.valor > 0 && !compact ? formatCurrency(d.valor).replace('R$', '').trim() : ''}
-            </div>
+          <div key={i} title={`${d.label}: ${formatCurrency(d.valor)}`} style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+            {valoresMes ? (
+              <div className="bar-valor-vert">{(d.valor || 0) > 0 ? Math.round(d.valor).toLocaleString('pt-BR') : '0'}</div>
+            ) : (
+              <div style={{ fontSize: compact ? 9 : 10, color: 'var(--text-dim)', height: 14 }}>
+                {d.valor > 0 && !compact ? formatCurrency(d.valor).replace('R$', '').trim() : ''}
+              </div>
+            )}
             <div style={{ width: '100%', maxWidth: compact ? 14 : 28, height: h, background: 'var(--gold)', borderRadius: '4px 4px 0 0' }} />
             <div style={{ fontSize: compact ? 9 : 10.5, color: 'var(--text-dim)', textTransform: 'capitalize' }}>{d.label}</div>
           </div>

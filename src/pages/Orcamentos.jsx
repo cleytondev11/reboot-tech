@@ -70,6 +70,10 @@ export default function Orcamentos() {
     window.api.equipamentos.listByCliente(Number(form.cliente_id)).then(setEquipCliente);
   }, [form.cliente_id]);
 
+  // Atalho da tela inicial / botão rápido do celular
+  useEffect(() => { if (window.__rtAcao === 'orcamento') { window.__rtAcao = null; openNew(); } // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   function openNew() {
     setForm({ ...EMPTY, itens: [novoItem()] });
     setModalOpen(true);

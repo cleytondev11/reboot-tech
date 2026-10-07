@@ -582,3 +582,37 @@ tbody tr:last-child td { border-bottom: none; }
 .foto-produto-acoes { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .prod-mini { width: 40px; height: 40px; border-radius: 8px; flex: 0 0 40px; object-fit: cover; border: 1px solid var(--border); background: #fff; }
 .prod-mini-vazio { display: inline-flex; align-items: center; justify-content: center; font-size: 18px; opacity: 0.6; background: var(--bg-elev-2); }
+
+
+/* ===== Celular (PWA) — só vale em telas até 700px; o computador não muda ===== */
+.notif-wrap { position: relative; }
+.notif-badge { position: absolute; top: -4px; right: -4px; background: var(--danger); color: #fff; font-size: 10px; font-weight: 700; min-width: 16px; height: 16px; border-radius: 8px; display: flex; align-items: center; justify-content: center; padding: 0 3px; }
+.notif-fundo { position: fixed; inset: 0; z-index: 70; }
+.notif-painel { position: fixed; top: calc(56px + env(safe-area-inset-top, 0px)); right: 8px; left: 8px; max-width: 360px; margin-left: auto; z-index: 71; background: var(--bg-elev); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow); max-height: 70vh; overflow-y: auto; }
+.notif-titulo { padding: 12px 14px; font-weight: 700; border-bottom: 1px solid var(--border); }
+.notif-item { display: flex; gap: 10px; width: 100%; text-align: left; background: none; border: 0; border-bottom: 1px solid var(--border); padding: 12px 14px; color: var(--text); font-size: 13.5px; cursor: pointer; }
+.notif-ico { font-size: 20px; }
+.topbar-avatar { width: 32px; height: 32px; font-size: 12px; flex-shrink: 0; }
+.tour-modal { width: 420px; max-width: 94vw; }
+.tour-dots { display: flex; justify-content: center; gap: 6px; margin-top: 14px; }
+.tour-dots span { width: 7px; height: 7px; border-radius: 50%; background: var(--border); }
+.tour-dots span.on { background: var(--gold); }
+.bar-valor-vert { writing-mode: vertical-rl; transform: rotate(180deg); font-size: 10px; font-weight: 600; color: var(--text); height: 52px; white-space: nowrap; }
+
+@media (max-width: 700px) {
+  .dash-hero { margin-bottom: 14px; }
+  .dash-saudacao { font-size: 20px; font-weight: 800; }
+  .dash-empresa { font-size: 13px; margin-bottom: 12px; }
+  .dash-atalhos { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .dash-atalhos .btn { padding: 10px 4px; font-size: 12px; white-space: normal; line-height: 1.2; }
+  .tour-banner { display: flex; align-items: center; gap: 8px; margin-top: 12px; padding: 10px 12px; border: 1px solid var(--gold); border-radius: 12px; background: var(--bg-elev); }
+  .tour-banner-txt { flex: 1; font-size: 12.5px; line-height: 1.35; }
+  .topbar-actions { gap: 6px; }
+  .dash-mobile > .grid.grid-4, .dash-mobile > .grid.grid-3 { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 10px; }
+  .dash-mobile .kpi-card { padding: 12px; }
+  .dash-mobile .kpi-value { font-size: 20px !important; word-break: break-word; }
+  .dash-mobile .kpi-label { font-size: 11.5px; }
+}
+@media (max-width: 700px) {
+  .dash-mobile > .grid.grid-3 > .card:last-child:nth-child(odd) { grid-column: 1 / -1; }
+}

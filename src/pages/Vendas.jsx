@@ -51,6 +51,10 @@ export default function Vendas() {
     return () => clearTimeout(t);
   }, [termo]);
 
+  // Atalho da tela inicial / botão rápido do celular
+  useEffect(() => { if (window.__rtAcao === 'venda') { window.__rtAcao = null; openNew(); } // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   function openNew() { setForm({ ...EMPTY, itens: [novoItem()] }); setModalOpen(true); }
 
   async function openEdit(row) {

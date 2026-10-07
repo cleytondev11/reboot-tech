@@ -22,7 +22,9 @@ import DownloadApp from './pages/DownloadApp.jsx';
 import MeuPlano from './pages/MeuPlano.jsx';
 import PlanoAviso from './components/PlanoAviso.jsx';
 import RenovarPlanoModal from './components/RenovarPlanoModal.jsx';
+import Notificacoes from './components/Notificacoes.jsx';
 import { statusPlano, precisaAviso } from './plano.js';
+import { useMobile, lerAcaoInicial } from './mobile.js';
 
 // No programa instalado no Windows (Electron) não faz sentido o menu de instalar o app no celular.
 const EH_ELECTRON = typeof navigator !== 'undefined' && /Electron/i.test(navigator.userAgent);
@@ -56,7 +58,13 @@ const TITLES = {
 
 function Shell() {
   const { user, setUser, theme, toggleTheme, showToast } = useApp();
-  const [page, setPage] = useState('dashboard');
+  const mobile = useMobile(); // true só no celular (PWA); no computador nada muda
+  const [page, setPage] = useState(() => {
+    // Atalhos da tela inicial do celular: ?acao=venda | orcamento | os
+    const a = lerAcaoInicial();
+    if (a) { window.__rtAcao = a; return a === 'venda' ? 'vendas' : a === 'orcamento' ? 'orcamentos' : 'os'; }
+    return 'dashboard';
+  });
   const [plano, setPlano] = useState(null); // datas do plano (cadastradas no /admin)
   const [renovando, setRenovando] = useState(false); // tela do QR Code Pix para renovar o plano
   const [menuAberto, setMenuAberto] = useState(false); // só afeta o celular/tablet
@@ -126,6 +134,8 @@ function Shell() {
     }
   }
 
+  function sair() { window.api?.rede?.sairNuvem?.(); window.api?.auth?.sair?.(); setUser(null); }
+
   const initials = (user.nome || '?').split(' ').slice(0, 2).map((w) => w[0]).join('').toUpperCase();
 
   return (
@@ -151,7 +161,7 @@ function Shell() {
               <span className="role">{user.papel}</span>
             </div>
           </div>
-          <button className="nav-item" style={{ marginTop: 4 }} onClick={() => { window.api?.rede?.sairNuvem?.(); window.api?.auth?.sair?.(); setUser(null); }}>
+          <button className="nav-item" style={{ marginTop: 4 }} onClick={sair}>
             <span className="icon">🚪</span> Sair
           </button>
         </div>
@@ -164,7 +174,10 @@ function Shell() {
           <button className="icon-btn menu-toggle" aria-label="Abrir menu" onClick={() => setMenuAberto((v) => !v)}>☰</button>
           <h1>{TITLES[page]}</h1>
           <div className="topbar-actions">
+            {mobile && <Notificacoes plano={plano} goTo={irPara} />}
             <button className="icon-btn" title="Alternar tema" onClick={toggleTheme}>{theme === 'dark' ? '☀️' : '🌙'}</button>
+            {mobile && <div className="user-avatar topbar-avatar" title={user.nome}>{initials}</div>}
+            {mobile && <button className="icon-btn" title="Sair do sistema" aria-label="Sair do sistema" onClick={sair}>🚪</button>}
           </div>
         </div>
         <PlanoAviso plano={plano} onVerPlano={() => irPara('plano')} onRenovar={() => setRenovando(true)} />
