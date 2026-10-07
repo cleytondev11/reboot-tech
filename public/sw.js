@@ -8,7 +8,7 @@
 //
 // Suba o número da versão sempre que quiser forçar todo mundo a baixar os
 // arquivos novos na próxima abertura do app.
-const VERSAO_CACHE = 'reboot-tech-v18';
+const VERSAO_CACHE = 'reboot-tech-v20';
 
 self.addEventListener('install', (evento) => {
   self.skipWaiting();
