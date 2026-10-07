@@ -227,6 +227,13 @@ import { criarApiImpressora } from './impressao-web.js';
         return invoke('push:testar', { endpoint: sub.endpoint });
       },
     },
+    comissoes: {
+      config: () => invoke('comissoes:config:list'),
+      salvarConfig: (c) => invoke('comissoes:config:save', c),
+      resumo: (filtro) => invoke('comissoes:resumo', filtro || {}),
+      pagar: (itens) => invoke('comissoes:pagar', { itens }),
+      desfazer: (tipo, ref_id) => invoke('comissoes:desfazer', { tipo, ref_id }),
+    },
     financas: {
       metaMensal: (mes) => invoke('financas:metaMensal', { mes }),
       definirMeta: (atual, mes, meta_lucro) => invoke('financas:definirMeta', { mes, meta_lucro }),

@@ -530,6 +530,78 @@ async function calcularMetaMensal(db, mes) {
 }
 
 
+// ---------- COMISSÕES DE FUNCIONÁRIOS ----------
+// Configuração por funcionário (% sobre OS entregues e sobre vendas) + registro do que já foi pago.
+// As tabelas são criadas sob demanda (uma vez por banco), sem mexer no esquema principal.
+const tabelasComissaoOk = new WeakSet();
+async function garantirTabelasComissao(db) {
+  if (tabelasComissaoOk.has(db)) return;
+  await db.run(`CREATE TABLE IF NOT EXISTS comissoes_config (usuario_id INTEGER PRIMARY KEY, pct_os REAL DEFAULT 0, pct_venda REAL DEFAULT 0, base_os TEXT DEFAULT 'mao_obra', atualizado_em TEXT)`);
+  await db.run(`CREATE TABLE IF NOT EXISTS comissoes_pagas (id INTEGER PRIMARY KEY AUTOINCREMENT, tipo TEXT NOT NULL, ref_id INTEGER NOT NULL, usuario_id INTEGER, base REAL, pct REAL, valor REAL, lancamento_id INTEGER, pago_em TEXT, UNIQUE(tipo, ref_id))`);
+  tabelasComissaoOk.add(db);
+}
+
+function r2(n) { return Math.round((Number(n) || 0) * 100) / 100; }
+
+// Calcula as comissões do período (datas "AAAA-MM-DD", horário de Brasília).
+async function calcularComissoes(db, { inicio, fim, usuario_id } = {}) {
+  await garantirTabelasComissao(db);
+  const ini = inicio || '0000-01-01';
+  const end = fim || '9999-12-31';
+  const cfgs = await db.all('SELECT * FROM comissoes_config');
+  const cfg = {};
+  cfgs.forEach((c) => { cfg[c.usuario_id] = c; });
+  const pagas = await db.all('SELECT * FROM comissoes_pagas');
+  const pg = {};
+  pagas.forEach((x) => { pg[`${x.tipo}:${x.ref_id}`] = x; });
+  const itens = [];
+
+  const os = await db.all(
+    `SELECT os.id, os.numero, os.valor_mao_obra, os.valor_total, os.tecnico_id AS uid, u.nome AS unome, c.nome AS cliente,
+            COALESCE(substr(os.data_saida,1,10), substr(os.atualizado_em,1,10)) AS dia
+       FROM ordens_servico os
+       LEFT JOIN usuarios u ON u.id = os.tecnico_id
+       LEFT JOIN clientes c ON c.id = os.cliente_id
+      WHERE os.status = 'Entregue' AND os.tecnico_id IS NOT NULL`
+  );
+  for (const o of os) {
+    if (o.dia < ini || o.dia > end) continue;
+    if (usuario_id && Number(usuario_id) !== Number(o.uid)) continue;
+    const c = cfg[o.uid]; const pct = c ? Number(c.pct_os) || 0 : 0;
+    if (pct <= 0) continue;
+    const base = c.base_os === 'total' ? Number(o.valor_total) || 0 : Number(o.valor_mao_obra) || 0;
+    const p = pg[`os:${o.id}`];
+    itens.push({ tipo: 'os', ref_id: o.id, numero: o.numero, data: o.dia, cliente: o.cliente, usuario_id: o.uid, usuario_nome: o.unome, base: r2(base), pct, valor: p ? p.valor : r2(base * pct / 100), paga: !!p, pago_em: p ? p.pago_em : null });
+  }
+
+  const vendas = await db.all(
+    `SELECT v.id, v.numero, v.valor_total, v.usuario_id AS uid, u.nome AS unome, c.nome AS cliente,
+            COALESCE(substr(datetime(v.criado_em, '-3 hours'),1,10), substr(v.criado_em,1,10)) AS dia
+       FROM vendas v
+       LEFT JOIN usuarios u ON u.id = v.usuario_id
+       LEFT JOIN clientes c ON c.id = v.cliente_id
+      WHERE v.status != 'Cancelada' AND v.usuario_id IS NOT NULL`
+  );
+  for (const v of vendas) {
+    if (v.dia < ini || v.dia > end) continue;
+    if (usuario_id && Number(usuario_id) !== Number(v.uid)) continue;
+    const c = cfg[v.uid]; const pct = c ? Number(c.pct_venda) || 0 : 0;
+    if (pct <= 0) continue;
+    const base = Number(v.valor_total) || 0;
+    const p = pg[`venda:${v.id}`];
+    itens.push({ tipo: 'venda', ref_id: v.id, numero: v.numero, data: v.dia, cliente: v.cliente, usuario_id: v.uid, usuario_nome: v.unome, base: r2(base), pct, valor: p ? p.valor : r2(base * pct / 100), paga: !!p, pago_em: p ? p.pago_em : null });
+  }
+  itens.sort((a, b) => (a.data < b.data ? 1 : a.data > b.data ? -1 : 0));
+
+  const porFunc = {};
+  for (const i of itens) {
+    const f = porFunc[i.usuario_id] || (porFunc[i.usuario_id] = { usuario_id: i.usuario_id, nome: i.usuario_nome, qtd: 0, total: 0, pendente: 0, pago: 0 });
+    f.qtd += 1; f.total = r2(f.total + i.valor);
+    if (i.paga) f.pago = r2(f.pago + i.valor); else f.pendente = r2(f.pendente + i.valor);
+  }
+  return { itens, funcionarios: Object.values(porFunc).sort((a, b) => b.total - a.total) };
+}
+
 const handlers = {
   // ---------- USUÁRIOS ----------
   'usuarios:list': async (db) => db.all('SELECT id, nome, usuario, papel, ativo, criado_em FROM usuarios ORDER BY nome'),
@@ -1548,6 +1620,75 @@ const handlers = {
   },
 
   // ---------- METAS FINANCEIRAS ----------
+  // ----- Comissões de funcionários -----
+  'comissoes:config:list': async (db, _p, req) => {
+    requirePapel(req, ['Administrador', 'Financeiro']);
+    await garantirTabelasComissao(db);
+    return db.all(`SELECT u.id AS usuario_id, u.nome, u.papel, COALESCE(c.pct_os,0) AS pct_os, COALESCE(c.pct_venda,0) AS pct_venda, COALESCE(c.base_os,'mao_obra') AS base_os
+                     FROM usuarios u LEFT JOIN comissoes_config c ON c.usuario_id = u.id WHERE COALESCE(u.ativo,1) = 1 ORDER BY u.nome`);
+  },
+
+  'comissoes:config:save': async (db, { usuario_id, pct_os, pct_venda, base_os }, req) => {
+    requirePapel(req, ['Administrador', 'Financeiro']);
+    await garantirTabelasComissao(db);
+    const clamp = (v) => Math.min(100, Math.max(0, parseFloat(v) || 0));
+    await db.run(
+      `INSERT INTO comissoes_config (usuario_id, pct_os, pct_venda, base_os, atualizado_em) VALUES (?,?,?,?,?)
+       ON CONFLICT(usuario_id) DO UPDATE SET pct_os=excluded.pct_os, pct_venda=excluded.pct_venda, base_os=excluded.base_os, atualizado_em=excluded.atualizado_em`,
+      [Number(usuario_id), clamp(pct_os), clamp(pct_venda), base_os === 'total' ? 'total' : 'mao_obra', nowIso()]
+    );
+    return { ok: true };
+  },
+
+  'comissoes:resumo': async (db, p = {}, req) => {
+    requirePapel(req, ['Administrador', 'Financeiro']);
+    return calcularComissoes(db, p);
+  },
+
+  'comissoes:pagar': async (db, { itens }, req) => {
+    requirePapel(req, ['Administrador', 'Financeiro']);
+    await garantirTabelasComissao(db);
+    const pedidos = new Set((itens || []).map((i) => `${i.tipo}:${Number(i.ref_id)}`));
+    if (pedidos.size === 0) throw new Error('Selecione ao menos uma comissão para pagar.');
+    const calc = await calcularComissoes(db, {});
+    const alvo = calc.itens.filter((i) => !i.paga && pedidos.has(`${i.tipo}:${i.ref_id}`));
+    if (alvo.length === 0) throw new Error('Nenhuma comissão pendente nos itens selecionados.');
+    const hoje = hojeBr();
+    const porUsuario = {};
+    alvo.forEach((i) => { (porUsuario[i.usuario_id] = porUsuario[i.usuario_id] || []).push(i); });
+    let total = 0;
+    for (const uid of Object.keys(porUsuario)) {
+      const lista = porUsuario[uid];
+      const soma = r2(lista.reduce((a, i) => a + i.valor, 0));
+      total = r2(total + soma);
+      const lid = await db.insert(
+        `INSERT INTO lancamentos_financeiros (tipo, categoria, descricao, valor, forma_pagamento, status, data_vencimento, data_pagamento, referencia, os_id, observacoes, origem_automatica, usuario_id, usuario_nome, criado_em) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        ['despesa', 'Comissões', `Comissão — ${lista[0].usuario_nome || 'Funcionário'} (${lista.length} item(ns))`, soma, 'Dinheiro', 'Pago', hoje, hoje, 'COMISSAO', null, '', 1, req.usuario?.id, req.usuario?.nome, nowIso()]
+      );
+      for (const i of lista) {
+        await db.run(
+          `INSERT INTO comissoes_pagas (tipo, ref_id, usuario_id, base, pct, valor, lancamento_id, pago_em) VALUES (?,?,?,?,?,?,?,?)`,
+          [i.tipo, i.ref_id, Number(uid), i.base, i.pct, i.valor, lid, hoje]
+        );
+      }
+    }
+    return { ok: true, quantidade: alvo.length, total };
+  },
+
+  'comissoes:desfazer': async (db, { tipo, ref_id }, req) => {
+    requirePapel(req, ['Administrador', 'Financeiro']);
+    await garantirTabelasComissao(db);
+    const p = await db.get('SELECT * FROM comissoes_pagas WHERE tipo = ? AND ref_id = ?', [tipo, Number(ref_id)]);
+    if (!p) throw new Error('Esta comissão não está marcada como paga.');
+    await db.run('DELETE FROM comissoes_pagas WHERE id = ?', [p.id]);
+    if (p.lancamento_id) {
+      const restantes = await db.get('SELECT COUNT(*) c, COALESCE(SUM(valor),0) soma FROM comissoes_pagas WHERE lancamento_id = ?', [p.lancamento_id]);
+      if (!restantes.c) await db.run(`UPDATE lancamentos_financeiros SET status='Cancelado', atualizado_em=? WHERE id=?`, [nowIso(), p.lancamento_id]);
+      else await db.run('UPDATE lancamentos_financeiros SET valor=?, atualizado_em=? WHERE id=?', [r2(restantes.soma), nowIso(), p.lancamento_id]);
+    }
+    return { ok: true };
+  },
+
   'financas:metaMensal': async (db, { mes } = {}) => calcularMetaMensal(db, mes),
 
   'financas:metasFuturas': async (db, { quantidadeMeses } = {}) => {

@@ -20,6 +20,7 @@ import Cobrancas from './pages/Cobrancas.jsx';
 import Suporte from './pages/Suporte.jsx';
 import DownloadApp from './pages/DownloadApp.jsx';
 import MeuPlano from './pages/MeuPlano.jsx';
+import Comissoes from './pages/Comissoes.jsx';
 import PlanoAviso from './components/PlanoAviso.jsx';
 import RenovarPlanoModal from './components/RenovarPlanoModal.jsx';
 import Notificacoes from './components/Notificacoes.jsx';
@@ -42,6 +43,7 @@ const NAV = [
   { key: 'vendas', label: 'Vendas', icon: '🛒' },
   { key: 'cobrancas', label: 'Cobranças', icon: '💸', restrictTo: ['Administrador', 'Financeiro', 'Atendente'] },
   { key: 'financeiro', label: 'Financeiro', icon: '💰', restrictTo: ['Administrador', 'Financeiro'] },
+  { key: 'comissoes', label: 'Comissões', icon: '💵', restrictTo: ['Administrador', 'Financeiro'], hideInElectron: true },
   { key: 'relatorios', label: 'Relatórios', icon: '📈', adminOnly: true },
   { key: 'usuarios', label: 'Usuários', icon: '🔐', adminOnly: true },
   { key: 'config', label: 'Configurações', icon: '⚙️' },
@@ -52,7 +54,7 @@ const NAV = [
 
 const TITLES = {
   dashboard: 'Dashboard', clientes: 'Clientes', equipamentos: 'Equipamentos',
-  os: 'Ordens de Serviço', kanban: 'Bancada — Kanban', cobrancas: 'Cobranças', plano: 'Meu Plano', suporte: 'Fale com o Suporte', download: 'Download App', orcamentos: 'Orçamentos', compras: 'Compras', estoque: 'Estoque', servicos: 'Serviços', vendas: 'Vendas', financeiro: 'Financeiro',
+  os: 'Ordens de Serviço', kanban: 'Bancada — Kanban', cobrancas: 'Cobranças', comissoes: 'Comissões', plano: 'Meu Plano', suporte: 'Fale com o Suporte', download: 'Download App', orcamentos: 'Orçamentos', compras: 'Compras', estoque: 'Estoque', servicos: 'Serviços', vendas: 'Vendas', financeiro: 'Financeiro',
   relatorios: 'Relatórios', usuarios: 'Usuários', config: 'Configurações',
 };
 
@@ -127,6 +129,7 @@ function Shell() {
       case 'servicos': return <Servicos />;
       case 'vendas': return <Vendas />;
       case 'financeiro': return <Financeiro />;
+      case 'comissoes': return <Comissoes />;
       case 'relatorios': return <Relatorios />;
       case 'usuarios': return <Usuarios />;
       case 'config': return <Configuracoes />;
