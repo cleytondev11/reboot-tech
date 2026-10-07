@@ -1354,7 +1354,7 @@ const handlers = {
   },
 
   'vendas:listCompleta': async (db, { termo } = {}) => {
-    let sql = `SELECT v.*, c.nome as cliente_nome FROM vendas v LEFT JOIN clientes c ON c.id = v.cliente_id WHERE 1=1`;
+    let sql = `SELECT v.*, c.nome as cliente_nome, u.nome as vendedor_nome FROM vendas v LEFT JOIN clientes c ON c.id = v.cliente_id LEFT JOIN usuarios u ON u.id = v.usuario_id WHERE 1=1`;
     const params = [];
     if (termo) {
       sql += ` AND (v.numero LIKE ? OR c.nome LIKE ?)`;
@@ -1369,8 +1369,9 @@ const handlers = {
     const v = await db.get(
       `SELECT v.*, c.nome as cliente_nome, c.cpf_cnpj as cliente_cpf_cnpj, c.telefone as cliente_telefone,
               c.whatsapp as cliente_whatsapp, c.email as cliente_email, c.endereco as cliente_endereco,
-              c.numero as cliente_numero, c.bairro as cliente_bairro, c.cidade as cliente_cidade, c.uf as cliente_uf
-       FROM vendas v LEFT JOIN clientes c ON c.id = v.cliente_id WHERE v.id = ?`,
+              c.numero as cliente_numero, c.bairro as cliente_bairro, c.cidade as cliente_cidade, c.uf as cliente_uf,
+              u.nome as vendedor_nome
+       FROM vendas v LEFT JOIN clientes c ON c.id = v.cliente_id LEFT JOIN usuarios u ON u.id = v.usuario_id WHERE v.id = ?`,
       [id]
     );
     if (v && v.forma_pagamento === FORMA_A_PRAZO) {

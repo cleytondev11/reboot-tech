@@ -589,6 +589,7 @@ function buildVendaGarantiaHtml(venda, empresa) {
   return `
     <div class="info-grid">
       <div class="info-item"><div class="label">Cliente</div><div class="value">${escapeHtml(venda.cliente_nome || 'Consumidor não identificado')}</div></div>
+      ${venda.vendedor_nome ? `<div class="info-item"><div class="label">Vendedor</div><div class="value">${escapeHtml(venda.vendedor_nome)}</div></div>` : ''}
       <div class="info-item"><div class="label">CPF/CNPJ</div><div class="value">${escapeHtml(venda.cliente_cpf_cnpj || '-')}</div></div>
       <div class="info-item"><div class="label">Telefone</div><div class="value">${escapeHtml(venda.cliente_telefone || venda.cliente_whatsapp || '-')}</div></div>
       <div class="info-item"><div class="label">Venda Nº</div><div class="value">${escapeHtml(venda.numero)}</div></div>

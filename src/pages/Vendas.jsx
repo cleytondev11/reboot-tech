@@ -226,12 +226,13 @@ export default function Vendas() {
 
       <div className="table-wrap">
         <table>
-          <thead><tr><th>Venda</th><th>Cliente</th><th>Produto(s) vendido(s)</th><th>Data</th><th>Forma de Pagamento</th><th>Valor</th><th></th></tr></thead>
+          <thead><tr><th>Venda</th><th>Cliente</th><th>Vendedor</th><th>Produto(s) vendido(s)</th><th>Data</th><th>Forma de Pagamento</th><th>Valor</th><th></th></tr></thead>
           <tbody>
             {list.map((v) => (
               <tr key={v.id}>
                 <td><b>{v.numero}</b></td>
                 <td>{v.cliente_nome || 'Consumidor'}</td>
+                <td>{v.vendedor_nome || '-'}</td>
                 <td><ProdutosVendidos venda={v} /></td>
                 <td>{formatDateTime(v.criado_em)}</td>
                 <td>{v.forma_pagamento || '-'}</td>
@@ -245,7 +246,7 @@ export default function Vendas() {
                 </td>
               </tr>
             ))}
-            {list.length === 0 && <tr><td colSpan={7}><div className="empty-state">Nenhuma venda registrada ainda.</div></td></tr>}
+            {list.length === 0 && <tr><td colSpan={8}><div className="empty-state">Nenhuma venda registrada ainda.</div></td></tr>}
           </tbody>
         </table>
       </div>
