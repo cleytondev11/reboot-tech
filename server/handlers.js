@@ -20,6 +20,12 @@ function nowIso() {
   return new Date().toISOString();
 }
 
+// Dia de hoje no Brasil (UTC-3). Usar isto no lugar de hojeBr(), que é o dia em UTC
+// e à noite (a partir das 21h) já cai no dia seguinte.
+function hojeBr() {
+  return new Date(Date.now() - 3 * 3600 * 1000).toISOString().slice(0, 10);
+}
+
 // ---------- MIGRAÇÃO (importar o banco local do desktop para a nuvem) ----------
 // Lista de colunas permitidas por tabela — é o que garante que a migração só
 // grava nas tabelas/colunas que a própria aplicação usa (nomes de tabela e
@@ -98,7 +104,7 @@ async function baixarEstoqueDaOs(db, req, osId, osNumero, itensPecas) {
 }
 
 async function lancarFinanceiroDaOs(db, req, osId, osNumero, valorTotal, formaPagamento) {
-  const hoje = nowIso().slice(0, 10);
+  const hoje = hojeBr();
   await db.insert(
     `INSERT INTO lancamentos_financeiros (tipo, categoria, descricao, valor, forma_pagamento, status, data_vencimento, data_pagamento, referencia, os_id, observacoes, origem_automatica, usuario_id, usuario_nome, criado_em) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
     ['receita', 'Serviços (OS)', `Recebimento da ${osNumero}`, valorTotal, formaPagamento, 'Pago', hoje, hoje, osNumero, osId, '', 1, req.usuario?.id, req.usuario?.nome, nowIso()]
@@ -129,7 +135,7 @@ async function calcularCustoPecas(db, itensPecas, valorPecasManual) {
 
 async function lancarReceberDaOs(db, req, osId, osNumero, valorTotal, previsaoOuHoje) {
   if (!valorTotal || valorTotal <= 0) return;
-  const vencimento = previsaoOuHoje || nowIso().slice(0, 10);
+  const vencimento = previsaoOuHoje || hojeBr();
   await db.insert(
     `INSERT INTO lancamentos_financeiros (tipo, categoria, descricao, valor, forma_pagamento, status, data_vencimento, data_pagamento, referencia, os_id, observacoes, origem_automatica, usuario_id, usuario_nome, criado_em) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
     ['receita', 'Serviços (OS)', `A receber — ${osNumero} (pronta para retirada)`, valorTotal, '', 'Pendente', vencimento, null, osNumero, osId, 'Lançado automaticamente quando a OS ficou com status "Pronto".', 1, req.usuario?.id, req.usuario?.nome, nowIso()]
@@ -181,7 +187,7 @@ function normalizarPrazo(prazo, valorTotal) {
   if (n > 24) n = 24;
   let venc = prazo && prazo.primeiroVencimento;
   if (venc && !dataValida(venc)) throw new Error('Data do 1º vencimento inválida.');
-  if (!venc) venc = somarMeses(nowIso().slice(0, 10), 1);
+  if (!venc) venc = somarMeses(hojeBr(), 1);
   const entradaCent = Math.round((parseFloat(prazo && prazo.entrada) || 0) * 100);
   const totalCent = Math.round((parseFloat(valorTotal) || 0) * 100);
   if (entradaCent < 0) throw new Error('O valor da entrada não pode ser negativo.');
@@ -199,7 +205,7 @@ const FORMAS_ENTRADA = ['Dinheiro', 'PIX', 'Cartão Débito', 'Cartão Crédito'
 async function lancarParcelasAPrazo(db, req, { osId, clienteId, numero, categoria, descricao, valorTotal, prazo }) {
   const { parcelas, primeiroVencimento, entradaCent, entradaForma, entradaRecebida } = normalizarPrazo(prazo, valorTotal);
   const totalCent = Math.round((parseFloat(valorTotal) || 0) * 100);
-  const hoje = nowIso().slice(0, 10);
+  const hoje = hojeBr();
   const colunas = `(tipo, categoria, descricao, valor, forma_pagamento, status, data_vencimento, data_pagamento, referencia, os_id, observacoes, origem_automatica, usuario_id, usuario_nome, criado_em, cliente_id, parcela) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`;
 
   if (entradaCent > 0) {
@@ -255,7 +261,7 @@ async function baixarOuLancarRecebimentoDaOs(db, req, osId, osNumero, valorTotal
     `SELECT * FROM lancamentos_financeiros WHERE os_id = ? AND tipo = 'receita' AND status = 'Pendente' AND origem_automatica = 1 ORDER BY id DESC LIMIT 1`,
     [osId]
   );
-  const hoje = nowIso().slice(0, 10);
+  const hoje = hojeBr();
   if (pendente) {
     await db.run(
       `UPDATE lancamentos_financeiros SET status='Pago', forma_pagamento=?, valor=?, data_pagamento=?, descricao=?, atualizado_em=? WHERE id=?`,
@@ -278,7 +284,7 @@ async function baixarOuLancarRecebimentoDaOs(db, req, osId, osNumero, valorTotal
 async function lancarDespesaPecasDaOs(db, req, osId, osNumero, itensPecas, valorPecasManual, dataReferencia) {
   const valor = await calcularCustoPecas(db, itensPecas, valorPecasManual);
   if (!valor || valor <= 0) return;
-  const data = dataReferencia || nowIso().slice(0, 10);
+  const data = dataReferencia || hojeBr();
   await db.insert(
     `INSERT INTO lancamentos_financeiros (tipo, categoria, descricao, valor, forma_pagamento, status, data_vencimento, data_pagamento, referencia, os_id, observacoes, origem_automatica, usuario_id, usuario_nome, criado_em) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
     ['despesa', 'Peças/Estoque', `Custo de peças da ${osNumero}`, valor, '', 'Pago', data, data, osNumero, osId, 'Lançado automaticamente com base no custo das peças utilizadas nesta OS.', 1, req.usuario?.id, req.usuario?.nome, nowIso()]
@@ -301,7 +307,7 @@ function calcularTotalCompra(itens) {
 }
 
 async function processarEnvioCompra(db, req, compra) {
-  const hoje = nowIso().slice(0, 10);
+  const hoje = hojeBr();
   if (!compra.despesa_lancada && compra.valor_total > 0) {
     await db.insert(
       `INSERT INTO lancamentos_financeiros (tipo, categoria, descricao, valor, forma_pagamento, status, data_vencimento, data_pagamento, referencia, os_id, observacoes, origem_automatica, usuario_id, usuario_nome, criado_em) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
@@ -314,7 +320,7 @@ async function processarEnvioCompra(db, req, compra) {
 async function processarRecebimentoCompra(db, req, compra) {
   let itens = [];
   try { itens = JSON.parse(compra.itens || '[]'); } catch { itens = []; }
-  const hoje = nowIso().slice(0, 10);
+  const hoje = hojeBr();
 
   if (!compra.estoque_lancado) {
     for (const item of itens) {
@@ -435,7 +441,7 @@ function mesLabelBackend(mes) {
 }
 
 async function calcularMetaMensal(db, mes) {
-  const hoje = nowIso().slice(0, 10);
+  const hoje = hojeBr();
   const mesHoje = hoje.slice(0, 7);
   const mesAlvo = mes || mesHoje;
   const ehMesAtual = mesAlvo === mesHoje;
@@ -822,7 +828,7 @@ const handlers = {
     const abertas = await db.get(`SELECT COUNT(*) c FROM ordens_servico WHERE status NOT IN ('Entregue','Cancelado')`);
     const aguardandoPeca = await db.get(`SELECT COUNT(*) c FROM ordens_servico WHERE status = 'Aguardando peça'`);
     const prontos = await db.get(`SELECT COUNT(*) c FROM ordens_servico WHERE status = 'Pronto'`);
-    const hoje = nowIso().slice(0, 10);
+    const hoje = hojeBr();
     const mesAtual = hoje.slice(0, 7);
     const entreguesHoje = await db.get(`SELECT COUNT(*) c FROM ordens_servico WHERE status='Entregue' AND substr(data_saida,1,10) = ?`, [hoje]);
     const totalClientes = await db.get('SELECT COUNT(*) c FROM clientes');
@@ -1005,7 +1011,7 @@ const handlers = {
       if (valor > 0 && !forma) throw new Error('Informe a forma de pagamento para entregar a OS.');
       const prazo = prazoDe(pagamento || {});
       if (forma === FORMA_A_PRAZO) normalizarPrazo(prazo, valor); // valida antes de alterar qualquer coisa
-      const hoje = nowIso().slice(0, 10);
+      const hoje = hojeBr();
       await db.run(
         `UPDATE ordens_servico SET status = ?, forma_pagamento = ?, data_saida = COALESCE(NULLIF(data_saida, ''), ?), atualizado_em = ? WHERE id = ?`,
         [status, forma || null, hoje, nowIso(), id]
@@ -1315,7 +1321,7 @@ const handlers = {
     const desconto = parseFloat(v.desconto) || 0;
     const valorTotal = Math.max(0, valorItens - desconto);
     const garantiaDias = v.garantia_dias === '' || v.garantia_dias === null || v.garantia_dias === undefined ? 90 : parseInt(v.garantia_dias, 10) || 0;
-    const dataVenda = v.data_venda || nowIso().slice(0, 10);
+    const dataVenda = v.data_venda || hojeBr();
     const aPrazo = v.forma_pagamento === FORMA_A_PRAZO;
     const prazoVenda = prazoDe(v, 'prazo');
     if (aPrazo) {
@@ -1360,7 +1366,7 @@ const handlers = {
     if (valorTotal > 0 && aPrazo) {
       await lancarParcelasAPrazo(db, req, { osId: null, clienteId: v.cliente_id, numero, categoria: 'Vendas', descricao: `Venda ${numero}`, valorTotal, prazo: prazoVenda });
     } else if (valorTotal > 0) {
-      const hoje = nowIso().slice(0, 10);
+      const hoje = hojeBr();
       await db.insert(
         `INSERT INTO lancamentos_financeiros (tipo, categoria, descricao, valor, forma_pagamento, status, data_vencimento, data_pagamento, referencia, os_id, observacoes, origem_automatica, usuario_id, usuario_nome, criado_em) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
         ['receita', 'Vendas', `Venda ${numero}`, valorTotal, v.forma_pagamento || '', 'Pago', hoje, hoje, numero, null, '', 1, req.usuario?.id, req.usuario?.nome, nowIso()]
@@ -1450,7 +1456,7 @@ const handlers = {
     const numero = await nextOrcamentoNumero(db);
     const newId = await db.insert(
       `INSERT INTO orcamentos (numero, cliente_id, equipamento_id, descricao, itens, valor_servicos, desconto, valor_total, validade_dias, data_orcamento, status, observacoes, usuario_id, criado_em) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-      [numero, orig.cliente_id, orig.equipamento_id, orig.descricao, orig.itens, orig.valor_servicos, orig.desconto, orig.valor_total, orig.validade_dias, nowIso().slice(0, 10), 'Pendente', orig.observacoes, req.usuario?.id, nowIso()]
+      [numero, orig.cliente_id, orig.equipamento_id, orig.descricao, orig.itens, orig.valor_servicos, orig.desconto, orig.valor_total, orig.validade_dias, hojeBr(), 'Pendente', orig.observacoes, req.usuario?.id, nowIso()]
     );
     await log(db, req, 'DUPLICAR', 'orcamentos', newId, `A partir de ${orig.numero}`);
     return { ok: true, id: newId, numero };
@@ -1466,7 +1472,7 @@ const handlers = {
     const valorPecas = itens.reduce((sum, it) => sum + (parseFloat(it.quantidade) || 0) * valorPecaDoItem(it), 0);
     const valorMaoObra = itens.reduce((sum, it) => sum + valorMaoObraDoItem(it), 0) + (parseFloat(orc.valor_servicos) || 0);
     const numero = await nextOsNumero(db);
-    const dataHoje = nowIso().slice(0, 10);
+    const dataHoje = hojeBr();
     const temPecas = itensPecas.length > 0 || valorPecas > 0;
     const osId = await db.insert(
       `INSERT INTO ordens_servico (numero, cliente_id, equipamento_id, defeito_informado, diagnostico, servicos_executados, pecas_utilizadas, valor_mao_obra, valor_pecas, desconto, valor_total, garantia_dias, data_entrada, previsao, data_saida, status, observacoes, assinatura_cliente, checklist, itens_pecas, estoque_baixado, despesa_pecas_lancada, usuario_id, criado_em) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
@@ -1546,7 +1552,7 @@ const handlers = {
 
   'financas:metasFuturas': async (db, { quantidadeMeses } = {}) => {
     const n = quantidadeMeses || 6;
-    const hoje = nowIso().slice(0, 10);
+    const hoje = hojeBr();
     const meses = [];
     for (let i = 0; i < n; i++) {
       const d = new Date(hoje.slice(0, 10) + 'T00:00:00');
@@ -1611,7 +1617,7 @@ const handlers = {
 
   'financeiro:save': async (db, { lancamento }, req) => {
     const l = lancamento;
-    const dataPagamento = l.data_pagamento || (l.status === 'Pago' ? nowIso().slice(0, 10) : null);
+    const dataPagamento = l.data_pagamento || (l.status === 'Pago' ? hojeBr() : null);
     if (l.id) {
       await db.run(
         `UPDATE lancamentos_financeiros SET tipo=?, categoria=?, descricao=?, valor=?, forma_pagamento=?, status=?, data_vencimento=?, data_pagamento=?, observacoes=?, atualizado_em=? WHERE id=?`,
@@ -1640,7 +1646,7 @@ const handlers = {
   'financeiro:marcarPago': async (db, { id, forma_pagamento, data_pagamento }, req) => {
     const l = await db.get('SELECT * FROM lancamentos_financeiros WHERE id = ?', [id]);
     if (!l) throw new Error('Lançamento não encontrado.');
-    const dataPg = data_pagamento || nowIso().slice(0, 10);
+    const dataPg = data_pagamento || hojeBr();
     await db.run(`UPDATE lancamentos_financeiros SET status='Pago', forma_pagamento=?, data_pagamento=?, atualizado_em=? WHERE id=?`,
       [forma_pagamento, dataPg, nowIso(), id]);
     if (l.tipo === 'receita' && forma_pagamento === 'Dinheiro') {
@@ -1836,7 +1842,7 @@ const handlers = {
 
   'relatorios:metas': async (db, { dataInicio, dataFim } = {}, req) => {
     requirePapel(req, ['Administrador']);
-    const hoje = nowIso().slice(0, 10);
+    const hoje = hojeBr();
     const mesInicio = (dataInicio || hoje).slice(0, 7);
     const mesFim = (dataFim || hoje).slice(0, 7);
 
@@ -1950,7 +1956,7 @@ const handlers = {
        WHERE v.status = 'Concluída' AND v.criado_em IS NOT NULL AND v.criado_em != '' AND v.garantia_dias > 0`
     );
     const rows = [...rowsOs, ...rowsVendas].sort((a, b) => (a.fim_garantia < b.fim_garantia ? 1 : -1));
-    const hoje = nowIso().slice(0, 10);
+    const hoje = hojeBr();
     rows.forEach((r) => { r.situacao = r.fim_garantia >= hoje ? 'Em garantia' : 'Expirada'; });
     const filtradas = apenasAtivas ? rows.filter((r) => r.situacao === 'Em garantia') : rows;
     const columns = [

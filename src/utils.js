@@ -3,8 +3,11 @@ export function formatCurrency(v) {
   return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
+// Datas "só dia" (YYYY-MM-DD) são mostradas como estão (sem deslocar por fuso, que fazia aparecer o dia anterior).
 export function formatDate(iso) {
   if (!iso) return '-';
+  const m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (m) return `${m[3]}/${m[2]}/${m[1]}`;
   const d = new Date(iso);
   if (isNaN(d.getTime())) return iso;
   return d.toLocaleDateString('pt-BR');
@@ -17,8 +20,10 @@ export function formatDateTime(iso) {
   return d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 }
 
+// Dia de hoje no horário do aparelho (não em UTC, que à noite já cai no dia seguinte).
 export function todayInputValue() {
-  return new Date().toISOString().slice(0, 10);
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
 export function toInputDate(iso) {

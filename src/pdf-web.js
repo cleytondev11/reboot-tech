@@ -26,7 +26,13 @@ function formatCurrency(v) {
 
 function formatDate(iso) {
   if (!iso) return '-';
-  const s = String(iso).slice(0, 10);
+  const txt = String(iso);
+  let s = txt.slice(0, 10);
+  // Data com hora (ex.: criado_em, gravado em UTC): converte para o dia no horário do aparelho.
+  if (txt.length > 10) {
+    const d = new Date(txt);
+    if (!isNaN(d.getTime())) s = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
   const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (!m) return iso;
   return `${m[3]}/${m[2]}/${m[1]}`;
@@ -437,7 +443,8 @@ function numeroPorExtenso(n) {
 }
 
 function nowStr() {
-  return new Date().toISOString().slice(0, 10);
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
 // Cada item pode ter valor de peça (valor_peca) e mão de obra própria (valor_mao_obra).
@@ -585,7 +592,7 @@ function buildVendaGarantiaHtml(venda, empresa) {
       <div class="info-item"><div class="label">CPF/CNPJ</div><div class="value">${escapeHtml(venda.cliente_cpf_cnpj || '-')}</div></div>
       <div class="info-item"><div class="label">Telefone</div><div class="value">${escapeHtml(venda.cliente_telefone || venda.cliente_whatsapp || '-')}</div></div>
       <div class="info-item"><div class="label">Venda Nº</div><div class="value">${escapeHtml(venda.numero)}</div></div>
-      <div class="info-item"><div class="label">Data da Compra</div><div class="value">${formatDate(venda.criado_em)}</div></div>
+      <div class="info-item"><div class="label">Data da Compra</div><div class="value">${formatDate(venda.data_venda || venda.criado_em)}</div></div>
       <div class="info-item"><div class="label">Prazo de Garantia</div><div class="value">${garantiaDias} dias</div></div>
     </div>
 
@@ -644,7 +651,7 @@ function buildVendaReciboHtml(venda, empresa) {
     <div class="section-title">Dados da Venda</div>
     <div class="info-grid">
       <div class="info-item"><div class="label">Venda Nº</div><div class="value">${escapeHtml(venda.numero)}</div></div>
-      <div class="info-item"><div class="label">Data da Compra</div><div class="value">${formatDate(venda.criado_em)}</div></div>
+      <div class="info-item"><div class="label">Data da Compra</div><div class="value">${formatDate(venda.data_venda || venda.criado_em)}</div></div>
       <div class="info-item"><div class="label">Forma de Pagamento</div><div class="value">${escapeHtml(venda.forma_pagamento || '-')}</div></div>
       <div class="info-item"><div class="label">Status</div><div class="value">${escapeHtml(venda.status)}</div></div>
     </div>
