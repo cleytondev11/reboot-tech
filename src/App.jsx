@@ -177,7 +177,7 @@ function Shell() {
             <Notificacoes plano={plano} goTo={irPara} />
             <button className="icon-btn" title="Alternar tema" onClick={toggleTheme}>{theme === 'dark' ? '☀️' : '🌙'}</button>
             {mobile && <div className="user-avatar topbar-avatar" title={user.nome}>{initials}</div>}
-            {mobile && <button className="icon-btn" title="Sair do sistema" aria-label="Sair do sistema" onClick={sair}>🚪</button>}
+            <button className="icon-btn" title="Sair do sistema" aria-label="Sair do sistema" onClick={sair}>🚪</button>
           </div>
         </div>
         <PlanoAviso plano={plano} onVerPlano={() => irPara('plano')} onRenovar={() => setRenovando(true)} />
