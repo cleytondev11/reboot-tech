@@ -1,11 +1,14 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useApp } from '../context.jsx';
-import { formatCurrency, formatDateTime, toInputDate, todayInputValue, statusClass, CHECKLIST_ITENS, FORMAS_PAGAMENTO_COM_PRAZO, FORMA_A_PRAZO, ROTULO_A_PRAZO, sanitizeDecimalInput, parseDecimal, sanitizeIntegerInput, parseIntSafe, ACESSORIOS_OPCOES, TERMOS_ACEITE_ITENS, DECLARACAO_CONDICAO_APARELHO } from '../utils.js';
+import { formatCurrency, formatDateTime, toInputDate, todayInputValue, statusClass, CHECKLIST_ITENS, FORMAS_PAGAMENTO_COM_PRAZO, FORMA_A_PRAZO, ROTULO_A_PRAZO, sanitizeDecimalInput, parseDecimal, maskCpfCnpj, maskPhone, sanitizeIntegerInput, parseIntSafe, ACESSORIOS_OPCOES, TERMOS_ACEITE_ITENS, DECLARACAO_CONDICAO_APARELHO } from '../utils.js';
 import SignaturePad from '../components/SignaturePad.jsx';
 import PatternLock from '../components/PatternLock.jsx';
 import ImprimirMenu from '../components/ImprimirMenu.jsx';
 import AvisoProntoModal, { foiAvisada } from '../components/AvisoProntoModal.jsx';
 import PrazoCampos, { valorEntrada } from '../components/PrazoCampos.jsx';
+
+const EMPTY_CLIENTE_RAPIDO = { tipo: 'PF', nome: '', cpf_cnpj: '', telefone: '', whatsapp: '' };
+const EMPTY_EQUIP_RAPIDO = { marca: '', modelo: '', imei: '', cor: '' };
 
 const EMPTY = {
   id: null, cliente_id: '', equipamento_id: '', defeito_informado: '', diagnostico: '',
@@ -26,6 +29,10 @@ export default function OrdensServico() {
   const [tab, setTab] = useState('dados');
   const [form, setForm] = useState(EMPTY);
   const [clientes, setClientes] = useState([]);
+  const [novoClienteOpen, setNovoClienteOpen] = useState(false);
+  const [novoCliente, setNovoCliente] = useState(EMPTY_CLIENTE_RAPIDO);
+  const [novoEquipOpen, setNovoEquipOpen] = useState(false);
+  const [novoEquip, setNovoEquip] = useState(EMPTY_EQUIP_RAPIDO);
   const [equipCliente, setEquipCliente] = useState([]);
   const [produtos, setProdutos] = useState([]);
   const [tecnicos, setTecnicos] = useState([]);
@@ -107,6 +114,49 @@ export default function OrdensServico() {
   // Atalho da tela inicial / botão rápido do celular
   useEffect(() => { if (window.__rtAcao === 'os') { window.__rtAcao = null; openNew(); } // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // ---------- Cadastro rápido de Cliente (sem sair da OS) ----------
+  function abrirNovoCliente() {
+    setNovoCliente(EMPTY_CLIENTE_RAPIDO);
+    setNovoClienteOpen(true);
+  }
+
+  async function salvarNovoCliente(e) {
+    e.preventDefault();
+    if (!novoCliente.nome.trim()) return showToast('Informe o nome do cliente.', 'error');
+    try {
+      const res = await window.api.clientes.save(user, novoCliente);
+      showToast('Cliente cadastrado com sucesso.');
+      await loadClientes();
+      set('cliente_id', String(res.id));
+      setNovoClienteOpen(false);
+    } catch (err) {
+      showToast(String(err.message || err), 'error');
+    }
+  }
+
+  // ---------- Cadastro rápido de Equipamento (sem sair da OS) ----------
+  function abrirNovoEquip() {
+    if (!form.cliente_id) return showToast('Selecione (ou cadastre) o cliente antes de cadastrar o equipamento.', 'error');
+    setNovoEquip(EMPTY_EQUIP_RAPIDO);
+    setNovoEquipOpen(true);
+  }
+
+  async function salvarNovoEquip(e) {
+    e.preventDefault();
+    if (!novoEquip.marca.trim()) return showToast('Informe a marca do equipamento.', 'error');
+    try {
+      const payload = { ...novoEquip, cliente_id: form.cliente_id, acessorios: '', fotos: [] };
+      const res = await window.api.equipamentos.save(user, payload);
+      showToast('Equipamento cadastrado com sucesso.');
+      const lista = await window.api.equipamentos.listByCliente(Number(form.cliente_id));
+      setEquipCliente(lista);
+      set('equipamento_id', String(res.id));
+      setNovoEquipOpen(false);
+    } catch (err) {
+      showToast(String(err.message || err), 'error');
+    }
+  }
 
   function openNew() {
     setForm({
@@ -435,17 +485,23 @@ export default function OrdensServico() {
               <div className="form-grid">
                 <div className="field">
                   <label>Cliente *</label>
-                  <select value={form.cliente_id} onChange={(e) => set('cliente_id', e.target.value)}>
-                    <option value="">Selecione...</option>
-                    {clientes.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
-                  </select>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <select style={{ flex: 1 }} value={form.cliente_id} onChange={(e) => set('cliente_id', e.target.value)}>
+                      <option value="">Selecione...</option>
+                      {clientes.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                    </select>
+                    <button type="button" className="btn btn-secondary btn-sm" title="Cadastrar novo cliente sem sair da OS" onClick={abrirNovoCliente}>+ Novo</button>
+                  </div>
                 </div>
                 <div className="field">
                   <label>Equipamento *</label>
-                  <select value={form.equipamento_id} onChange={(e) => set('equipamento_id', e.target.value)} disabled={!form.cliente_id}>
-                    <option value="">{form.cliente_id ? 'Selecione...' : 'Selecione o cliente primeiro'}</option>
-                    {equipCliente.map((eq) => <option key={eq.id} value={eq.id}>{eq.marca} {eq.modelo} {eq.imei ? `(IMEI ${eq.imei})` : ''}</option>)}
-                  </select>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <select style={{ flex: 1 }} value={form.equipamento_id} onChange={(e) => set('equipamento_id', e.target.value)} disabled={!form.cliente_id}>
+                      <option value="">{form.cliente_id ? 'Selecione...' : 'Selecione o cliente primeiro'}</option>
+                      {equipCliente.map((eq) => <option key={eq.id} value={eq.id}>{eq.marca} {eq.modelo} {eq.imei ? `(IMEI ${eq.imei})` : ''}</option>)}
+                    </select>
+                    <button type="button" className="btn btn-secondary btn-sm" title="Cadastrar novo equipamento sem sair da OS" disabled={!form.cliente_id} onClick={abrirNovoEquip}>+ Novo</button>
+                  </div>
                 </div>
 
                 <div className="field span-2">
@@ -657,6 +713,56 @@ export default function OrdensServico() {
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 20 }}>
               <button type="button" className="btn btn-secondary" onClick={() => setModalOpen(false)}>Cancelar</button>
               <button type="submit" className="btn btn-primary">Salvar Ordem de Serviço</button>
+            </div>
+          </form>
+        </div>
+      )}
+      {novoClienteOpen && (
+        <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && setNovoClienteOpen(false)}>
+          <form className="modal" style={{ width: 460 }} onSubmit={salvarNovoCliente}>
+            <div className="modal-header">
+              <h3>Cadastro Rápido de Cliente</h3>
+              <button type="button" className="icon-btn" onClick={() => setNovoClienteOpen(false)}>✕</button>
+            </div>
+            <div className="form-grid">
+              <div className="field">
+                <label>Tipo</label>
+                <select value={novoCliente.tipo} onChange={(e) => setNovoCliente((f) => ({ ...f, tipo: e.target.value }))}>
+                  <option value="PF">Pessoa Física</option>
+                  <option value="PJ">Pessoa Jurídica</option>
+                </select>
+              </div>
+              <div className="field"><label>CPF/CNPJ</label><input value={novoCliente.cpf_cnpj} onChange={(e) => setNovoCliente((f) => ({ ...f, cpf_cnpj: maskCpfCnpj(e.target.value, f.tipo) }))} /></div>
+              <div className="field span-2"><label>Nome *</label><input value={novoCliente.nome} onChange={(e) => setNovoCliente((f) => ({ ...f, nome: e.target.value }))} autoFocus /></div>
+              <div className="field"><label>Telefone</label><input value={novoCliente.telefone} onChange={(e) => setNovoCliente((f) => ({ ...f, telefone: maskPhone(e.target.value) }))} /></div>
+              <div className="field"><label>WhatsApp</label><input value={novoCliente.whatsapp} onChange={(e) => setNovoCliente((f) => ({ ...f, whatsapp: maskPhone(e.target.value) }))} /></div>
+            </div>
+            <p className="muted" style={{ fontSize: 11.5 }}>Você pode completar o cadastro (endereço, e-mail, etc.) depois, na tela de Clientes.</p>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 16 }}>
+              <button type="button" className="btn btn-secondary" onClick={() => setNovoClienteOpen(false)}>Cancelar</button>
+              <button type="submit" className="btn btn-primary">Cadastrar e Selecionar</button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {novoEquipOpen && (
+        <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && setNovoEquipOpen(false)}>
+          <form className="modal" style={{ width: 460 }} onSubmit={salvarNovoEquip}>
+            <div className="modal-header">
+              <h3>Cadastro Rápido de Equipamento</h3>
+              <button type="button" className="icon-btn" onClick={() => setNovoEquipOpen(false)}>✕</button>
+            </div>
+            <div className="form-grid">
+              <div className="field"><label>Marca *</label><input value={novoEquip.marca} onChange={(e) => setNovoEquip((f) => ({ ...f, marca: e.target.value }))} autoFocus /></div>
+              <div className="field"><label>Modelo</label><input value={novoEquip.modelo} onChange={(e) => setNovoEquip((f) => ({ ...f, modelo: e.target.value }))} /></div>
+              <div className="field"><label>IMEI / Nº de Série</label><input value={novoEquip.imei} onChange={(e) => setNovoEquip((f) => ({ ...f, imei: e.target.value }))} /></div>
+              <div className="field"><label>Cor</label><input value={novoEquip.cor} onChange={(e) => setNovoEquip((f) => ({ ...f, cor: e.target.value }))} /></div>
+            </div>
+            <p className="muted" style={{ fontSize: 11.5 }}>Fotos e demais detalhes podem ser adicionados depois, na tela de Equipamentos.</p>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 16 }}>
+              <button type="button" className="btn btn-secondary" onClick={() => setNovoEquipOpen(false)}>Cancelar</button>
+              <button type="submit" className="btn btn-primary">Cadastrar e Selecionar</button>
             </div>
           </form>
         </div>
