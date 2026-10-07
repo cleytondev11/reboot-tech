@@ -174,7 +174,7 @@ function Shell() {
           <button className="icon-btn menu-toggle" aria-label="Abrir menu" onClick={() => setMenuAberto((v) => !v)}>☰</button>
           <h1>{TITLES[page]}</h1>
           <div className="topbar-actions">
-            {mobile && <Notificacoes plano={plano} goTo={irPara} />}
+            <Notificacoes plano={plano} goTo={irPara} />
             <button className="icon-btn" title="Alternar tema" onClick={toggleTheme}>{theme === 'dark' ? '☀️' : '🌙'}</button>
             {mobile && <div className="user-avatar topbar-avatar" title={user.nome}>{initials}</div>}
             {mobile && <button className="icon-btn" title="Sair do sistema" aria-label="Sair do sistema" onClick={sair}>🚪</button>}

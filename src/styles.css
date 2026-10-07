@@ -616,3 +616,8 @@ tbody tr:last-child td { border-bottom: none; }
 @media (max-width: 700px) {
   .dash-mobile > .grid.grid-3 > .card:last-child:nth-child(odd) { grid-column: 1 / -1; }
 }
+
+/* Atalhos rápidos (computador) */
+.dash-atalhos { display: flex; flex-wrap: wrap; gap: 10px; }
+.dash-hero { margin-bottom: 16px; }
+@media (max-width: 700px) { .dash-atalhos { display: grid; } }

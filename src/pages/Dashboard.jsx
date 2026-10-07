@@ -113,24 +113,26 @@ export default function Dashboard({ goTo }) {
 
   return (
     <div className={mobile ? 'dash-mobile' : undefined}>
-      {mobile && (
-        <div className="dash-hero">
-          <div className="dash-saudacao">{saudacao}, {(user?.nome || '').split(' ')[0]} 👋</div>
-          <div className="muted dash-empresa">{empresa?.nome_fantasia || empresa?.nome || nomeApp}</div>
-          <div className="dash-atalhos">
-            <button className="btn btn-primary" onClick={() => atalho('venda', 'vendas')}>🛒 Nova venda</button>
-            <button className="btn btn-secondary" onClick={() => atalho('orcamento', 'orcamentos')}>📝 Novo orçamento</button>
-            <button className="btn btn-secondary" onClick={() => atalho('os', 'os')}>🧾 Nova OS</button>
-          </div>
-          {!tourVisto && (
-            <div className="tour-banner">
-              <div className="tour-banner-txt"><b>Primeira vez por aqui?</b> Tour rápido pelo sistema e como colocar o {nomeApp} como app no celular.</div>
-              <button className="btn btn-primary btn-sm" onClick={() => setTourAberto(true)}>Ver</button>
-              <button className="icon-btn" aria-label="Dispensar" onClick={fecharTour}>✕</button>
-            </div>
-          )}
+      <div className="dash-hero">
+        {mobile && (
+          <>
+            <div className="dash-saudacao">{saudacao}, {(user?.nome || '').split(' ')[0]} 👋</div>
+            <div className="muted dash-empresa">{empresa?.nome_fantasia || empresa?.nome || nomeApp}</div>
+          </>
+        )}
+        <div className="dash-atalhos">
+          <button className="btn btn-primary" onClick={() => atalho('venda', 'vendas')}>🛒 Nova venda</button>
+          <button className="btn btn-secondary" onClick={() => atalho('orcamento', 'orcamentos')}>📝 Novo orçamento</button>
+          <button className="btn btn-secondary" onClick={() => atalho('os', 'os')}>🧾 Nova OS</button>
         </div>
-      )}
+        {mobile && !tourVisto && (
+          <div className="tour-banner">
+            <div className="tour-banner-txt"><b>Primeira vez por aqui?</b> Tour rápido pelo sistema e como colocar o {nomeApp} como app no celular.</div>
+            <button className="btn btn-primary btn-sm" onClick={() => setTourAberto(true)}>Ver</button>
+            <button className="icon-btn" aria-label="Dispensar" onClick={fecharTour}>✕</button>
+          </div>
+        )}
+      </div>
       {tourAberto && <Tour app={nomeApp} onClose={fecharTour} />}
       <div className="grid grid-4">
         {cards.map((c) => (
@@ -572,6 +574,7 @@ function BarChart({ data, compact }) {
   const max = Math.max(1, ...data.map((d) => d.valor || 0));
   // No celular, o gráfico de 12 meses mostra o valor de cada mês (em pé, sem "R$") em cima da barra.
   const valoresMes = compact && mobile;
+  const valoresDesktop = compact && !mobile;
   const alturaMax = valoresMes ? 90 : 120;
   return (
     <div style={{ display: 'flex', alignItems: 'flex-end', gap: compact ? 4 : 10, height: valoresMes ? 190 : 150, paddingTop: 10 }}>
@@ -582,11 +585,12 @@ function BarChart({ data, compact }) {
             {valoresMes ? (
               <div className="bar-valor-vert">{(d.valor || 0) > 0 ? Math.round(d.valor).toLocaleString('pt-BR') : '0'}</div>
             ) : (
-              <div style={{ fontSize: compact ? 9 : 10, color: 'var(--text-dim)', height: 14 }}>
+              <div style={{ fontSize: compact ? 10 : 10, fontWeight: compact ? 600 : 400, color: compact ? 'var(--text)' : 'var(--text-dim)', height: 14, whiteSpace: 'nowrap' }}>
                 {d.valor > 0 && !compact ? formatCurrency(d.valor).replace('R$', '').trim() : ''}
+                {valoresDesktop ? Math.round(d.valor || 0).toLocaleString('pt-BR') : ''}
               </div>
             )}
-            <div style={{ width: '100%', maxWidth: compact ? 14 : 28, height: h, background: 'var(--gold)', borderRadius: '4px 4px 0 0' }} />
+            <div style={{ width: '100%', maxWidth: valoresDesktop ? 22 : compact ? 14 : 28, height: h, background: 'var(--gold)', borderRadius: '4px 4px 0 0' }} />
             <div style={{ fontSize: compact ? 9 : 10.5, color: 'var(--text-dim)', textTransform: 'capitalize' }}>{d.label}</div>
           </div>
         );
