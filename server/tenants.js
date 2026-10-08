@@ -52,8 +52,8 @@ async function iniciarRegistro() {
     cliente_id INTEGER NOT NULL
   )`);
   // Plano do cliente (Meu Plano): data contratada e data de vencimento (30 dias). Preenchidas no /admin.
-  for (const col of ['data_contratada', 'data_vencimento']) {
-    try { await dbPrincipal.run(`ALTER TABLE rt_clientes ADD COLUMN ${col} TEXT`); } catch (e) { /* coluna já existe */ }
+  for (const col of ['data_contratada', 'data_vencimento', 'valor_mensal', 'contato_nome', 'contato_telefone']) {
+    try { await dbPrincipal.run(`ALTER TABLE rt_clientes ADD COLUMN ${col} ${col === 'valor_mensal' ? 'REAL' : 'TEXT'}`); } catch (e) { /* coluna já existe */ }
   }
   let nome = 'Banco principal';
   try {
@@ -231,7 +231,7 @@ async function removerRegistro(id) {
 
 // Cria um cliente novo: banco novo (automático no Turso, ou o endereço informado)
 // + o usuário administrador com o login e a senha informados.
-async function criarCliente({ nome, login, senha, nomeUsuario, dbUrl, dbToken, dataContratada, dataVencimento }) {
+async function criarCliente({ nome, login, senha, nomeUsuario, dbUrl, dbToken, dataContratada, dataVencimento, valorMensal, contatoNome, contatoTelefone }) {
   nome = String(nome || '').trim();
   login = String(login || '').trim();
   senha = String(senha || '');
@@ -258,8 +258,8 @@ async function criarCliente({ nome, login, senha, nomeUsuario, dbUrl, dbToken, d
   let id = null;
   try {
     id = await dbPrincipal.insert(
-      `INSERT INTO rt_clientes (nome, db_url, db_token, db_nome, ativo, principal, criado_em, data_contratada, data_vencimento) VALUES (?,?,?,?,1,0,?,?,?)`,
-      [nome, info.url, info.token, info.nome, agoraIso(), plano.dataContratada, plano.dataVencimento]
+      `INSERT INTO rt_clientes (nome, db_url, db_token, db_nome, ativo, principal, criado_em, data_contratada, data_vencimento, valor_mensal, contato_nome, contato_telefone) VALUES (?,?,?,?,1,0,?,?,?,?,?,?)`,
+      [nome, info.url, info.token, info.nome, agoraIso(), plano.dataContratada, plano.dataVencimento, numeroOuNulo(valorMensal), textoOuNulo(contatoNome), textoOuNulo(contatoTelefone)]
     );
     const cliente = await buscarCliente(id);
     const db = await bancoDoCliente(cliente);
@@ -330,6 +330,12 @@ async function redefinirSenha(id, login, senha) {
 
 // Valida as datas do plano. Com `padrao`, quem não informou recebe: contratada = hoje, vencimento = contratada + 30 dias.
 // Datas vazias (sem padrão) significam "plano sem datas cadastradas".
+function numeroOuNulo(v) {
+  const n = parseFloat(String(v === undefined || v === null ? '' : v).replace(',', '.'));
+  return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) / 100 : null;
+}
+function textoOuNulo(v) { const t = String(v || '').trim(); return t ? t.slice(0, 120) : null; }
+
 function normalizarPlano(dataContratada, dataVencimento, padrao) {
   let c = String(dataContratada || '').trim().slice(0, 10);
   let v = String(dataVencimento || '').trim().slice(0, 10);
@@ -370,15 +376,29 @@ function hostDe(url) {
   return String(url || '').replace(/^[a-z]+:\/\//i, '').replace(/[/?#].*$/, '');
 }
 
+// Edita os dados cadastrais do assinante (nome, valor da mensalidade e contato).
+async function atualizarCliente(id, { nome, valorMensal, contatoNome, contatoTelefone }) {
+  const cliente = await buscarCliente(id);
+  if (!cliente) throw erro('Cliente não encontrado.', 404);
+  const n = String(nome || '').trim();
+  if (n.length < 2) throw erro('Informe o nome do cliente.');
+  await dbPrincipal.run('UPDATE rt_clientes SET nome = ?, valor_mensal = ?, contato_nome = ?, contato_telefone = ? WHERE id = ?',
+    [n, numeroOuNulo(valorMensal), textoOuNulo(contatoNome), textoOuNulo(contatoTelefone), id]);
+  invalidar(id);
+  return { id };
+}
+
 async function listarClientes() {
   const linhas = await dbPrincipal.all(
-    `SELECT c.id, c.nome, c.ativo, c.principal, c.db_nome, c.db_url, c.criado_em, c.data_contratada, c.data_vencimento,
+    `SELECT c.id, c.nome, c.ativo, c.principal, c.db_nome, c.db_url, c.criado_em, c.data_contratada, c.data_vencimento, c.valor_mensal, c.contato_nome, c.contato_telefone,
+            (SELECT login FROM rt_logins l2 WHERE l2.cliente_id = c.id ORDER BY l2.rowid LIMIT 1) AS login,
             (SELECT COUNT(*) FROM rt_logins l WHERE l.cliente_id = c.id) AS usuarios
      FROM rt_clientes c ORDER BY c.id`
   );
   return linhas.map((c) => ({
     id: c.id, nome: c.nome, ativo: !!c.ativo, principal: !!c.principal, criado_em: c.criado_em,
     dataContratada: c.data_contratada || '', dataVencimento: c.data_vencimento || '',
+    valorMensal: c.valor_mensal == null ? null : Number(c.valor_mensal), contatoNome: c.contato_nome || '', contatoTelefone: c.contato_telefone || '', login: c.login || '',
     usuarios: c.usuarios, banco: c.principal ? 'banco principal' : (c.db_nome || hostDe(c.db_url)),
   }));
 }
@@ -405,6 +425,7 @@ module.exports = {
   redefinirSenha,
   definirPlano,
   renovarPlano,
+  atualizarCliente,
   listarClientes,
   listarClientesAtivos,
 };
