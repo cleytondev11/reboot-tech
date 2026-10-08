@@ -388,6 +388,19 @@ async function atualizarCliente(id, { nome, valorMensal, contatoNome, contatoTel
   return { id };
 }
 
+// Exclui o cadastro do cliente: remove logins e registro (o acesso para de funcionar na hora).
+// Se o banco foi criado automaticamente no Turso pelo painel, ele também é apagado.
+// O banco principal nunca pode ser excluído.
+async function excluirCliente(id) {
+  const cliente = await buscarCliente(id);
+  if (!cliente) throw erro('Cliente não encontrado.', 404);
+  if (cliente.principal || id === ID_PRINCIPAL) throw erro('O banco principal do sistema não pode ser excluído.');
+  const dbNome = cliente.db_nome;
+  await removerRegistro(id);
+  if (dbNome) await turso.excluirBanco(dbNome);
+  return { id, bancoApagado: !!dbNome };
+}
+
 async function listarClientes() {
   const linhas = await dbPrincipal.all(
     `SELECT c.id, c.nome, c.ativo, c.principal, c.db_nome, c.db_url, c.criado_em, c.data_contratada, c.data_vencimento, c.valor_mensal, c.contato_nome, c.contato_telefone, c.contato_email,
@@ -419,6 +432,7 @@ module.exports = {
   removerLogin,
   sincronizarLogins,
   criarCliente,
+  excluirCliente,
   importarCliente,
   sincronizarCliente,
   definirAtivo,

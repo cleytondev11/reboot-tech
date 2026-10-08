@@ -418,8 +418,25 @@ function iniciarAvisosFinanceiros(listarBancos) {
   if (t2.unref) t2.unref();
 }
 
+// Avisa o DONO (administradores do banco principal que ativaram as notificações no celular)
+// quando alguém cria uma conta de teste pelo site. Nunca lança erro.
+async function avisarDono(titulo, corpo) {
+  try {
+    await inicializar();
+    const subs = await dbPrincipal.all(
+      `SELECT s.* FROM push_subscricoes s JOIN usuarios u ON u.id = s.usuario_id WHERE u.papel = 'Administrador'`
+    );
+    await Promise.allSettled(subs.map((s) => enviarParaInscricao(dbPrincipal, s, { titulo, corpo, url: './', tag: 'novo-teste-' + Date.now() })));
+    return subs.length;
+  } catch (err) {
+    console.error('[Push] avisarDono:', err && err.message);
+    return 0;
+  }
+}
+
 module.exports = {
   PREFS,
+  avisarDono,
   chavePublica,
   enviarParaInscricao,
   avisarOsNova,

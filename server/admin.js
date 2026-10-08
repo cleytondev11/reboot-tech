@@ -66,6 +66,8 @@ router.post('/clientes/:id/plano', rota(async (req) => ({
 // Renovação rápida: +30 dias a partir do vencimento atual (ou de hoje, se já venceu).
 router.post('/clientes/:id/renovar', rota(async (req) => ({ plano: await tenants.renovarPlano(Number(req.params.id), Math.min(366, Math.max(1, parseInt((req.body || {}).dias, 10) || 30))) })));
 
+router.post('/clientes/:id/excluir', rota(async (req) => ({ excluido: await tenants.excluirCliente(Number(req.params.id)) })));
+
 router.post('/clientes/:id/sincronizar', rota(async (req) => ({ sincronizado: await tenants.sincronizarCliente(Number(req.params.id)) })));
 
 const PAGINA = `<!doctype html>
@@ -297,6 +299,7 @@ function desenharLista() {
       add('🔑 Nova senha do cliente', function () { novaSenha(c); });
       var lk = linkWhats(c, 'Olá' + (c.contatoNome ? ', ' + c.contatoNome : '') + '! Passando para lembrar do vencimento do seu sistema' + (c.dataVencimento ? ' (' + fmt(c.dataVencimento) + ')' : '') + '. Posso gerar o Pix para renovar? 🙏');
       if (lk) add('💬 Cobrar no WhatsApp', function () { window.open(lk, '_blank'); });
+      if (!c.principal) add('🗑️ Excluir cadastro', function () { excluir(c); }, 'perigo');
       add(c.ativo ? '⛔ Bloquear acesso' : '✅ Liberar acesso', function () { alternar(c); }, c.ativo ? 'perigo' : '');
       ac.appendChild(m);
     }
@@ -312,6 +315,12 @@ async function renovar(c, dias) {
 async function alternar(c) {
   if (c.ativo && !confirm('Bloquear o acesso de ' + c.nome + '?')) return;
   try { await api('POST', '/clientes/' + c.id + '/ativo', { ativo: !c.ativo }); toast(c.ativo ? 'Acesso bloqueado.' : 'Acesso liberado.'); carregar(); } catch (e) { toast(e.message); }
+}
+async function excluir(c) {
+  if (!confirm('EXCLUIR o cadastro de "' + c.nome + '"?\n\nO cliente perde o acesso na hora e o banco de dados dele pode ser apagado. Isso não pode ser desfeito.')) return;
+  var conf = prompt('Para confirmar, digite EXCLUIR:'); if (conf === null) return;
+  if (String(conf).trim().toUpperCase() !== 'EXCLUIR') { toast('Exclusão cancelada.'); return; }
+  try { await api('POST', '/clientes/' + c.id + '/excluir', {}); toast('Cadastro de ' + c.nome + ' excluído.'); carregar(); } catch (e) { toast(e.message); }
 }
 async function novaSenha(c) {
   var nova = prompt('Nova senha para o administrador de ' + c.nome + ' (mín. 6):'); if (!nova) return;

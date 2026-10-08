@@ -1,6 +1,6 @@
 {
   "name": "reboottech-assistencia",
-  "version": "1.41.0",
+  "version": "1.42.0",
   "description": "Reboot Tech - Sistema de Gestão de Assistência Técnica",
   "author": "Reboot Tech",
   "main": "electron/main.cjs",

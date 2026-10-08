@@ -1,10 +1,11 @@
 // Cadastro público (site de vendas): cria uma conta de TESTE GRÁTIS.
-// POST /api/cadastro  { nome, email, loja, login, senha, hp }
+// POST /api/cadastro  { nome, email, whatsapp, loja, login, senha, hp }
 const express = require('express');
 const tenants = require('./tenants');
+const push = require('./push');
 
 const router = express.Router();
-const TESTE_DIAS = Math.max(1, parseInt(process.env.TESTE_DIAS, 10) || 7);
+const TESTE_DIAS = Math.max(1, parseInt(process.env.TESTE_DIAS, 10) || 3);
 
 // limite simples por IP: 5 cadastros por hora
 const tentativas = new Map();
@@ -33,11 +34,13 @@ router.post('/', async (req, res) => {
 
     const nome = String(b.nome || '').trim();
     const email = String(b.email || '').trim().toLowerCase();
+    const zap = String(b.whatsapp || '').replace(/[^0-9]/g, '');
     const loja = String(b.loja || '').trim();
     const login = String(b.login || '').trim();
     const senha = String(b.senha || '');
     if (nome.length < 3) return res.status(400).json({ ok: false, error: 'Informe seu nome completo.' });
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return res.status(400).json({ ok: false, error: 'E-mail inválido.' });
+    if (zap.length < 10 || zap.length > 13) return res.status(400).json({ ok: false, error: 'Informe o WhatsApp com DDD. Ex.: (61) 99999-9999.' });
     if (loja.length < 2) return res.status(400).json({ ok: false, error: 'Informe o nome da loja.' });
     if (!/^[A-Za-z0-9._@-]{3,60}$/.test(login)) return res.status(400).json({ ok: false, error: 'Login: 3 a 60 caracteres, sem espaços (letras, números, . _ - @).' });
     if (senha.length < 6) return res.status(400).json({ ok: false, error: 'A senha precisa ter ao menos 6 caracteres.' });
@@ -45,9 +48,11 @@ router.post('/', async (req, res) => {
     const hoje = hojeBr();
     await tenants.criarCliente({
       nome: loja, login, senha, nomeUsuario: nome,
-      contatoNome: nome, contatoEmail: email,
+      contatoNome: nome, contatoTelefone: zap, contatoEmail: email,
       dataContratada: hoje, dataVencimento: somarDias(hoje, TESTE_DIAS),
     });
+    // avisa o dono no celular (não atrasa nem derruba o cadastro se falhar)
+    push.avisarDono('🆕 Novo teste grátis: ' + loja, nome + ' · WhatsApp ' + zap + '\nLogin: ' + login + ' · ' + TESTE_DIAS + ' dias de teste').catch(() => {});
     res.json({ ok: true, login, diasTeste: TESTE_DIAS });
   } catch (err) {
     res.status(err.status || 500).json({ ok: false, error: err.status ? err.message : 'Não foi possível criar a conta agora.' });
