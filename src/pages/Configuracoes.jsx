@@ -126,8 +126,33 @@ export default function Configuracoes() {
   }
 
   async function doBackup() {
-    const res = await window.api.backup.manual();
-    if (res.ok && !res.web) showToast('Backup salvo em: ' + res.filePath);
+    try {
+      const res = await window.api.backup.manual();
+      if (res.ok && res.web) showToast('Backup baixado: ' + res.nome);
+      else if (res.ok) showToast('Backup salvo em: ' + res.filePath);
+    } catch (err) { showToast(String(err.message || err), 'error'); }
+  }
+
+  // Restaurar (só na versão web): escolhe o arquivo, baixa um backup de segurança do estado atual e substitui os dados.
+  const [restaurando, setRestaurando] = useState(false);
+  async function doRestaurar(e) {
+    const arq = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (!arq) return;
+    let backup;
+    try { backup = JSON.parse(await arq.text()); } catch (err) { showToast('Arquivo inválido: não é um backup do sistema.', 'error'); return; }
+    if (!backup || backup.formato !== 'reboot-tech-backup') { showToast('Arquivo inválido: não é um backup do sistema.', 'error'); return; }
+    const quando = backup.geradoEm ? new Date(backup.geradoEm).toLocaleString('pt-BR') : 'data desconhecida';
+    if (!window.confirm('RESTAURAR O BACKUP de ' + quando + '?\n\nTodos os dados atuais (clientes, OS, vendas, estoque, financeiro, usuários) serão SUBSTITUÍDOS pelos do arquivo.\n\nAntes, o sistema vai baixar um backup do estado atual por segurança.')) return;
+    setRestaurando(true);
+    try {
+      await window.api.backup.manual(); // cópia de segurança do que existe agora
+      const r = await window.api.backup.restaurar(backup);
+      showToast('Backup restaurado (' + r.registros + ' registros). Recarregando…');
+      setTimeout(() => window.location.reload(), 1500);
+    } catch (err) {
+      showToast(String(err.message || err), 'error');
+    } finally { setRestaurando(false); }
   }
 
   function setE(field, value) { setEmpresa((e) => ({ ...e, [field]: value })); }
@@ -175,7 +200,16 @@ export default function Configuracoes() {
             <div className="card">
               <div className="section-title" style={{ marginTop: 0 }}>Backup</div>
               <p className="muted" style={{ fontSize: 12.5 }}>Gere uma cópia manual do banco de dados a qualquer momento. O sistema também mantém o arquivo local salvo automaticamente a cada alteração.</p>
-              <button className="btn btn-primary" onClick={doBackup}>💾 Gerar Backup Agora</button>
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                <button className="btn btn-primary" onClick={doBackup}>💾 Gerar Backup Agora</button>
+                {window.api?.backup?.restaurar && user?.papel === 'Administrador' && (
+                  <label className="btn btn-secondary" style={{ cursor: restaurando ? 'wait' : 'pointer', opacity: restaurando ? 0.6 : 1 }}>
+                    {restaurando ? 'Restaurando…' : '♻️ Restaurar Backup'}
+                    <input type="file" accept=".json,application/json" style={{ display: 'none' }} disabled={restaurando} onChange={doRestaurar} />
+                  </label>
+                )}
+              </div>
+              {window.api?.backup?.restaurar && <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>O backup é um arquivo com todos os dados da empresa. Guarde-o em local seguro (Google Drive, pen drive). Ao restaurar, os dados atuais são substituídos.</p>}
             </div>
           </div>
 

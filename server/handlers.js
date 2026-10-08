@@ -814,6 +814,64 @@ const handlers = {
     return { ok: true };
   },
 
+  // ---------- BACKUP / RESTAURAR (somente Administrador) ----------
+  // Gera um arquivo .json com TODOS os dados da empresa (clientes, OS, vendas, estoque, financeiro, usuários...).
+  'backup:exportar': async (db, _args, req) => {
+    requirePapel(req, ['Administrador']);
+    const tabs = await db.all(`SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite\\_%' ESCAPE '\\' AND name NOT LIKE 'libsql\\_%' ESCAPE '\\' AND name NOT LIKE 'rt\\_%' ESCAPE '\\' AND name NOT LIKE 'push\\_%' ESCAPE '\\' ORDER BY name`);
+    const tabelas = {};
+    for (const { name } of tabs) {
+      const res = await db.client.execute(`SELECT * FROM "${name}"`);
+      tabelas[name] = {
+        colunas: res.columns,
+        linhas: res.rows.map((r) => res.columns.map((_, i) => {
+          const v = r[i];
+          if (typeof v === 'bigint') return Number(v);
+          if (v instanceof ArrayBuffer) return { $b64: Buffer.from(v).toString('base64') };
+          return v === undefined ? null : v;
+        })),
+      };
+    }
+    const c = await tenants.buscarCliente(tenants.clienteIdDe(req));
+    await log(db, req, 'backup', 'sistema', null, 'Backup gerado');
+    return { formato: 'reboot-tech-backup', versao: 1, geradoEm: nowIso(), empresa: (c && c.nome) || '', tabelas };
+  },
+
+  // Substitui TODOS os dados da empresa pelos do arquivo de backup (tudo ou nada: se algo falhar, nada muda).
+  'backup:restaurar': async (db, { backup } = {}, req) => {
+    requirePapel(req, ['Administrador']);
+    if (!backup || backup.formato !== 'reboot-tech-backup' || !backup.tabelas || typeof backup.tabelas !== 'object') {
+      throw new Error('Arquivo inválido. Escolha um backup gerado pelo botão "Gerar Backup Agora".');
+    }
+    const meu = String((req.usuario && req.usuario.usuario) || '').toLowerCase();
+    const us = backup.tabelas.usuarios;
+    if (!us || !Array.isArray(us.linhas)) throw new Error('Este backup não contém a lista de usuários.');
+    const iU = us.colunas.indexOf('usuario'); const iA = us.colunas.indexOf('ativo');
+    if (!us.linhas.some((l) => String(l[iU] || '').toLowerCase() === meu && (iA < 0 || l[iA]))) {
+      throw new Error('Este backup não tem o seu usuário (' + meu + '). Restaurar assim bloquearia seu acesso, então foi cancelado.');
+    }
+    const existentes = await db.all(`SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite\\_%' ESCAPE '\\' AND name NOT LIKE 'libsql\\_%' ESCAPE '\\' AND name NOT LIKE 'rt\\_%' ESCAPE '\\' AND name NOT LIKE 'push\\_%' ESCAPE '\\'`);
+    const stmts = [{ sql: 'PRAGMA defer_foreign_keys = ON', args: [] }];
+    let linhasTotal = 0;
+    for (const { name } of existentes) {
+      const t = backup.tabelas[name];
+      if (!t || !Array.isArray(t.colunas) || !Array.isArray(t.linhas)) continue; // tabela que não está no arquivo fica como está
+      const cols = (await db.all(`PRAGMA table_info("${name}")`)).map((c) => c.name);
+      const usar = t.colunas.map((c, i) => ({ c, i })).filter((x) => cols.includes(x.c) && /^[A-Za-z0-9_]+$/.test(x.c));
+      stmts.push({ sql: `DELETE FROM "${name}"`, args: [] });
+      if (!usar.length) continue;
+      const sql = `INSERT INTO "${name}" (${usar.map((x) => `"${x.c}"`).join(',')}) VALUES (${usar.map(() => '?').join(',')})`;
+      for (const l of t.linhas) {
+        stmts.push({ sql, args: usar.map((x) => { const v = l[x.i]; return v && typeof v === 'object' && v.$b64 ? Buffer.from(v.$b64, 'base64') : (v === undefined ? null : v); }) });
+        linhasTotal++;
+      }
+    }
+    await db.client.batch(stmts, 'write');
+    try { await tenants.sincronizarLogins(tenants.clienteIdDe(req), db); } catch (e) { /* melhor esforço */ }
+    try { await log(db, req, 'restaurar', 'sistema', null, 'Backup restaurado (' + linhasTotal + ' registros)'); } catch (e) { /* ignora */ }
+    return { registros: linhasTotal };
+  },
+
   // ---------- MEU PLANO ----------
   // Datas cadastradas pelo dono no painel /admin (data contratada e vencimento) do cliente que está logado.
   'plano:get': async (db, _args, req) => {

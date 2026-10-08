@@ -261,7 +261,19 @@ import { criarApiImpressora } from './impressao-web.js';
       list: (limit) => invoke('logs:list', { limit }),
     },
     backup: {
-      manual: indisponivelNoNavegador('O backup do banco de dados é feito automaticamente pelo Turso (nuvem). Este botão só existe no programa instalado.'),
+      // Gera o arquivo de backup (.json) e baixa no aparelho.
+      manual: async () => {
+        const dados = await invoke('backup:exportar');
+        const data = new Date(Date.now() - 3 * 3600 * 1000).toISOString().slice(0, 16).replace('T', '_').replace(':', 'h');
+        const nome = `backup-reboot-tech_${data}.json`;
+        const url = URL.createObjectURL(new Blob([JSON.stringify(dados)], { type: 'application/json' }));
+        const a = document.createElement('a');
+        a.href = url; a.download = nome; document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 5000);
+        return { ok: true, web: true, nome };
+      },
+      // Restaura os dados a partir de um backup (substitui tudo).
+      restaurar: (backup) => invoke('backup:restaurar', { backup }),
     },
     // Meu Plano: datas cadastradas pelo dono no painel /admin.
     plano: { get: () => invoke('plano:get') },
