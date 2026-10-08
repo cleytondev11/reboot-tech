@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../context.jsx';
+import { SUPORTE_WHATSAPP } from '../utils.js';
 
 export default function Login() {
   const { setUser } = useApp();
@@ -7,6 +8,28 @@ export default function Login() {
   const [senha, setSenha] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [esqueci, setEsqueci] = useState(false); // painel "Esqueci minha senha" (só na versão web)
+  const [pedidoEnviado, setPedidoEnviado] = useState(false);
+  const [enviando, setEnviando] = useState(false);
+  const podeEsquecer = !!window.api?.auth?.esqueciSenha;
+
+  async function pedirNovaSenha() {
+    setError('');
+    if (!usuario.trim()) { setError('Digite o seu usuário (login) acima para pedir a nova senha.'); return; }
+    setEnviando(true);
+    try {
+      const r = await window.api.auth.esqueciSenha(usuario.trim());
+      if (r.ok) setPedidoEnviado(true);
+      else setError(r.error || 'Não foi possível enviar o pedido.');
+    } catch (err) {
+      setError(String(err.message || err));
+    } finally {
+      setEnviando(false);
+    }
+  }
+
+  const msgZap = encodeURIComponent('Olá! Esqueci a minha senha do Reboot Tech. Meu usuário (login) é: ' + usuario.trim());
+  const linkZap = 'https://wa.me/' + String(SUPORTE_WHATSAPP || '').replace(/\D/g, '') + '?text=' + msgZap;
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -46,6 +69,31 @@ export default function Login() {
           {loading ? 'Entrando...' : 'Entrar'}
         </button>
         {error && <div className="login-error">{error}</div>}
+
+        {podeEsquecer && !esqueci && (
+          <button type="button" className="btn-link" style={{ marginTop: 14, background: 'none', border: 'none', color: 'var(--primary, #d4af37)', cursor: 'pointer', textDecoration: 'underline', fontSize: 13.5 }} onClick={() => { setEsqueci(true); setPedidoEnviado(false); }}>
+            Esqueci minha senha
+          </button>
+        )}
+        {podeEsquecer && esqueci && (
+          <div style={{ marginTop: 16, padding: 14, border: '1px solid var(--border, #333)', borderRadius: 10, textAlign: 'left', fontSize: 13.5 }}>
+            {!pedidoEnviado ? (
+              <>
+                <p style={{ margin: '0 0 10px' }}>Digite o seu usuário (login) no campo acima e clique em <b>Pedir nova senha</b>. Vamos avisar o suporte para definir uma nova senha para você.</p>
+                <button type="button" className="btn btn-secondary" style={{ width: '100%', justifyContent: 'center' }} disabled={enviando} onClick={pedirNovaSenha}>
+                  {enviando ? 'Enviando...' : '🔑 Pedir nova senha'}
+                </button>
+              </>
+            ) : (
+              <>
+                <p style={{ margin: '0 0 10px' }}>✅ <b>Pedido enviado!</b> O suporte vai definir uma nova senha. Para ser mais rápido, chame também no WhatsApp:</p>
+                <a className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', textDecoration: 'none' }} href={linkZap} target="_blank" rel="noopener noreferrer">💬 Chamar no WhatsApp</a>
+              </>
+            )}
+            <p className="muted" style={{ margin: '10px 0 0', fontSize: 12 }}>Funcionário? Peça ao administrador da sua loja para trocar a sua senha em Usuários.</p>
+            <button type="button" style={{ marginTop: 6, background: 'none', border: 'none', color: 'inherit', opacity: 0.7, cursor: 'pointer', textDecoration: 'underline', fontSize: 12.5 }} onClick={() => setEsqueci(false)}>Fechar</button>
+          </div>
+        )}
       </form>
     </div>
   );

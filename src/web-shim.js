@@ -68,6 +68,15 @@ import { criarApiImpressora } from './impressao-web.js';
         }
         return corpo; // { ok, user } ou { ok:false, error }
       },
+      // "Esqueci minha senha" (só na versão web): avisa o dono, que define uma nova senha.
+      esqueciSenha: async (login) => {
+        const resposta = await fetch(`${API_URL}/api/auth/esqueci`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ login }),
+        });
+        return resposta.json().catch(() => ({ ok: false, error: 'Resposta inválida do servidor.' }));
+      },
       // Só existe na versão web: permite restaurar a sessão ao recarregar a página,
       // sem precisar fazer login de novo enquanto o token continuar válido.
       sessaoSalva: async () => {
