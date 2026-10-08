@@ -319,7 +319,7 @@ async function alternar(c) {
   try { await api('POST', '/clientes/' + c.id + '/ativo', { ativo: !c.ativo }); toast(c.ativo ? 'Acesso bloqueado.' : 'Acesso liberado.'); carregar(); } catch (e) { toast(e.message); }
 }
 async function excluir(c) {
-  if (!confirm('EXCLUIR o cadastro de "' + c.nome + '"?\n\nO cliente perde o acesso na hora e o banco de dados dele pode ser apagado. Isso não pode ser desfeito.')) return;
+  if (!confirm('EXCLUIR o cadastro de "' + c.nome + '"?\\n\\nO cliente perde o acesso na hora e o banco de dados dele pode ser apagado. Isso não pode ser desfeito.')) return;
   var conf = prompt('Para confirmar, digite EXCLUIR:'); if (conf === null) return;
   if (String(conf).trim().toUpperCase() !== 'EXCLUIR') { toast('Exclusão cancelada.'); return; }
   try { await api('POST', '/clientes/' + c.id + '/excluir', {}); toast('Cadastro de ' + c.nome + ' excluído.'); carregar(); } catch (e) { toast(e.message); }
