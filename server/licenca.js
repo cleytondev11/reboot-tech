@@ -31,8 +31,12 @@ const DIAS_DE_TOLERANCIA = 0;
 // A data "de hoje" é sempre a de Brasília, para o bloqueio virar à meia-noite daqui.
 const FUSO = 'America/Sao_Paulo';
 
+// DESATIVADA por padrão: o bloqueio por vencimento agora é feito pela Central de Acessos (/admin),
+// sem consultar o Supabase. Para voltar a usar a licença do Supabase, defina LICENCA_ATIVA=1 no Render.
+const LICENCA_ATIVA = String(process.env.LICENCA_ATIVA || '').trim() === '1';
+
 function estaConfigurado() {
-  return !!SUPABASE_URL && !!SUPABASE_ANON_KEY && !!LICENCA_CHAVE;
+  return LICENCA_ATIVA && !!SUPABASE_URL && !!SUPABASE_ANON_KEY && !!LICENCA_CHAVE;
 }
 
 function requisitar(select) {
@@ -155,6 +159,7 @@ function obterStatusCache() {
 }
 
 function iniciarVerificacaoPeriodica() {
+  if (!estaConfigurado()) return; // licença do Supabase desativada: não consulta nada
   verificar();
   setInterval(verificar, INTERVALO_VERIFICACAO_MS);
 }
