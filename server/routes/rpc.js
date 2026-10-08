@@ -17,7 +17,7 @@ router.post('/:canal', async (req, res) => {
     const cliente = await tenants.buscarCliente(tenants.clienteIdDe(req));
     if (!cliente) return res.status(401).json({ ok: false, error: 'Sessão inválida. Faça login novamente.' });
     if (!cliente.ativo) return res.status(403).json({ ok: false, error: 'O acesso desta empresa está bloqueado. Entre em contato com o suporte.' });
-    if (tenants.testeVencido(cliente)) return res.status(403).json({ ok: false, error: tenants.MSG_TESTE });
+    if (tenants.planoVencido(cliente)) return res.status(403).json({ ok: false, error: tenants.mensagemVencido(cliente) });
     const db = await tenants.bancoDoCliente(cliente);
     const resultado = await handler(db, req.body || {}, req);
     res.json({ ok: true, data: resultado === undefined ? null : resultado });

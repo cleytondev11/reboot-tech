@@ -81,12 +81,15 @@ async function buscarCliente(id) {
   return row;
 }
 
-// Teste grátis vencido? (vale até o fim do dia do vencimento). Só vale para contas marcadas como teste.
+// Plano vencido? Vale até o fim do dia do vencimento; no dia seguinte o acesso é bloqueado sozinho.
+// Vale para todos os clientes, menos o principal (o do dono) e quem não tem data cadastrada.
 const MSG_TESTE = 'Seu teste grátis terminou. Para continuar usando, faça a assinatura pelo site ou chame no WhatsApp (61) 99252-2517.';
-function testeVencido(cliente) {
-  if (!cliente || !cliente.teste || !cliente.data_vencimento) return false;
+const MSG_VENCIDO = 'O plano desta empresa venceu. Para voltar a usar, renove o plano: chame no WhatsApp (61) 99252-2517.';
+function planoVencido(cliente) {
+  if (!cliente || cliente.principal || !cliente.data_vencimento) return false;
   return String(cliente.data_vencimento) < hojeIso();
 }
+function mensagemVencido(cliente) { return cliente && cliente.teste ? MSG_TESTE : MSG_VENCIDO; }
 
 function invalidar(id) {
   if (id === undefined) cache.clear();
@@ -211,7 +214,7 @@ async function autenticar(usuario, senha) {
   const row = await db.get('SELECT * FROM usuarios WHERE usuario = ?', [login]);
   if (!row || !row.ativo || !bcrypt.compareSync(String(senha || ''), row.senha_hash)) return null;
   if (!cliente.ativo) throw erro('O acesso desta empresa está bloqueado. Entre em contato com o suporte.', 403);
-  if (testeVencido(cliente)) throw erro(MSG_TESTE, 403);
+  if (planoVencido(cliente)) throw erro(mensagemVencido(cliente), 403);
   if (autoCura) { try { await registrarLogin(login, cliente.id); } catch (e) { /* ignora */ } }
 
   const user = { id: row.id, nome: row.nome, usuario: row.usuario, papel: row.papel };
@@ -433,8 +436,8 @@ async function listarClientesAtivos() {
 
 module.exports = {
   ID_PRINCIPAL,
-  testeVencido,
-  MSG_TESTE,
+  planoVencido,
+  mensagemVencido,
   iniciarRegistro,
   buscarCliente,
   bancoDoCliente,

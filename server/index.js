@@ -39,6 +39,7 @@ app.get('/api/cron/avisos', async (req, res) => {
   if (!token) return res.status(404).json({ ok: false });
   if (req.query.token !== token) return res.status(401).json({ ok: false, error: 'Token inválido.' });
   const r = await push.verificarTodosOsClientes(listarBancos, { forcar: req.query.forcar === '1' });
+  push.verificarVencimentos(() => tenants.listarClientes()).catch(() => {});
   res.json({ ok: true, ...r });
 });
 
@@ -57,6 +58,12 @@ db.initSchema()
   .then(() => {
     licenca.iniciarVerificacaoPeriodica();
     push.iniciarAvisosFinanceiros(listarBancos);
+    // Aviso no celular do dono: cliente com 5 dias (ou menos) para vencer.
+    const avisarVencimentos = () => { push.verificarVencimentos(() => tenants.listarClientes()).catch(() => {}); };
+    const tv1 = setTimeout(avisarVencimentos, 90 * 1000);
+    const tv2 = setInterval(avisarVencimentos, 30 * 60 * 1000);
+    if (tv1.unref) tv1.unref();
+    if (tv2.unref) tv2.unref();
     app.listen(PORT, () => {
       console.log(`[Reboot Tech Server] rodando na porta ${PORT}`);
     });

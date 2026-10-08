@@ -434,9 +434,39 @@ async function avisarDono(titulo, corpo) {
   }
 }
 
+// Avisa o dono quando falta 5 dias (ou menos) para o vencimento de um cliente. Um aviso por vencimento.
+// Roda de tempos em tempos (como o servidor pode dormir no plano grátis, vale de 5 a 1 dia antes).
+async function verificarVencimentos(listarClientes) {
+  try {
+    const { iso: hoje, hora } = dataLocal(0);
+    if (hora < HORA_AVISO) return 0;
+    const clientes = await listarClientes();
+    let enviados = 0;
+    for (const c of clientes) {
+      if (c.principal || !c.ativo || !c.dataVencimento) continue;
+      const dias = Math.round((Date.parse(c.dataVencimento + 'T12:00:00Z') - Date.parse(hoje + 'T12:00:00Z')) / 86400000);
+      if (dias < 1 || dias > 5) continue;
+      const chave = `venc5-${c.id}-${c.dataVencimento}`;
+      if (await dbPrincipal.get('SELECT chave FROM push_avisos WHERE chave = ?', [chave])) continue;
+      await dbPrincipal.run('INSERT OR REPLACE INTO push_avisos (chave, criado_em) VALUES (?, ?)', [chave, new Date().toISOString()]);
+      const [a, m, d] = c.dataVencimento.split('-');
+      await avisarDono(
+        `⏰ ${c.nome}: vence em ${dias} dia${dias === 1 ? '' : 's'}`,
+        `${c.teste ? 'Teste grátis' : 'Plano'} vence em ${d}/${m}/${a}.${c.contatoTelefone ? '\nWhatsApp: ' + c.contatoTelefone : ''}\nO acesso é bloqueado depois dessa data.`
+      );
+      enviados++;
+    }
+    return enviados;
+  } catch (err) {
+    console.error('[Push] verificarVencimentos:', err && err.message);
+    return 0;
+  }
+}
+
 module.exports = {
   PREFS,
   avisarDono,
+  verificarVencimentos,
   chavePublica,
   enviarParaInscricao,
   avisarOsNova,
