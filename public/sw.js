@@ -8,7 +8,7 @@
 //
 // Suba o número da versão sempre que quiser forçar todo mundo a baixar os
 // arquivos novos na próxima abertura do app.
-const VERSAO_CACHE = 'reboot-tech-v24';
+const VERSAO_CACHE = 'reboot-tech-v25';
 
 self.addEventListener('install', (evento) => {
   self.skipWaiting();
@@ -81,14 +81,23 @@ self.addEventListener('push', (evento) => {
   try { dados = evento.data ? evento.data.json() : {}; } catch (e) { dados = { corpo: evento.data ? evento.data.text() : '' }; }
   const titulo = dados.titulo || 'Reboot Tech';
   evento.waitUntil(
-    self.registration.showNotification(titulo, {
+    (async () => {
+      // App aberto? Pede pra tocar o som do tipo de aviso (venda, OS pronta, entregue...).
+      if (dados.som) {
+        try {
+          const janelas = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+          janelas.forEach((j) => j.postMessage({ tipo: 'rt-som', som: dados.som }));
+        } catch (e) { /* ignora */ }
+      }
+      return self.registration.showNotification(titulo, {
       body: dados.corpo || '',
       icon: './icons/icon-192.png',
       badge: './icons/favicon-32.png',
       tag: dados.tag || undefined,
       renotify: !!dados.tag, // mudou de status de novo? avisa/vibra de novo em vez de trocar em silêncio
       data: { url: dados.url || './' },
-    })
+      });
+    })()
   );
 });
 

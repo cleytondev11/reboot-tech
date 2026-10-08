@@ -4,6 +4,7 @@ import './web-shim.js';
 import App from './App.jsx';
 import './styles.css';
 import { ativarMaiusculas } from './maiusculas.js';
+import './som.js';
 
 // Padrão do sistema: tudo que o usuário digita fica em letra maiúscula.
 ativarMaiusculas();

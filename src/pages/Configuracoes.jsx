@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useApp } from '../context.jsx';
 import { formatDateTime } from '../utils.js';
+import { somAtivo, definirSom, tocarSom } from '../som.js';
 
 const EMPTY_EMPRESA = {
   nome: '', nome_fantasia: '', logo: '', cnpj: '', ie: '', endereco: '', numero: '', bairro: '',
@@ -10,6 +11,7 @@ const EMPTY_EMPRESA = {
 export default function Configuracoes() {
   const { theme, toggleTheme, showToast, user } = useApp();
   const [tab, setTab] = useState('geral');
+  const [somLigado, setSomLigado] = useState(() => somAtivo());
   const [logs, setLogs] = useState([]);
   const [version, setVersion] = useState('');
   const [empresa, setEmpresa] = useState(EMPTY_EMPRESA);
@@ -189,6 +191,21 @@ export default function Configuracoes() {
       {tab === 'geral' && (
         <div>
           <div className="grid grid-2">
+            <div className="card">
+              <div className="section-title" style={{ marginTop: 0 }}>🔊 Sons de notificação</div>
+              <p className="muted" style={{ fontSize: 12.5 }}>Toca um som quando uma venda é feita, a meta do mês é batida, uma OS fica pronta ou é entregue (com o app aberto).</p>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '8px 0' }}>
+                <input type="checkbox" checked={somLigado} onChange={(e) => { setSomLigado(e.target.checked); definirSom(e.target.checked); if (e.target.checked) tocarSom('pronta'); }} />
+                Sons ligados
+              </label>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                <button className="btn btn-secondary" onClick={() => tocarSom('venda')}>💰 Venda</button>
+                <button className="btn btn-secondary" onClick={() => tocarSom('meta')}>🎯 Meta</button>
+                <button className="btn btn-secondary" onClick={() => tocarSom('pronta')}>✅ OS pronta</button>
+                <button className="btn btn-secondary" onClick={() => tocarSom('entregue')}>🏁 OS entregue</button>
+              </div>
+            </div>
+
             <div className="card">
               <div className="section-title" style={{ marginTop: 0 }}>Aparência</div>
               <p className="muted" style={{ fontSize: 12.5 }}>Alterne entre tema claro e escuro.</p>

@@ -308,6 +308,8 @@ export default function OrdensServico() {
       const res = await window.api.os.save(user, payload);
       showToast(`Ordem de Serviço ${res.numero || form.numero || ''} salva com sucesso.`);
       const virouPronto = payload.status === 'Pronto' && statusOriginal !== 'Pronto';
+      if (virouPronto && window.rtSom) window.rtSom('pronta');
+      else if (payload.status === 'Entregue' && statusOriginal !== 'Entregue' && window.rtSom) window.rtSom('entregue');
       if (virouPronto) {
         const cli = clientes.find((c) => String(c.id) === String(form.cliente_id));
         const eq = equipCliente.find((e) => String(e.id) === String(form.equipamento_id));

@@ -31,7 +31,7 @@ export default function Notificacoes({ plano, goTo }) {
       if (alvo > 0 && (meta.statusRitmo === 'atingida' || Number(meta.percentualAlcancado) >= 100)) {
         itens.push({ id: `meta-${mes}`, icon: '🎯', titulo: 'Meta do mês batida!', texto: `Lucro de ${formatCurrency(meta.lucroRealizado)} para a meta de ${formatCurrency(alvo)}. Parabéns! 🎉`, destino: 'dashboard' });
         const k = `rt-meta-ok-${user?.id || 0}-${mes}`;
-        if (!lerLS(k)) { gravarLS(k, '1'); showToast('🎉 Parabéns! Você bateu a meta de lucro do mês!'); avisoNativo('🎯 Meta do mês batida!', `Lucro de ${formatCurrency(meta.lucroRealizado)} para a meta de ${formatCurrency(alvo)}. Parabéns!`); }
+        if (!lerLS(k)) { gravarLS(k, '1'); if (window.rtSom) window.rtSom('meta'); showToast('🎉 Parabéns! Você bateu a meta de lucro do mês!'); avisoNativo('🎯 Meta do mês batida!', `Lucro de ${formatCurrency(meta.lucroRealizado)} para a meta de ${formatCurrency(alvo)}. Parabéns!`); }
       }
     } catch { /* sem meta */ }
     try {

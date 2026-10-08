@@ -222,6 +222,7 @@ async function avisarOsStatus(db, osId, statusAnterior, statusNovo) {
       corpo: corpoOs(d),
       url: './',
       tag: `os-${osId}`,
+      som: statusNovo === 'Pronto' ? 'pronta' : (statusNovo === 'Entregue' ? 'entregue' : undefined),
     });
   } catch (err) { console.error('[Push] avisarOsStatus:', err && err.message); }
 }
@@ -286,6 +287,7 @@ async function avisarVenda(db, vendaId) {
       corpo: [...linhas, rodape].join('\n'),
       url: './',
       tag: `venda-${vendaId}`,
+      som: 'venda',
     });
   } catch (err) { console.error('[Push] avisarVenda:', err && err.message); }
 }

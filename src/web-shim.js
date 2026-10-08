@@ -43,7 +43,20 @@ import { criarApiImpressora } from './impressao-web.js';
     let corpo;
     try { corpo = await resposta.json(); } catch (e) { throw new Error(`Resposta inválida do servidor (HTTP ${resposta.status}).`); }
     if (!corpo.ok) throw new Error(corpo.error || 'Erro desconhecido no servidor.');
+    sonsDaAcao(canal, payload);
     return corpo.data;
+  }
+
+  // Som de confirmação quando a ação dá certo (venda nova, OS pronta, OS entregue).
+  function sonsDaAcao(canal, p) {
+    try {
+      if (!window.rtSom) return;
+      if (canal === 'vendas:save' && p && p.venda && !p.venda.id) window.rtSom('venda');
+      else if (canal === 'os:setStatus' && p) {
+        if (p.status === 'Pronto') window.rtSom('pronta');
+        else if (p.status === 'Entregue') window.rtSom('entregue');
+      }
+    } catch { /* ignora */ }
   }
 
   // Recursos que dependem do computador local (arquivos, USB, impressora) não têm
