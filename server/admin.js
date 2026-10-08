@@ -7,6 +7,7 @@ const crypto = require('crypto');
 const express = require('express');
 const tenants = require('./tenants');
 const turso = require('./turso');
+const push = require('./push');
 
 const router = express.Router();
 router.use(express.json());
@@ -67,6 +68,12 @@ router.post('/clientes/:id/plano', rota(async (req) => ({
 router.post('/clientes/:id/renovar', rota(async (req) => ({ plano: await tenants.renovarPlano(Number(req.params.id), Math.min(366, Math.max(1, parseInt((req.body || {}).dias, 10) || 30))) })));
 
 router.post('/clientes/:id/excluir', rota(async (req) => ({ excluido: await tenants.excluirCliente(Number(req.params.id)) })));
+
+// Notificações no celular do dono (aparelhos inscritos pela própria Central).
+router.get('/push/chave', rota(async () => ({ chave: await push.chavePublica() })));
+router.post('/push/inscrever', rota(async (req) => { await push.inscreverAdmin((req.body || {}).subscription); return {}; }));
+router.post('/push/remover', rota(async (req) => { await push.removerAdmin((req.body || {}).endpoint); return {}; }));
+router.post('/push/testar', rota(async () => ({ aparelhos: await push.avisarDono('🔔 Teste da Central de Acessos', 'As notificações estão funcionando neste aparelho.') })));
 
 router.post('/clientes/:id/sincronizar', rota(async (req) => ({ sincronizado: await tenants.sincronizarCliente(Number(req.params.id)) })));
 
@@ -131,6 +138,7 @@ const PAGINA = `<!doctype html>
   <div class="topo">
     <h1>🛡️ Central de Acessos</h1>
     <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <button class="btn" id="btNotif">🔔 Ativar notificações</button>
       <button class="btn" id="btImportar">Importar banco</button>
       <button class="btn pri" id="btNovo">+ Novo assinante</button>
       <button class="btn" id="btSair">Sair</button>
@@ -360,6 +368,41 @@ async function entrar() {
   catch (e) { sessionStorage.removeItem('adm'); sessionStorage.removeItem('admU'); msg('msgLogin', 'erro', e.message); } finally { $('entrar').disabled = false; }
 }
 $('entrar').onclick = entrar; $('senhaAdmin').onkeydown = function (e) { if (e.key === 'Enter') entrar(); }; $('usuAdmin').onkeydown = function (e) { if (e.key === 'Enter') $('senhaAdmin').focus(); };
+
+// ---- Notificações no celular (Web Push) ----
+var swReg = null;
+function b64ParaBytes(s) { var p = '='.repeat((4 - s.length % 4) % 4); var b = (s + p).replace(/-/g, '+').replace(/_/g, '/'); var raw = atob(b); var o = new Uint8Array(raw.length); for (var i = 0; i < raw.length; i++) o[i] = raw.charCodeAt(i); return o; }
+async function estadoNotif() {
+  var b = $('btNotif');
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) { b.textContent = '🔔 Sem suporte neste navegador'; b.disabled = true; return; }
+  try {
+    swReg = swReg || await navigator.serviceWorker.register('/admin-sw.js');
+    var sub = await swReg.pushManager.getSubscription();
+    b.textContent = sub ? '🔕 Desativar notificações' : '🔔 Ativar notificações';
+    b.dataset.ativo = sub ? '1' : '';
+  } catch (e) { b.textContent = '🔔 Ativar notificações'; }
+}
+async function alternarNotif() {
+  var b = $('btNotif'); b.disabled = true;
+  try {
+    swReg = swReg || await navigator.serviceWorker.register('/admin-sw.js');
+    var sub = await swReg.pushManager.getSubscription();
+    if (sub) {
+      await api('POST', '/push/remover', { endpoint: sub.endpoint }); await sub.unsubscribe(); toast('Notificações desativadas neste aparelho.');
+    } else {
+      var perm = await Notification.requestPermission();
+      if (perm !== 'granted') { toast('Permita as notificações no navegador para ativar.'); return; }
+      var chave = (await api('GET', '/push/chave')).chave;
+      sub = await swReg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ParaBytes(chave) });
+      await api('POST', '/push/inscrever', { subscription: sub.toJSON() });
+      var r = await api('POST', '/push/testar', {});
+      toast('Notificações ativadas! Enviei um aviso de teste.');
+    }
+  } catch (e) { toast('Não foi possível: ' + e.message); } finally { b.disabled = false; estadoNotif(); }
+}
+$('btNotif').onclick = alternarNotif;
+estadoNotif();
+
 $('btSair').onclick = function () { sessionStorage.removeItem('adm'); sessionStorage.removeItem('admU'); location.reload(); };
 
 function iniciarDatas() { $('nContratada').value = hojeIso(); $('nVenc').value = somarDias(hojeIso(), 30); }
@@ -389,8 +432,26 @@ if (senha) carregar().catch(function () { sessionStorage.removeItem('adm'); sess
 </script></main></body></html>
 `;
 
+// Service worker da Central (recebe as notificações no celular do dono).
+function swAdmin(req, res) {
+  res.set('Content-Type', 'application/javascript; charset=utf-8');
+  res.set('Cache-Control', 'no-cache');
+  res.send([
+    "self.addEventListener('install', function () { self.skipWaiting(); });",
+    "self.addEventListener('activate', function (e) { e.waitUntil(self.clients.claim()); });",
+    "self.addEventListener('push', function (e) {",
+    "  var d = {}; try { d = e.data ? e.data.json() : {}; } catch (x) {}",
+    "  e.waitUntil(self.registration.showNotification(d.titulo || 'Reboot Tech', { body: d.corpo || '', tag: d.tag, data: { url: d.url || '/admin' } }));",
+    "});",
+    "self.addEventListener('notificationclick', function (e) {",
+    "  e.notification.close();",
+    "  e.waitUntil(self.clients.openWindow((e.notification.data && e.notification.data.url) || '/admin'));",
+    "});",
+  ].join('\n'));
+}
+
 function pagina(req, res) {
   res.set('Cache-Control', 'no-store').type('html').send(PAGINA);
 }
 
-module.exports = { router, pagina };
+module.exports = { router, pagina, swAdmin };

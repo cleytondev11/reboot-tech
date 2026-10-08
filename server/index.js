@@ -45,6 +45,7 @@ app.get('/api/cron/avisos', async (req, res) => {
 
 // Painel do dono para cadastrar clientes (só funciona com ADMIN_SENHA definida).
 app.get('/admin', admin.pagina);
+app.get('/admin-sw.js', admin.swAdmin);
 app.use('/api/admin', admin.router);
 
 app.use('/api/cadastro', require('./cadastro'));

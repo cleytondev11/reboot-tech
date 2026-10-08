@@ -418,16 +418,57 @@ function iniciarAvisosFinanceiros(listarBancos) {
   if (t2.unref) t2.unref();
 }
 
-// Avisa o DONO (administradores do banco principal que ativaram as notificações no celular)
-// quando alguém cria uma conta de teste pelo site. Nunca lança erro.
+// ---- Aparelhos do DONO inscritos pela Central de Acessos (/admin) ----
+async function garantirTabelaAdmin() {
+  await dbPrincipal.run(`CREATE TABLE IF NOT EXISTS push_admin (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    endpoint TEXT NOT NULL UNIQUE,
+    p256dh TEXT NOT NULL,
+    auth TEXT NOT NULL,
+    criado_em TEXT
+  )`);
+}
+async function inscreverAdmin(sub) {
+  if (!sub || !sub.endpoint || !sub.keys || !sub.keys.p256dh || !sub.keys.auth) throw Object.assign(new Error('Inscrição inválida.'), { status: 400 });
+  await garantirTabelaAdmin();
+  await dbPrincipal.run(
+    `INSERT INTO push_admin (endpoint, p256dh, auth, criado_em) VALUES (?,?,?,?)
+     ON CONFLICT(endpoint) DO UPDATE SET p256dh = excluded.p256dh, auth = excluded.auth`,
+    [sub.endpoint, sub.keys.p256dh, sub.keys.auth, new Date().toISOString()]
+  );
+}
+async function removerAdmin(endpoint) {
+  await garantirTabelaAdmin();
+  await dbPrincipal.run('DELETE FROM push_admin WHERE endpoint = ?', [String(endpoint || '')]);
+}
+
+// Avisa o DONO: aparelhos inscritos na Central de Acessos + administradores do banco principal
+// que ativaram as notificações no app. Nunca lança erro. Retorna quantos aparelhos receberam.
 async function avisarDono(titulo, corpo) {
   try {
     await inicializar();
-    const subs = await dbPrincipal.all(
-      `SELECT s.* FROM push_subscricoes s JOIN usuarios u ON u.id = s.usuario_id WHERE u.papel = 'Administrador'`
-    );
-    await Promise.allSettled(subs.map((s) => enviarParaInscricao(dbPrincipal, s, { titulo, corpo, url: './', tag: 'novo-teste-' + Date.now() })));
-    return subs.length;
+    await garantirTabelaAdmin();
+    const payload = { titulo, corpo, url: './', tag: 'dono-' + Date.now() };
+    let ok = 0;
+    const adm = await dbPrincipal.all('SELECT * FROM push_admin');
+    await Promise.allSettled(adm.map(async (s) => {
+      try {
+        await webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, JSON.stringify({ ...payload, url: '/admin' }), { TTL: 60 * 60 * 24 });
+        ok++;
+      } catch (err) {
+        if (err && (err.statusCode === 404 || err.statusCode === 410)) await dbPrincipal.run('DELETE FROM push_admin WHERE id = ?', [s.id]).catch(() => {});
+        else console.error('[Push] admin:', err && (err.statusCode || err.message));
+      }
+    }));
+    let subs = [];
+    try {
+      subs = await dbPrincipal.all(`SELECT s.* FROM push_subscricoes s JOIN usuarios u ON u.id = s.usuario_id WHERE u.papel = 'Administrador'`);
+    } catch (e) { /* sem usuários no principal */ }
+    const vistos = new Set(adm.map((a) => a.endpoint));
+    const outros = subs.filter((s) => !vistos.has(s.endpoint));
+    const r = await Promise.all(outros.map((s) => enviarParaInscricao(dbPrincipal, s, payload)));
+    ok += r.filter(Boolean).length;
+    return ok;
   } catch (err) {
     console.error('[Push] avisarDono:', err && err.message);
     return 0;
@@ -466,6 +507,8 @@ async function verificarVencimentos(listarClientes) {
 module.exports = {
   PREFS,
   avisarDono,
+  inscreverAdmin,
+  removerAdmin,
   verificarVencimentos,
   chavePublica,
   enviarParaInscricao,
