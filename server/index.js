@@ -46,6 +46,7 @@ app.get('/api/cron/avisos', async (req, res) => {
 app.get('/admin', admin.pagina);
 app.use('/api/admin', admin.router);
 
+app.use('/api/cadastro', require('./cadastro'));
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/rpc', require('./routes/rpc'));
 

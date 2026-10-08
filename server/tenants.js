@@ -52,7 +52,7 @@ async function iniciarRegistro() {
     cliente_id INTEGER NOT NULL
   )`);
   // Plano do cliente (Meu Plano): data contratada e data de vencimento (30 dias). Preenchidas no /admin.
-  for (const col of ['data_contratada', 'data_vencimento', 'valor_mensal', 'contato_nome', 'contato_telefone']) {
+  for (const col of ['data_contratada', 'data_vencimento', 'valor_mensal', 'contato_nome', 'contato_telefone', 'contato_email']) {
     try { await dbPrincipal.run(`ALTER TABLE rt_clientes ADD COLUMN ${col} ${col === 'valor_mensal' ? 'REAL' : 'TEXT'}`); } catch (e) { /* coluna já existe */ }
   }
   let nome = 'Banco principal';
@@ -231,7 +231,7 @@ async function removerRegistro(id) {
 
 // Cria um cliente novo: banco novo (automático no Turso, ou o endereço informado)
 // + o usuário administrador com o login e a senha informados.
-async function criarCliente({ nome, login, senha, nomeUsuario, dbUrl, dbToken, dataContratada, dataVencimento, valorMensal, contatoNome, contatoTelefone }) {
+async function criarCliente({ nome, login, senha, nomeUsuario, dbUrl, dbToken, dataContratada, dataVencimento, valorMensal, contatoNome, contatoTelefone, contatoEmail }) {
   nome = String(nome || '').trim();
   login = String(login || '').trim();
   senha = String(senha || '');
@@ -258,8 +258,8 @@ async function criarCliente({ nome, login, senha, nomeUsuario, dbUrl, dbToken, d
   let id = null;
   try {
     id = await dbPrincipal.insert(
-      `INSERT INTO rt_clientes (nome, db_url, db_token, db_nome, ativo, principal, criado_em, data_contratada, data_vencimento, valor_mensal, contato_nome, contato_telefone) VALUES (?,?,?,?,1,0,?,?,?,?,?,?)`,
-      [nome, info.url, info.token, info.nome, agoraIso(), plano.dataContratada, plano.dataVencimento, numeroOuNulo(valorMensal), textoOuNulo(contatoNome), textoOuNulo(contatoTelefone)]
+      `INSERT INTO rt_clientes (nome, db_url, db_token, db_nome, ativo, principal, criado_em, data_contratada, data_vencimento, valor_mensal, contato_nome, contato_telefone, contato_email) VALUES (?,?,?,?,1,0,?,?,?,?,?,?,?)`,
+      [nome, info.url, info.token, info.nome, agoraIso(), plano.dataContratada, plano.dataVencimento, numeroOuNulo(valorMensal), textoOuNulo(contatoNome), textoOuNulo(contatoTelefone), textoOuNulo(contatoEmail)]
     );
     const cliente = await buscarCliente(id);
     const db = await bancoDoCliente(cliente);
@@ -390,7 +390,7 @@ async function atualizarCliente(id, { nome, valorMensal, contatoNome, contatoTel
 
 async function listarClientes() {
   const linhas = await dbPrincipal.all(
-    `SELECT c.id, c.nome, c.ativo, c.principal, c.db_nome, c.db_url, c.criado_em, c.data_contratada, c.data_vencimento, c.valor_mensal, c.contato_nome, c.contato_telefone,
+    `SELECT c.id, c.nome, c.ativo, c.principal, c.db_nome, c.db_url, c.criado_em, c.data_contratada, c.data_vencimento, c.valor_mensal, c.contato_nome, c.contato_telefone, c.contato_email,
             (SELECT login FROM rt_logins l2 WHERE l2.cliente_id = c.id ORDER BY l2.rowid LIMIT 1) AS login,
             (SELECT COUNT(*) FROM rt_logins l WHERE l.cliente_id = c.id) AS usuarios
      FROM rt_clientes c ORDER BY c.id`
@@ -398,7 +398,7 @@ async function listarClientes() {
   return linhas.map((c) => ({
     id: c.id, nome: c.nome, ativo: !!c.ativo, principal: !!c.principal, criado_em: c.criado_em,
     dataContratada: c.data_contratada || '', dataVencimento: c.data_vencimento || '',
-    valorMensal: c.valor_mensal == null ? null : Number(c.valor_mensal), contatoNome: c.contato_nome || '', contatoTelefone: c.contato_telefone || '', login: c.login || '',
+    valorMensal: c.valor_mensal == null ? null : Number(c.valor_mensal), contatoNome: c.contato_nome || '', contatoTelefone: c.contato_telefone || '', contatoEmail: c.contato_email || '', login: c.login || '',
     usuarios: c.usuarios, banco: c.principal ? 'banco principal' : (c.db_nome || hostDe(c.db_url)),
   }));
 }
