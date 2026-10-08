@@ -212,6 +212,7 @@ function situacao(c) {
   if (!c.ativo) return { chave: 'bloqueada', texto: 'Bloqueada', dias: null };
   if (!c.dataVencimento) return { chave: 'ativa', texto: 'Ativa', dias: null };
   var d = diasAte(c.dataVencimento);
+  if (c.teste) return d < 0 ? { chave: 'bloqueada', texto: 'Teste encerrado', dias: d } : { chave: 'avencer', texto: 'Teste grátis', dias: d };
   if (d < 0) return { chave: 'vencida', texto: 'Vencida', dias: d };
   if (d <= 5) return { chave: 'avencer', texto: 'A vencer', dias: d };
   return { chave: 'ativa', texto: 'Ativa', dias: d };

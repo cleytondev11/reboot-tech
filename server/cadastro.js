@@ -48,7 +48,7 @@ router.post('/', async (req, res) => {
     const hoje = hojeBr();
     await tenants.criarCliente({
       nome: loja, login, senha, nomeUsuario: nome,
-      contatoNome: nome, contatoTelefone: zap, contatoEmail: email,
+      contatoNome: nome, contatoTelefone: zap, contatoEmail: email, teste: true,
       dataContratada: hoje, dataVencimento: somarDias(hoje, TESTE_DIAS),
     });
     // avisa o dono no celular (não atrasa nem derruba o cadastro se falhar)
