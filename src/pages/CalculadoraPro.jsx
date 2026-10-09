@@ -217,7 +217,7 @@ export default function CalculadoraPro() {
           </div>
 
           <h3 style={{ marginTop: 22 }}>Tabela fixa de preços</h3>
-          <div className="table-wrap" style={{ maxHeight: 420 }}>
+          <div className="table-wrap sem-fixo" style={{ maxHeight: 420 }}>
             <table>
               <thead><tr><th>Modelo</th>{SERVICOS_TABELA.map(([k, n]) => <th key={k}>{n}</th>)}<th /></tr></thead>
               <tbody>
@@ -267,7 +267,7 @@ export default function CalculadoraPro() {
             {!(V > 0) ? (
               <div className="card" style={{ color: 'var(--text-dim)' }}>Digite um valor para simular as parcelas.</div>
             ) : (
-              <div className="table-wrap">
+              <div className="table-wrap sem-fixo">
                 <table>
                   <thead><tr>
                     <th>Forma</th><th>Taxa</th><th>Cliente paga</th><th>Parcela</th>
