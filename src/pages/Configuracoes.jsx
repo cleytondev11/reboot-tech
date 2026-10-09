@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useApp } from '../context.jsx';
 import { formatDateTime } from '../utils.js';
 import { somAtivo, definirSom, tocarSom } from '../som.js';
+import { zoomPref, definirZoom } from '../zoom.js';
 
 const EMPTY_EMPRESA = {
   nome: '', nome_fantasia: '', logo: '', cnpj: '', ie: '', endereco: '', numero: '', bairro: '',
@@ -12,6 +13,7 @@ export default function Configuracoes() {
   const { theme, toggleTheme, showToast, user } = useApp();
   const [tab, setTab] = useState('geral');
   const [somLigado, setSomLigado] = useState(() => somAtivo());
+  const [zoomSel, setZoomSel] = useState(() => zoomPref());
   const [logs, setLogs] = useState([]);
   const [version, setVersion] = useState('');
   const [empresa, setEmpresa] = useState(EMPTY_EMPRESA);
@@ -191,6 +193,20 @@ export default function Configuracoes() {
       {tab === 'geral' && (
         <div>
           <div className="grid grid-2">
+            <div className="card">
+              <div className="section-title" style={{ marginTop: 0 }}>🔍 Zoom da tela</div>
+              <p className="muted" style={{ fontSize: 12.5 }}>No modo automático o sistema se ajusta ao tamanho da sua tela, para não esconder menus e botões do lado direito. Se preferir, escolha um tamanho fixo.</p>
+              <select value={zoomSel} onChange={(e) => { setZoomSel(e.target.value); definirZoom(e.target.value); }}>
+                <option value="auto">Automático (recomendado)</option>
+                <option value="0.7">70%</option>
+                <option value="0.8">80%</option>
+                <option value="0.9">90%</option>
+                <option value="1">100%</option>
+                <option value="1.1">110%</option>
+                <option value="1.2">120%</option>
+              </select>
+            </div>
+
             <div className="card">
               <div className="section-title" style={{ marginTop: 0 }}>🔊 Sons de notificação</div>
               <p className="muted" style={{ fontSize: 12.5 }}>Toca um som quando uma venda é feita, a meta do mês é batida, uma OS fica pronta ou é entregue (com o app aberto).</p>

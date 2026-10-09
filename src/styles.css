@@ -65,8 +65,8 @@ button {
 .app-shell {
   display: grid;
   grid-template-columns: 250px minmax(0, 1fr);
-  height: 100vh;
-  height: 100dvh;
+  height: calc(100vh / var(--z, 1));
+  height: calc(100dvh / var(--z, 1));
   overflow: hidden;
 }
 
@@ -621,3 +621,7 @@ tbody tr:last-child td { border-bottom: none; }
 .dash-atalhos { display: flex; flex-wrap: wrap; gap: 10px; }
 .dash-hero { margin-bottom: 16px; }
 @media (max-width: 700px) { .dash-atalhos { display: grid; } }
+
+/* Coluna de ações (última) sempre visível ao rolar a tabela para o lado */
+.table-wrap table th:last-child,
+.table-wrap table td:last-child { position: sticky; right: 0; z-index: 1; background: var(--bg-elev); box-shadow: -10px 0 10px -10px rgba(0,0,0,.45); }
