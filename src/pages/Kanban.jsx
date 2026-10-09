@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from '../context.jsx';
 import { formatCurrency, formatDiaCurto, diasAte, toInputDate, FORMAS_PAGAMENTO_COM_PRAZO, FORMA_A_PRAZO, ROTULO_A_PRAZO } from '../utils.js';
 import PrazoCampos, { valorEntrada } from '../components/PrazoCampos.jsx';
-import AvisoProntoModal from '../components/AvisoProntoModal.jsx';
+import AvisoProntoModal, { perguntarAvisoStatus } from '../components/AvisoProntoModal.jsx';
 
 // Bancada (Kanban): arraste a OS entre as colunas (ou toque em → / ⋮ no celular).
 // Cada movimento troca o status da OS e o sistema faz a parte financeira sozinho:
@@ -136,9 +136,9 @@ export default function Kanban() {
     try {
       const res = await window.api.os.setStatus(user, os.id, status, pg || null);
       showToast(mensagemFinanceira(os, status, res, pg || {}));
-      if (status === 'Pronto' && os.status !== 'Pronto') {
+      if (status !== os.status && perguntarAvisoStatus()) {
         setAviso({
-          id: os.id, numero: os.numero, cliente_nome: os.cliente_nome,
+          id: os.id, numero: os.numero, cliente_nome: os.cliente_nome, status,
           whatsapp: os.cliente_whatsapp, telefone: os.cliente_telefone,
           equipamento: [os.equip_marca, os.equip_modelo].filter(Boolean).join(' '),
           valor_total: os.valor_total,

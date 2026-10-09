@@ -15,6 +15,7 @@ const { requirePapel } = require('./auth');
 
 const push = require('./push');
 const tenants = require('./tenants');
+const acompanhar = require('./acompanhar');
 
 function nowIso() {
   return new Date().toISOString();
@@ -602,6 +603,11 @@ async function calcularComissoes(db, { inicio, fim, usuario_id } = {}) {
   return { itens, funcionarios: Object.values(porFunc).sort((a, b) => b.total - a.total) };
 }
 
+function comLinkAcomp(req, os) {
+  if (!os || !req) return os;
+  try { return { ...os, link_acompanhamento: acompanhar.linkDaOs(req, os.id) }; } catch (e) { return os; }
+}
+
 const handlers = {
   // ---------- USUÁRIOS ----------
   'usuarios:list': async (db) => db.all('SELECT id, nome, usuario, papel, ativo, criado_em FROM usuarios ORDER BY nome'),
@@ -925,7 +931,7 @@ const handlers = {
 
   // ---------- DADOS COMPOSTOS (usados pelo app desktop pra gerar PDF/impressão
   // com dados atualizados quando está em Modo Nuvem) ----------
-  'dados:osCompleta': async (db, { id }) => db.get(
+  'dados:osCompleta': async (db, { id }, req) => comLinkAcomp(req, await db.get(
     `SELECT os.*, c.nome as cliente_nome, c.telefone as cliente_telefone, c.whatsapp as cliente_whatsapp, c.cpf_cnpj as cliente_cpf_cnpj,
             eq.marca as equip_marca, eq.modelo as equip_modelo, eq.imei as equip_imei, eq.fotos as equip_fotos, u.nome as tecnico_nome
      FROM ordens_servico os
@@ -934,7 +940,14 @@ const handlers = {
      LEFT JOIN usuarios u ON u.id = os.tecnico_id
      WHERE os.id = ?`,
     [id]
-  ),
+  )),
+
+  // Link público para o cliente acompanhar a OS (vai no QR code impresso e na mensagem de WhatsApp).
+  'os:linkAcomp': async (db, { id }, req) => {
+    const os = await db.get('SELECT id FROM ordens_servico WHERE id = ?', [id]);
+    if (!os) throw new Error('Ordem de serviço não encontrada.');
+    return { url: acompanhar.linkDaOs(req, os.id) };
+  },
 
   'dados:orcamentoCompleta': async (db, { id }) => db.get(
     `SELECT o.*, c.nome as cliente_nome, c.telefone as cliente_telefone, c.whatsapp as cliente_whatsapp, c.email as cliente_email,

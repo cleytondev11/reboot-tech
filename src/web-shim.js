@@ -133,6 +133,7 @@ import { criarApiImpressora } from './impressao-web.js';
       save: (atual, os) => invoke('os:save', { os }),
       setStatus: (atual, id, status, pagamento) => invoke('os:setStatus', { id, status, pagamento }),
       delete: (atual, id) => invoke('os:delete', { id }),
+      linkAcompanhamento: (id) => invoke('os:linkAcomp', { id }),
     },
     fornecedores: {
       list: (termo) => invoke('fornecedores:list', { termo }),

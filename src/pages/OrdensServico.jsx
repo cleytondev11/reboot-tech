@@ -4,7 +4,7 @@ import { formatCurrency, formatDateTime, toInputDate, todayInputValue, statusCla
 import SignaturePad from '../components/SignaturePad.jsx';
 import PatternLock from '../components/PatternLock.jsx';
 import ImprimirMenu from '../components/ImprimirMenu.jsx';
-import AvisoProntoModal, { foiAvisada } from '../components/AvisoProntoModal.jsx';
+import AvisoProntoModal, { foiAvisada, perguntarAvisoStatus } from '../components/AvisoProntoModal.jsx';
 import PrazoCampos, { valorEntrada } from '../components/PrazoCampos.jsx';
 
 const EMPTY_CLIENTE_RAPIDO = { tipo: 'PF', nome: '', cpf_cnpj: '', telefone: '', whatsapp: '' };
@@ -275,7 +275,7 @@ export default function OrdensServico() {
   // Monta os dados do aviso a partir de uma linha da lista
   function dadosAvisoDaLinha(row) {
     return {
-      id: row.id, numero: row.numero, cliente_nome: row.cliente_nome,
+      id: row.id, numero: row.numero, cliente_nome: row.cliente_nome, status: row.status,
       whatsapp: row.cliente_whatsapp, telefone: row.cliente_telefone,
       equipamento: [row.equip_marca, row.equip_modelo].filter(Boolean).join(' '),
       valor_total: row.valor_total,
@@ -310,11 +310,12 @@ export default function OrdensServico() {
       const virouPronto = payload.status === 'Pronto' && statusOriginal !== 'Pronto';
       if (virouPronto && window.rtSom) window.rtSom('pronta');
       else if (payload.status === 'Entregue' && statusOriginal !== 'Entregue' && window.rtSom) window.rtSom('entregue');
-      if (virouPronto) {
+      const mudouStatus = !form.id || payload.status !== statusOriginal;
+      if (mudouStatus && perguntarAvisoStatus()) {
         const cli = clientes.find((c) => String(c.id) === String(form.cliente_id));
         const eq = equipCliente.find((e) => String(e.id) === String(form.equipamento_id));
         abrirAviso({
-          id: res.id || form.id, numero: res.numero || form.numero, cliente_nome: cli?.nome,
+          id: res.id || form.id, numero: res.numero || form.numero, cliente_nome: cli?.nome, status: payload.status,
           whatsapp: cli?.whatsapp, telefone: cli?.telefone,
           equipamento: eq ? [eq.marca, eq.modelo].filter(Boolean).join(' ') : '',
           valor_total: total,
@@ -330,7 +331,7 @@ export default function OrdensServico() {
   async function quickStatus(row, status) {
     try {
       await window.api.os.setStatus(user, row.id, status);
-      if (status === 'Pronto' && row.status !== 'Pronto') abrirAviso(dadosAvisoDaLinha(row));
+      if (status !== row.status && perguntarAvisoStatus()) abrirAviso({ ...dadosAvisoDaLinha(row), status });
       load();
     } catch (err) {
       showToast(String(err.message || err), 'error');
@@ -448,9 +449,7 @@ export default function OrdensServico() {
                   <button className="icon-btn" title="Exportar PDF" onClick={() => exportarPdfListagem(o)}>📄</button>
                   <ImprimirMenu formatoPadrao={formatoImpressao} title="Imprimir Recibo" onImprimir={(fmt) => imprimirCupom(o.id, fmt)} />
                   <button className="icon-btn" title="Compartilhar no WhatsApp" onClick={() => compartilharWhatsapp(o)}>📲</button>
-                  {o.status === 'Pronto' && (
-                    <button className="icon-btn" title={foiAvisada(o.id) ? 'Cliente já avisado — avisar de novo' : 'Avisar cliente que a OS está pronta'} onClick={() => abrirAviso(dadosAvisoDaLinha(o))}>{foiAvisada(o.id) ? '✅' : '🔔'}</button>
-                  )}
+                  <button className="icon-btn" title={foiAvisada(o.id) ? 'Cliente já avisado — avisar de novo' : `Avisar o cliente pelo WhatsApp (${o.status})`} onClick={() => abrirAviso(dadosAvisoDaLinha(o))}>{foiAvisada(o.id) ? '✅' : '🔔'}</button>
                   {o.status === 'Entregue' && <button className="icon-btn" title="Termo de Garantia" onClick={() => exportarGarantiaPdf(o.id)}>🛡️</button>}
                   {user.papel === 'Administrador' && <button className="icon-btn" title="Excluir" onClick={() => excluir(o)}>🗑️</button>}
                 </td>

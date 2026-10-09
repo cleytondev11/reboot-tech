@@ -3,6 +3,7 @@ import { useApp } from '../context.jsx';
 import { formatDateTime } from '../utils.js';
 import { somAtivo, definirSom, tocarSom } from '../som.js';
 import { zoomPref, definirZoom } from '../zoom.js';
+import { perguntarAvisoStatus, definirPerguntarAvisoStatus } from '../components/AvisoProntoModal.jsx';
 
 const EMPTY_EMPRESA = {
   nome: '', nome_fantasia: '', logo: '', cnpj: '', ie: '', endereco: '', numero: '', bairro: '',
@@ -14,6 +15,7 @@ export default function Configuracoes() {
   const [tab, setTab] = useState('geral');
   const [somLigado, setSomLigado] = useState(() => somAtivo());
   const [zoomSel, setZoomSel] = useState(() => zoomPref());
+  const [avisoStatus, setAvisoStatus] = useState(() => perguntarAvisoStatus());
   const [logs, setLogs] = useState([]);
   const [version, setVersion] = useState('');
   const [empresa, setEmpresa] = useState(EMPTY_EMPRESA);
@@ -205,6 +207,17 @@ export default function Configuracoes() {
                 <option value="1.1">110%</option>
                 <option value="1.2">120%</option>
               </select>
+            </div>
+
+            <div className="card">
+              <div className="section-title" style={{ marginTop: 0 }}>💬 Aviso ao cliente (WhatsApp)</div>
+              <label style={{ display: 'flex', gap: 8, alignItems: 'center', cursor: 'pointer' }}>
+                <input type="checkbox" checked={avisoStatus} onChange={(e) => { setAvisoStatus(e.target.checked); definirPerguntarAvisoStatus(e.target.checked); }} />
+                Oferecer o aviso pelo WhatsApp a cada mudança de status da OS
+              </label>
+              <p className="muted" style={{ fontSize: 12.5, marginBottom: 0 }}>
+                A mensagem já vem pronta, com o link para o cliente acompanhar o conserto. Você só toca em enviar. O mesmo link sai em QR code no recibo impresso. O botão 🔔 da lista de OS continua disponível.
+              </p>
             </div>
 
             <div className="card">

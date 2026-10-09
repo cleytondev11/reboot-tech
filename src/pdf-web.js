@@ -1,4 +1,5 @@
 import { abrirVisualizador, linkWhatsapp } from './visualizador.js';
+import { qrSvg } from './qr.js';
 
 // ---------- PDF NO NAVEGADOR (versão web/celular) ----------
 // No programa instalado (Electron) o PDF é gerado pelo próprio Chromium do
@@ -281,6 +282,12 @@ function buildOsHtml(os) {
     ${os.observacoes ? `<div class="section-title">Observações</div><p>${escapeHtml(os.observacoes)}</p>` : ''}
 
     ${assinaturaHtml}
+
+    ${os.link_acompanhamento ? `<div class="signature-box" style="display:flex;align-items:center;gap:5mm;margin-top:6mm;border:1px solid #ddd;border-radius:3mm;padding:3mm;">
+      <div style="line-height:0;">${qrSvg(os.link_acompanhamento, { tamanho: 110, margem: 2 })}</div>
+      <div><div style="font-weight:700;font-size:13px;">Acompanhe seu conserto pelo celular</div>
+      <div style="font-size:11.5px;color:#555;">Aponte a câmera para o QR code e veja em que etapa está a sua OS, sem precisar ligar.</div></div>
+    </div>` : ''}
   `;
 }
 

@@ -7,7 +7,10 @@ const push = require('./push');
 const tenants = require('./tenants');
 const admin = require('./admin');
 
+const acompanhar = require('./acompanhar');
+
 const app = express();
+app.set('trust proxy', 1);
 app.use(cors());
 app.use(express.json({ limit: '25mb' }));
 
@@ -47,6 +50,10 @@ app.get('/api/cron/avisos', async (req, res) => {
 app.get('/admin', admin.pagina);
 app.get('/admin-sw.js', admin.swAdmin);
 app.use('/api/admin', admin.router);
+
+// Acompanhamento da OS pelo cliente (QR code impresso): páginas públicas, sem login.
+app.get('/acompanhar/:codigo', acompanhar.pagina);
+app.use('/api/acompanhar', acompanhar.router);
 
 app.use('/api/cadastro', require('./cadastro'));
 app.use('/api/auth', require('./routes/auth'));

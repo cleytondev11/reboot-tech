@@ -5,6 +5,7 @@
 // impressoras (e as opções de cópias, papel etc.) para o usuário escolher.
 import { abrirVisualizador } from './visualizador.js';
 import { criarApiPdf } from './pdf-web.js';
+import { qrSvg } from './qr.js';
 
 function escapeHtml(str) {
   if (str === null || str === undefined) return '';
@@ -63,6 +64,17 @@ function cabecalhoEmpresa(empresa) {
   const contato = (empresa && (empresa.telefone || empresa.whatsapp)) || '';
   if (contato) linhas.push(`<div class="center small">Tel/WhatsApp: ${escapeHtml(contato)}</div>`);
   return linhas.join('\n');
+}
+
+// QR code para o cliente acompanhar a OS sozinho (aparece só quando o servidor mandou o link).
+function blocoQrAcompanhar(os, tamanhoPx) {
+  if (!os || !os.link_acompanhamento) return '';
+  return `
+    <div class="center" style="margin:8px 0;">
+      <div class="small bold">Acompanhe seu conserto</div>
+      <div style="display:inline-block;margin-top:4px;line-height:0;">${qrSvg(os.link_acompanhamento, { tamanho: tamanhoPx, margem: 2 })}</div>
+      <div class="small">Aponte a câmera do celular para o QR code</div>
+    </div>`;
 }
 
 function rodape(texto) {
@@ -126,6 +138,7 @@ export function buildCupomOsHtml(os, empresa, larguraMm) {
     <div class="item bold"><span>VALOR TOTAL</span><span>${formatCurrency(os.valor_total)}</span></div>
     <div class="small">Status: ${escapeHtml(os.status)}</div>
     ${os.garantia_dias ? `<div class="small">Garantia: ${os.garantia_dias} dias</div>` : ''}
+    ${blocoQrAcompanhar(os, larguraMm === 58 ? 150 : 190)}
     ${rodape('Guarde este recibo para a retirada do aparelho.')}
   `;
   return envelope(larguraMm, conteudo);
@@ -237,6 +250,7 @@ export function buildCupomOsHtmlA4(os, empresa) {
     </div>
     <div class="linha"></div>
     <div class="small">Status: ${escapeHtml(os.status)}${os.garantia_dias ? ` &nbsp;•&nbsp; Garantia: ${os.garantia_dias} dias` : ''}</div>
+    ${blocoQrAcompanhar(os, 150)}
     <div class="small" style="margin-top:24px;">Guarde este recibo para a retirada do aparelho.</div>
   `;
   return envelopeA4(conteudo);
