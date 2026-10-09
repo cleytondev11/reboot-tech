@@ -13,6 +13,7 @@ import Servicos from './pages/Servicos.jsx';
 import Vendas from './pages/Vendas.jsx';
 import Financeiro from './pages/Financeiro.jsx';
 import Relatorios from './pages/Relatorios.jsx';
+import CalculadoraPro from './pages/CalculadoraPro.jsx';
 import Usuarios from './pages/Usuarios.jsx';
 import Configuracoes from './pages/Configuracoes.jsx';
 import Kanban from './pages/Kanban.jsx';
@@ -41,6 +42,7 @@ const NAV = [
   { key: 'estoque', label: 'Estoque', icon: '📦' },
   { key: 'servicos', label: 'Serviços', icon: '🔧' },
   { key: 'vendas', label: 'Vendas', icon: '🛒' },
+  { key: 'calcpro', label: 'Calculadora Pro', icon: '🧮' },
   { key: 'cobrancas', label: 'Cobranças', icon: '💸', restrictTo: ['Administrador', 'Financeiro', 'Atendente'] },
   { key: 'financeiro', label: 'Financeiro', icon: '💰', restrictTo: ['Administrador', 'Financeiro'] },
   { key: 'comissoes', label: 'Comissões', icon: '💵', restrictTo: ['Administrador', 'Financeiro'], hideInElectron: true },
@@ -55,7 +57,7 @@ const NAV = [
 const TITLES = {
   dashboard: 'Dashboard', clientes: 'Clientes', equipamentos: 'Equipamentos',
   os: 'Ordens de Serviço', kanban: 'Bancada — Kanban', cobrancas: 'Cobranças', comissoes: 'Comissões', plano: 'Meu Plano', suporte: 'Fale com o Suporte', download: 'Download App', orcamentos: 'Orçamentos', compras: 'Compras', estoque: 'Estoque', servicos: 'Serviços', vendas: 'Vendas', financeiro: 'Financeiro',
-  relatorios: 'Relatórios', usuarios: 'Usuários', config: 'Configurações',
+  relatorios: 'Relatórios', calcpro: 'Calculadora Pro', usuarios: 'Usuários', config: 'Configurações',
 };
 
 function Shell() {
@@ -131,6 +133,7 @@ function Shell() {
       case 'financeiro': return <Financeiro />;
       case 'comissoes': return <Comissoes />;
       case 'relatorios': return <Relatorios />;
+      case 'calcpro': return <CalculadoraPro />;
       case 'usuarios': return <Usuarios />;
       case 'config': return <Configuracoes />;
       default: return null;
