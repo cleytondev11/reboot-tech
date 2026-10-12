@@ -57,6 +57,8 @@ async function iniciarRegistro() {
   }
   // Contas de TESTE GRÁTIS (criadas pelo site) são bloqueadas sozinhas quando o prazo acaba.
   try { await dbPrincipal.run('ALTER TABLE rt_clientes ADD COLUMN teste INTEGER DEFAULT 0'); } catch (e) { /* coluna já existe */ }
+  // Central de Acessos: marca se a mensagem de boas-vindas já foi enviada ao cliente.
+  try { await dbPrincipal.run('ALTER TABLE rt_clientes ADD COLUMN boasvindas INTEGER DEFAULT 0'); } catch (e) { /* coluna já existe */ }
   let nome = 'Banco principal';
   try {
     const emp = await dbPrincipal.get('SELECT nome FROM configuracoes_empresa WHERE id = 1');
@@ -417,7 +419,7 @@ async function excluirCliente(id) {
 
 async function listarClientes() {
   const linhas = await dbPrincipal.all(
-    `SELECT c.id, c.nome, c.ativo, c.principal, c.db_nome, c.db_url, c.criado_em, c.data_contratada, c.data_vencimento, c.valor_mensal, c.contato_nome, c.contato_telefone, c.contato_email, c.teste,
+    `SELECT c.id, c.nome, c.ativo, c.principal, c.db_nome, c.db_url, c.criado_em, c.data_contratada, c.data_vencimento, c.valor_mensal, c.contato_nome, c.contato_telefone, c.contato_email, c.teste, c.boasvindas,
             (SELECT login FROM rt_logins l2 WHERE l2.cliente_id = c.id ORDER BY l2.rowid LIMIT 1) AS login,
             (SELECT COUNT(*) FROM rt_logins l WHERE l.cliente_id = c.id) AS usuarios
      FROM rt_clientes c ORDER BY c.id`
@@ -425,9 +427,14 @@ async function listarClientes() {
   return linhas.map((c) => ({
     id: c.id, nome: c.nome, ativo: !!c.ativo, principal: !!c.principal, criado_em: c.criado_em,
     dataContratada: c.data_contratada || '', dataVencimento: c.data_vencimento || '',
-    valorMensal: c.valor_mensal == null ? null : Number(c.valor_mensal), contatoNome: c.contato_nome || '', contatoTelefone: c.contato_telefone || '', contatoEmail: c.contato_email || '', teste: !!c.teste, login: c.login || '',
+    valorMensal: c.valor_mensal == null ? null : Number(c.valor_mensal), contatoNome: c.contato_nome || '', contatoTelefone: c.contato_telefone || '', contatoEmail: c.contato_email || '', teste: !!c.teste, boasVindas: !!c.boasvindas, login: c.login || '',
     usuarios: c.usuarios, banco: c.principal ? 'banco principal' : (c.db_nome || hostDe(c.db_url)),
   }));
+}
+
+async function marcarBoasVindas(id, enviada) {
+  await dbPrincipal.run('UPDATE rt_clientes SET boasvindas = ? WHERE id = ?', [enviada ? 1 : 0, id]);
+  return !!enviada;
 }
 
 async function listarClientesAtivos() {
@@ -436,6 +443,7 @@ async function listarClientesAtivos() {
 
 module.exports = {
   ID_PRINCIPAL,
+  marcarBoasVindas,
   planoVencido,
   mensagemVencido,
   iniciarRegistro,

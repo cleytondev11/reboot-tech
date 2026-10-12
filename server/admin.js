@@ -67,6 +67,8 @@ router.post('/clientes/:id/plano', rota(async (req) => ({
 // Renovação rápida: +30 dias a partir do vencimento atual (ou de hoje, se já venceu).
 router.post('/clientes/:id/renovar', rota(async (req) => ({ plano: await tenants.renovarPlano(Number(req.params.id), Math.min(366, Math.max(1, parseInt((req.body || {}).dias, 10) || 30))) })));
 
+router.post('/clientes/:id/boasvindas', rota(async (req) => ({ enviada: await tenants.marcarBoasVindas(Number(req.params.id), (req.body || {}).enviada !== false) })));
+
 router.post('/clientes/:id/excluir', rota(async (req) => ({ excluido: await tenants.excluirCliente(Number(req.params.id)) })));
 
 // Notificações no celular do dono (aparelhos inscritos pela própria Central).
@@ -138,6 +140,7 @@ const PAGINA = `<!doctype html>
   <div class="topo">
     <h1>🛡️ Central de Acessos</h1>
     <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <button class="btn" id="btBv">👋 Mensagem de boas-vindas</button>
       <button class="btn" id="btNotif">🔔 Ativar notificações</button>
       <button class="btn" id="btImportar">Importar banco</button>
       <button class="btn pri" id="btNovo">+ Novo assinante</button>
@@ -191,6 +194,15 @@ const PAGINA = `<!doctype html>
   <div class="rod"><button class="btn" data-fechar="mImportar">Cancelar</button><button class="btn pri" id="importar">Importar</button></div>
 </div></div>
 
+<!-- Mensagem de boas-vindas -->
+<div class="fundo" id="mBv"><div class="modal">
+  <h2>Mensagem de boas-vindas</h2>
+  <p class="mut" style="margin:0">Enviada pelo WhatsApp a cada pessoa que cria o teste grátis. Você toca em enviar. Use <b>{nome}</b>, <b>{loja}</b>, <b>{login}</b>, <b>{dias}</b> e <b>{vencimento}</b>: o sistema troca pelos dados de cada cliente.</p>
+  <label>Texto da mensagem</label><textarea id="bvTexto" rows="14" style="width:100%;padding:11px 12px;border:1px solid var(--bd);border-radius:10px;background:var(--bg);color:var(--tx);font:inherit"></textarea>
+  <div id="msgBv" class="msg"></div>
+  <div class="rod"><button class="btn" id="bvPadrao">Restaurar padrão</button><button class="btn" data-fechar="mBv">Fechar</button><button class="btn pri" id="bvSalvar">Salvar</button></div>
+</div></div>
+
 <div id="toast"></div>
 
 <script>
@@ -239,7 +251,8 @@ function desenharKpis() {
     ['Assinantes ativos', String(ativos), 'de ' + dados.length + ' cadastrados', 'c-ok'],
     ['Receita mensal', brl(receita), 'soma dos ativos', ''],
     ['Vencem em 5 dias', String(vencem), 'hora de cobrar', 'c-warn'],
-    ['Vencidos / bloqueados', String(ruins), 'sem acesso ou em atraso', 'c-bad']
+    ['Vencidos / bloqueados', String(ruins), 'sem acesso ou em atraso', 'c-bad'],
+    ['Boas-vindas pendentes', String(dados.filter(bvPendente).length), 'clientes novos sem mensagem', 'c-warn']
   ];
   $('kpis').innerHTML = '';
   itens.forEach(function (k) {
@@ -248,7 +261,7 @@ function desenharKpis() {
 }
 
 function desenharFiltros() {
-  var f = [['todas', 'Todas'], ['ativa', 'Ativa'], ['avencer', 'A vencer'], ['vencida', 'Vencida'], ['bloqueada', 'Bloqueada']];
+  var f = [['todas', 'Todas'], ['ativa', 'Ativa'], ['avencer', 'A vencer'], ['vencida', 'Vencida'], ['bloqueada', 'Bloqueada'], ['bv', '👋 Boas-vindas pendentes']];
   $('filtros').innerHTML = '';
   f.forEach(function (x) {
     var b = h('button', 'chip' + (filtro === x[0] ? ' on' : ''), x[1]);
@@ -267,10 +280,29 @@ function linkWhats(c, texto) {
   return 'https://wa.me/' + n + '?text=' + encodeURIComponent(texto);
 }
 
+var BV_PADRAO = 'Olá, {nome}! 👋\\n\\nSeja muito bem-vindo(a) ao *Reboot Tech System*! 🎉\\n\\nSeu teste grátis de {dias} dias já está liberado, até {vencimento}. 🎁\\n\\n🔑 Seu login: {login}\\n(a senha é a que você escolheu no cadastro)\\n\\nO que você já pode fazer:\\n🧾 Abrir ordens de serviço\\n📲 Avisar o cliente pelo WhatsApp quando o aparelho ficar pronto\\n📦 Controlar estoque e peças\\n💰 Organizar o financeiro\\n🧮 Calcular preço e taxa da maquininha na Calculadora Pro\\n\\nQualquer dúvida, é só responder esta mensagem que eu te ajudo. 🤝\\n\\nQuando gostar, você escolhe o plano e ainda tem 🛡️ garantia de 7 dias.';
+function bvModelo() { try { return localStorage.getItem('bvMsg') || BV_PADRAO; } catch (e) { return BV_PADRAO; } }
+function bvMensagem(c) {
+  var d = c.dataVencimento ? Math.max(0, diasAte(c.dataVencimento)) : 3;
+  var p = (c.contatoNome || c.nome || '').trim().split(' ')[0] || 'tudo bem';
+  return bvModelo().split('{nome}').join(p).split('{loja}').join(c.nome || '').split('{login}').join(c.login || '').split('{dias}').join(String(d)).split('{vencimento}').join(c.dataVencimento ? fmt(c.dataVencimento) : '');
+}
+function bvPendente(c) { return !c.boasVindas && !c.principal && c.ativo && String(c.contatoTelefone || '').replace(/[^0-9]/g, '').length >= 10; }
+async function enviarBv(c) {
+  var lk = linkWhats(c, bvMensagem(c));
+  if (!lk) { toast('Esse cliente não tem WhatsApp cadastrado.'); return; }
+  window.open(lk, '_blank');
+  try { await api('POST', '/clientes/' + c.id + '/boasvindas', { enviada: true }); c.boasVindas = true; toast('Boas-vindas marcada como enviada.'); } catch (e) { toast(e.message); }
+  desenharKpis(); desenharFiltros(); desenharLista();
+}
+$('btBv').onclick = function () { $('bvTexto').value = bvModelo(); $('msgBv').className = 'msg'; $('mBv').classList.add('on'); };
+$('bvPadrao').onclick = function () { $('bvTexto').value = BV_PADRAO; };
+$('bvSalvar').onclick = function () { try { localStorage.setItem('bvMsg', $('bvTexto').value.trim() || BV_PADRAO); msg('msgBv', 'ok', 'Mensagem salva.'); } catch (e) { msg('msgBv', 'erro', 'Não foi possível salvar neste navegador.'); } };
+
 function desenharLista() {
   var q = termo.trim().toLowerCase();
   var lista = dados.filter(function (c) {
-    if (filtro !== 'todas' && situacao(c).chave !== filtro) return false;
+    if (filtro === 'bv') { if (!bvPendente(c)) return false; } else if (filtro !== 'todas' && situacao(c).chave !== filtro) return false;
     if (!q) return true;
     return [c.nome, c.login, c.contatoNome, c.contatoTelefone, c.banco].join(' ').toLowerCase().indexOf(q) >= 0;
   });
@@ -298,6 +330,7 @@ function desenharLista() {
     l2.textContent = txt; info.appendChild(l2); card.appendChild(info);
 
     var ac = h('div', 'acoes');
+    if (bvPendente(c)) { var bb = h('button', 'btn pri sm', '👋 Enviar boas-vindas'); bb.onclick = function () { enviarBv(c); }; ac.appendChild(bb); }
     var br = h('button', 'btn ok sm', 'Renovar'); br.onclick = function () { renovar(c); }; ac.appendChild(br);
     var be = h('button', 'btn sm', 'Editar'); be.onclick = function () { abrirEditar(c); }; ac.appendChild(be);
     var bm = h('button', 'btn sm', '···'); bm.onclick = function (ev) { ev.stopPropagation(); menuAberto = menuAberto === c.id ? null : c.id; desenharLista(); }; ac.appendChild(bm);
@@ -306,6 +339,7 @@ function desenharLista() {
       var add = function (rot, fn, cls) { var b = h('button', cls || '', rot); b.onclick = function (ev) { ev.stopPropagation(); menuAberto = null; fn(); desenharLista(); }; m.appendChild(b); };
       add('📅 Renovar por 60 dias', function () { renovar(c, 60); });
       add('📅 Renovar por 365 dias', function () { renovar(c, 365); });
+      if (!c.principal && c.contatoTelefone) add('👋 ' + (c.boasVindas ? 'Reenviar' : 'Enviar') + ' boas-vindas', function () { enviarBv(c); });
       add('🔑 Nova senha do cliente', function () { novaSenha(c); });
       var lk = linkWhats(c, 'Olá' + (c.contatoNome ? ', ' + c.contatoNome : '') + '! Passando para lembrar do vencimento do seu sistema' + (c.dataVencimento ? ' (' + fmt(c.dataVencimento) + ')' : '') + '. Posso gerar o Pix para renovar? 🙏');
       if (lk) add('💬 Cobrar no WhatsApp', function () { window.open(lk, '_blank'); });
