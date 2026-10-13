@@ -82,6 +82,7 @@ function PixAutomatico({ plano, onClose, onPago, onFalha }) {
   const [escolhido, setEscolhido] = useState('mensal');
   const [pix, setPix] = useState(null);
   const [cpf, setCpf] = useState(() => { try { return localStorage.getItem('rt-cpf') || ''; } catch { return ''; } });
+  const [metodo, setMetodo] = useState('pix'); // pix | cartao | recorrente
   const [gerando, setGerando] = useState(false);
   const [erro, setErro] = useState('');
   const [liberado, setLiberado] = useState(false);
@@ -92,7 +93,7 @@ function PixAutomatico({ plano, onClose, onPago, onFalha }) {
 
   async function gerar() {
     setGerando(true); setErro('');
-    const r = await window.api.pagamento.gerarPixLogado(escolhido, cpf);
+    const r = await window.api.pagamento.gerarPixLogado(escolhido, cpf, metodo);
     if (!vivo.current) return;
     setGerando(false);
     if (r && r.ok) { setPix(r); try { localStorage.setItem('rt-cpf', cpf); } catch { /* sem armazenamento */ } } else setErro((r && r.error) || 'Não foi possível gerar o Pix agora.');
@@ -161,16 +162,33 @@ function PixAutomatico({ plano, onClose, onPago, onFalha }) {
                 </button>
               ))}
             </div>
+            <div style={{ display: 'flex', gap: 6, marginTop: 12 }}>
+              {[['pix', '⚡ Pix'], ['cartao', '💳 Cartão'], ['recorrente', '🔁 Recorrente']].map(([id, rot]) => (
+                <button key={id} type="button" className={'btn ' + (metodo === id ? 'btn-primary' : 'btn-secondary')} style={{ flex: 1, justifyContent: 'center' }} onClick={() => setMetodo(id)}>{rot}</button>
+              ))}
+            </div>
+            {metodo === 'recorrente' && <p className="muted" style={{ margin: '8px 0 0', fontSize: 12, textAlign: 'center' }}>O cartão é cobrado automaticamente a cada período do plano. Você cancela quando quiser.</p>}
             <div className="field" style={{ marginTop: 12 }}>
               <label>CPF ou CNPJ de quem vai pagar</label>
               <input inputMode="numeric" placeholder="Somente números" value={cpf} onChange={(e) => setCpf(e.target.value)} />
             </div>
             {erro && <div className="muted" style={{ color: 'var(--danger, #e5484d)', marginTop: 10, fontSize: 13, textAlign: 'center' }}>{erro}</div>}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 14 }}>
-              <button type="button" className="btn btn-primary" disabled={gerando || cpf.replace(/\D/g, '').length < 11} onClick={gerar}>{gerando ? 'Gerando Pix…' : `Gerar Pix de ${formatCurrency(sel.valor)}`}</button>
+              <button type="button" className="btn btn-primary" disabled={gerando || cpf.replace(/\D/g, '').length < 11} onClick={gerar}>{gerando ? 'Gerando…' : (metodo === 'pix' ? 'Gerar Pix de ' : metodo === 'cartao' ? 'Pagar com cartão ' : 'Assinar no cartão ') + formatCurrency(sel.valor)}</button>
               {erro && <button type="button" className="btn btn-ghost" onClick={onFalha}>Usar o Pix manual</button>}
             </div>
           </>
+        ) : pix.url ? (
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: 42 }}>💳</div>
+            <h3 style={{ margin: '4px 0 6px' }}>{formatCurrency(pix.valor)} · plano {pix.plano}</h3>
+            <p className="muted" style={{ fontSize: 13.5, margin: '0 0 14px' }}>Digite os dados do cartão na página segura do Asaas. {pix.metodo === 'recorrente' ? 'A cobrança se repete sozinha a cada período. ' : ''}Assim que for aprovado, o plano é renovado automaticamente aqui.</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <a className="btn btn-primary" style={{ justifyContent: 'center', textDecoration: 'none' }} href={pix.url} target="_blank" rel="noopener noreferrer">💳 Abrir pagamento seguro</a>
+              <div className="muted" style={{ fontSize: 12.5 }}>⏳ Aguardando a aprovação…</div>
+              <button type="button" className="btn btn-ghost" onClick={() => setComprovante(true)}>Problema? Falar com o suporte</button>
+            </div>
+          </div>
         ) : (
           <>
             <p className="muted" style={{ marginTop: 0, textAlign: 'center', fontSize: 13 }}>Plano {pix.plano}: leia o QR Code no app do seu banco ou use o Pix copia e cola.</p>

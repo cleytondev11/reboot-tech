@@ -19,6 +19,7 @@ export default function Login() {
   const [mpAtivo, setMpAtivo] = useState(false); // Pix automático (Asaas) configurado no servidor?
   const [pix, setPix] = useState(null);          // Pix gerado: { id, t, valor, plano, qrCode, qrBase64 }
   const [cpf, setCpf] = useState(() => { try { return localStorage.getItem('rt-cpf') || ''; } catch { return ''; } });
+  const [metodo, setMetodo] = useState('pix'); // pix | cartao | recorrente
   const [gerando, setGerando] = useState(false);
   const [pago, setPago] = useState(false);
   const [erroPix, setErroPix] = useState('');
@@ -43,7 +44,7 @@ export default function Login() {
   async function gerarPix() {
     setErroPix(''); setGerando(true);
     try {
-      const r = await window.api.pagamento.gerarPix(usuario.trim(), senha, planoId, cpf);
+      const r = await window.api.pagamento.gerarPix(usuario.trim(), senha, planoId, cpf, metodo);
       if (r.ok) { setPix(r); try { localStorage.setItem('rt-cpf', cpf); } catch { /* sem armazenamento */ } } else setErroPix(r.error || 'Não foi possível gerar o Pix.');
     } finally { setGerando(false); }
   }
@@ -150,15 +151,27 @@ export default function Login() {
                 <div className="muted" style={{ fontSize: 12, marginBottom: 8 }}>Cleyton de Souza Santos · {plano.periodo} de acesso</div>
                 {mpAtivo && !pix && (
                   <>
+                    <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+                      {[['pix', '⚡ Pix'], ['cartao', '💳 Cartão'], ['recorrente', '🔁 Recorrente']].map(([id, rot]) => (
+                        <button key={id} type="button" className={'btn ' + (metodo === id ? 'btn-primary' : 'btn-secondary')} style={{ flex: 1, justifyContent: 'center', padding: '7px 2px', fontSize: 12.5 }} onClick={() => setMetodo(id)}>{rot}</button>
+                      ))}
+                    </div>
+                    {metodo === 'recorrente' && <p className="muted" style={{ margin: '0 0 8px', fontSize: 11.5 }}>O cartão é cobrado automaticamente a cada período do plano. Você cancela quando quiser.</p>}
                     <input inputMode="numeric" placeholder="CPF ou CNPJ de quem vai pagar" value={cpf} onChange={(e) => setCpf(e.target.value)} style={{ display: 'block', width: '100%', marginBottom: 8, fontSize: 13 }} />
                     <button type="button" className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }} disabled={gerando || !senha || cpf.replace(/\D/g, '').length < 11} onClick={gerarPix}>
-                      {gerando ? 'Gerando Pix...' : '⚡ Gerar Pix de ' + plano.valor}
+                      {gerando ? 'Gerando...' : (metodo === 'pix' ? '⚡ Gerar Pix de ' : metodo === 'cartao' ? '💳 Pagar com cartão ' : '🔁 Assinar no cartão ') + plano.valor}
                     </button>
                     {!senha && <p className="muted" style={{ margin: '8px 0 0', fontSize: 11.5 }}>Digite a sua senha acima e o CPF/CNPJ para gerar o Pix.</p>}
                     {erroPix && <div className="login-error">{erroPix}</div>}
                   </>
                 )}
-                {(!mpAtivo || pix) && (
+                {pix && pix.url && (
+                  <>
+                    <a className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', textDecoration: 'none' }} href={pix.url} target="_blank" rel="noopener noreferrer">💳 Abrir pagamento seguro</a>
+                    <p className="muted" style={{ margin: '10px 0 0', fontSize: 12.5 }}>Digite os dados do cartão na página do Asaas (ambiente seguro). ⏳ Assim que for aprovado, o acesso é liberado sozinho aqui.</p>
+                  </>
+                )}
+                {(!mpAtivo || (pix && !pix.url)) && (
                   <>
                     <div style={{ display: 'block', width: 'fit-content', margin: '0 auto', background: '#fff', borderRadius: 10, padding: 6 }}
                       dangerouslySetInnerHTML={{ __html: pix && pix.qrBase64 ? '<img alt="QR Code Pix" style="width:190px;height:190px;margin:0" src="data:image/png;base64,' + pix.qrBase64 + '" />' : qrSvg(codigoAtual, { tamanho: 190 }) }} />

@@ -65,12 +65,17 @@ function limitado(ip) {
   return false;
 }
 
+const CICLOS = { mensal: 'MONTHLY', trimestral: 'QUARTERLY', anual: 'YEARLY' };
 const PAGO = ['RECEIVED', 'CONFIRMED', 'RECEIVED_IN_CASH'];
 
 // Aplica um pagamento aprovado: renova o plano uma única vez e avisa o dono.
 async function aplicarPagamento(pagamento) {
   if (!pagamento || !PAGO.includes(pagamento.status)) return { aplicado: false, motivo: 'nao_aprovado' };
-  const ref = String(pagamento.externalReference || '');
+  let ref = String(pagamento.externalReference || '');
+  // Cobrança de assinatura (cartão recorrente): a referência pode estar só na assinatura.
+  if (!/^rt:/.test(ref) && pagamento.subscription) {
+    try { const ass = await asaas('GET', '/subscriptions/' + encodeURIComponent(pagamento.subscription)); ref = String((ass && ass.externalReference) || ''); } catch (e) { /* segue sem referência */ }
+  }
   const m = ref.match(/^rt:(\d+):(mensal|trimestral|anual):/);
   if (!m) return { aplicado: false, motivo: 'referencia' };
   const clienteId = Number(m[1]); const plano = PLANOS[m[2]];
@@ -109,24 +114,48 @@ async function clienteAsaas(cliente, doc) {
   return novo.id;
 }
 
-// Cria a cobrança Pix no Asaas para um cliente já identificado.
-async function criarPix(req, cliente, planoId, docInformado) {
+// Cria a cobrança no Asaas para um cliente já identificado.
+// metodo: 'pix' (QR Code), 'cartao' (cartão avulso) ou 'recorrente' (cartão, renova sozinho a cada ciclo).
+// No cartão, quem digita os dados é o cliente, na página segura do Asaas (nunca passamos pelo nosso servidor).
+async function criarPix(req, cliente, planoId, docInformado, metodo = 'pix') {
   const plano = PLANOS[planoId];
-  let doc = limparDoc(docInformado) || limparDoc(cliente.cpf_cnpj);
+  const doc = limparDoc(docInformado) || limparDoc(cliente.cpf_cnpj);
   if (doc.length !== 11 && doc.length !== 14) throw Object.assign(new Error('Informe o CPF ou CNPJ de quem vai pagar (somente números).'), { status: 400 });
   const customer = await clienteAsaas(cliente, doc);
+  const descricao = `Reboot Tech System - plano ${plano.nome.toLowerCase()}`;
+  const referencia = `rt:${cliente.id}:${planoId}:${Date.now()}`;
+  const salvarDoc = async () => { if (doc !== limparDoc(cliente.cpf_cnpj)) { try { await tenants.salvarCpfCnpj(cliente.id, doc); } catch (e) { /* opcional */ } } };
+  const base = { ok: true, valor: plano.valor, plano: plano.nome, cpfCnpj: doc, metodo };
+
+  if (metodo === 'recorrente') {
+    const ass = await asaas('POST', '/subscriptions', {
+      customer, billingType: 'CREDIT_CARD', value: plano.valor, nextDueDate: hojeBrasil(), cycle: CICLOS[planoId],
+      description: descricao, externalReference: referencia,
+    });
+    let cobr = null;
+    for (let i = 0; i < 4 && !cobr; i++) {
+      const lista = await asaas('GET', '/subscriptions/' + encodeURIComponent(ass.id) + '/payments');
+      cobr = lista && lista.data && lista.data[0];
+      if (!cobr) await new Promise((r) => setTimeout(r, 800));
+    }
+    if (!cobr || !cobr.invoiceUrl) throw Object.assign(new Error('O Asaas não devolveu a página de pagamento.'), { status: 502 });
+    await salvarDoc();
+    return { ...base, id: String(cobr.id), t: assinar(cobr.id), url: cobr.invoiceUrl };
+  }
+
   const pag = await asaas('POST', '/payments', {
-    customer,
-    billingType: 'PIX',
-    value: plano.valor,
-    dueDate: hojeBrasil(),
-    description: `Reboot Tech System - plano ${plano.nome.toLowerCase()}`,
-    externalReference: `rt:${cliente.id}:${planoId}:${Date.now()}`,
+    customer, billingType: metodo === 'cartao' ? 'CREDIT_CARD' : 'PIX', value: plano.valor, dueDate: hojeBrasil(),
+    description: descricao, externalReference: referencia,
   });
+  if (metodo === 'cartao') {
+    if (!pag.invoiceUrl) throw Object.assign(new Error('O Asaas não devolveu a página de pagamento.'), { status: 502 });
+    await salvarDoc();
+    return { ...base, id: String(pag.id), t: assinar(pag.id), url: pag.invoiceUrl };
+  }
   const qr = await asaas('GET', '/payments/' + encodeURIComponent(pag.id) + '/pixQrCode');
   if (!qr || !qr.payload) throw Object.assign(new Error('O Asaas não devolveu o código Pix.'), { status: 502 });
-  if (doc !== limparDoc(cliente.cpf_cnpj)) { try { await tenants.salvarCpfCnpj(cliente.id, doc); } catch (e) { /* opcional */ } }
-  return { ok: true, id: String(pag.id), t: assinar(pag.id), valor: plano.valor, plano: plano.nome, qrCode: qr.payload, qrBase64: qr.encodedImage || '', cpfCnpj: doc };
+  await salvarDoc();
+  return { ...base, id: String(pag.id), t: assinar(pag.id), qrCode: qr.payload, qrBase64: qr.encodedImage || '' };
 }
 
 function ipDe(req) {
@@ -135,7 +164,7 @@ function ipDe(req) {
 
 function erroPix(res, err, rotulo) {
   console.error('[Pagamento] ' + rotulo + ':', err && err.message, err && err.detalhe ? JSON.stringify(err.detalhe).slice(0, 400) : '');
-  res.status(err.status || 500).json({ ok: false, error: err.status && err.status < 500 ? err.message : 'Não foi possível gerar o Pix agora. Tente de novo ou use o Pix pelo site.' });
+  res.status(err.status || 500).json({ ok: false, error: err.status && err.status < 500 ? err.message : 'Não foi possível gerar o pagamento agora. Tente de novo ou use o Pix pelo site.' });
 }
 
 // Gera o Pix de renovação na tela de login. Exige login e senha corretos (o plano pode estar vencido).
@@ -147,7 +176,7 @@ router.post('/pix', async (req, res) => {
     if (!PLANOS[b.plano]) return res.status(400).json({ ok: false, error: 'Plano inválido.' });
     const cliente = await tenants.identificarCliente(b.usuario, b.senha);
     if (!cliente) return res.status(401).json({ ok: false, error: 'Usuário ou senha incorretos.' });
-    res.json(await criarPix(req, cliente, b.plano, b.cpfCnpj));
+    res.json(await criarPix(req, cliente, b.plano, b.cpfCnpj, ['cartao', 'recorrente'].includes(b.metodo) ? b.metodo : 'pix'));
   } catch (err) { erroPix(res, err, 'pix'); }
 });
 
@@ -161,7 +190,7 @@ router.post('/pix-logado', authMiddleware, async (req, res) => {
     const cliente = await tenants.buscarCliente(tenants.clienteIdDe(req));
     if (!cliente) return res.status(404).json({ ok: false, error: 'Cliente não encontrado.' });
     if (cliente.principal) return res.status(400).json({ ok: false, error: 'Este acesso não tem plano a renovar.' });
-    res.json(await criarPix(req, cliente, b.plano, b.cpfCnpj));
+    res.json(await criarPix(req, cliente, b.plano, b.cpfCnpj, ['cartao', 'recorrente'].includes(b.metodo) ? b.metodo : 'pix'));
   } catch (err) { erroPix(res, err, 'pix-logado'); }
 });
 

@@ -12,3 +12,9 @@
    - Token de autenticação: o mesmo valor de `ASAAS_WEBHOOK_TOKEN`
    - Eventos: cobranças (PAYMENT_RECEIVED e PAYMENT_CONFIRMED)
 5. Faça o deploy do Web Service e do Static Site.
+
+## Cartão de crédito
+- Cartão avulso: paga uma vez e libera o período do plano.
+- Cartão recorrente: assinatura no Asaas; a cada ciclo (mensal, trimestral ou anual) o Asaas cobra e o sistema renova sozinho.
+- Os dados do cartão são digitados na página segura do Asaas; o sistema nunca recebe nem guarda o cartão.
+- Para cancelar uma assinatura: painel do Asaas → Assinaturas.
