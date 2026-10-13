@@ -56,6 +56,7 @@ app.get('/acompanhar/:codigo', acompanhar.pagina);
 app.use('/api/acompanhar', acompanhar.router);
 
 app.use('/api/cadastro', require('./cadastro'));
+app.use('/api/pagamento', require('./pagamento').router);
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/rpc', require('./routes/rpc'));
 

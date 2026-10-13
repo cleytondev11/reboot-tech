@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useApp } from '../context.jsx';
 import { SUPORTE_WHATSAPP } from '../utils.js';
 import { PLANOS_PIX } from '../pix-planos.js';
@@ -16,7 +16,36 @@ export default function Login() {
   const [renovar, setRenovar] = useState(false); // painel "Renovar plano" (Pix)
   const [planoId, setPlanoId] = useState('mensal');
   const [copiado, setCopiado] = useState(false);
+  const [mpAtivo, setMpAtivo] = useState(false); // Mercado Pago configurado no servidor?
+  const [pix, setPix] = useState(null);          // Pix gerado: { id, t, valor, plano, qrCode, qrBase64 }
+  const [gerando, setGerando] = useState(false);
+  const [pago, setPago] = useState(false);
+  const [erroPix, setErroPix] = useState('');
   const podeEsquecer = !!window.api?.auth?.esqueciSenha;
+
+  useEffect(() => {
+    let vivo = true;
+    if (window.api?.pagamento?.config) window.api.pagamento.config().then((c) => { if (vivo) setMpAtivo(!!(c && c.ativo)); });
+    return () => { vivo = false; };
+  }, []);
+
+  // Depois de gerar o Pix, consulta a cada 4 segundos até o pagamento ser confirmado.
+  useEffect(() => {
+    if (!pix || pago) return undefined;
+    const iv = setInterval(async () => {
+      const r = await window.api.pagamento.status(pix.id, pix.t);
+      if (r && r.liberado) setPago(true);
+    }, 4000);
+    return () => clearInterval(iv);
+  }, [pix, pago]);
+
+  async function gerarPix() {
+    setErroPix(''); setGerando(true);
+    try {
+      const r = await window.api.pagamento.gerarPix(usuario.trim(), senha, planoId);
+      if (r.ok) setPix(r); else setErroPix(r.error || 'Não foi possível gerar o Pix.');
+    } finally { setGerando(false); }
+  }
 
   async function pedirNovaSenha() {
     setError('');
@@ -37,13 +66,16 @@ export default function Login() {
   const linkZap = 'https://wa.me/' + String(SUPORTE_WHATSAPP || '').replace(/\D/g, '') + '?text=' + msgZap;
 
   // Acesso bloqueado (teste acabou, plano vencido ou bloqueio manual): mostra o botão de suporte com a mensagem pronta.
-  const bloqueado = /terminou|venceu|bloquead|suspens/i.test(error || '');
+  const bloqueado = /terminou|venceu/i.test(error || '');
+  const bloqueioManual = /bloquead|suspens/i.test(error || '');
   const plano = PLANOS_PIX.find((p) => p.id === planoId) || PLANOS_PIX[0];
   const linkPago = 'https://wa.me/' + String(SUPORTE_WHATSAPP || '').replace(/\D/g, '') + '?text=' + encodeURIComponent(
     'Olá! Acabei de pagar o Pix de ' + plano.valor + ' (plano ' + plano.nome.toLowerCase() + ') para renovar o Reboot Tech. Segue o comprovante.\nMeu usuário (login) é: ' + usuario.trim()
   );
+  const linkSup = 'https://wa.me/' + String(SUPORTE_WHATSAPP || '').replace(/\D/g, '') + '?text=' + encodeURIComponent('Olá! O meu acesso ao Reboot Tech está bloqueado e eu preciso de ajuda para liberar.\nMeu usuário (login) é: ' + usuario.trim());
+  const codigoAtual = pix ? pix.qrCode : plano.codigo;
   async function copiarPix() {
-    try { await navigator.clipboard.writeText(plano.codigo); } catch (e) { /* o campo abaixo está selecionável */ }
+    try { await navigator.clipboard.writeText(codigoAtual); } catch (e) { /* o campo abaixo está selecionável */ }
     setCopiado(true); setTimeout(() => setCopiado(false), 2200);
   }
 
@@ -90,23 +122,54 @@ export default function Login() {
             💳 Renovar plano
           </button>
         )}
+        {error && bloqueioManual && (
+          <a className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', textDecoration: 'none', marginTop: 10 }} href={linkSup} target="_blank" rel="noopener noreferrer">💬 Contatar suporte</a>
+        )}
         {error && bloqueado && renovar && (
           <div style={{ marginTop: 12, padding: 14, border: '1px solid var(--border, #333)', borderRadius: 10, textAlign: 'center', fontSize: 14 }}>
             <div style={{ fontWeight: 800, marginBottom: 4 }}>Renovar plano</div>
             <p className="muted" style={{ margin: '0 0 10px', fontSize: 12.5 }}>Escolha o plano e pague o Pix. Depois envie o comprovante: a gente libera o acesso <b>{usuario.trim()}</b>.</p>
             <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
               {PLANOS_PIX.map((p) => (
-                <button key={p.id} type="button" className={'btn ' + (p.id === planoId ? 'btn-primary' : 'btn-secondary')} style={{ flex: 1, justifyContent: 'center', padding: '8px 4px', flexDirection: 'column', lineHeight: 1.2 }} onClick={() => { setPlanoId(p.id); setCopiado(false); }}>
+                <button key={p.id} type="button" className={'btn ' + (p.id === planoId ? 'btn-primary' : 'btn-secondary')} style={{ flex: 1, justifyContent: 'center', padding: '8px 4px', flexDirection: 'column', lineHeight: 1.2 }} onClick={() => { if (!pix) { setPlanoId(p.id); setCopiado(false); } }}>
                   <span>{p.nome}</span><small style={{ fontWeight: 700 }}>{p.valor}</small>
                 </button>
               ))}
             </div>
-            <div style={{ fontSize: 22, fontWeight: 900, color: 'var(--primary, #d4af37)' }}>{plano.valor}</div>
-            <div className="muted" style={{ fontSize: 12, marginBottom: 8 }}>Cleyton de Souza Santos · {plano.periodo} de acesso</div>
-            <div style={{ display: 'inline-block', background: '#fff', borderRadius: 10, padding: 6 }} dangerouslySetInnerHTML={{ __html: qrSvg(plano.codigo, { tamanho: 190 }) }} />
-            <input readOnly value={plano.codigo} style={{ marginTop: 10, fontSize: 11 }} onFocus={(e) => e.target.select()} />
-            <button type="button" className="btn btn-secondary" style={{ width: '100%', justifyContent: 'center', marginTop: 8 }} onClick={copiarPix}>{copiado ? '✅ Código copiado!' : '📋 Copiar código Pix'}</button>
-            <a className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', textDecoration: 'none', marginTop: 8 }} href={linkPago} target="_blank" rel="noopener noreferrer">📤 Já paguei, enviar comprovante</a>
+            {pago ? (
+              <div style={{ padding: '10px 0' }}>
+                <div style={{ fontSize: 40 }}>✅</div>
+                <div style={{ fontWeight: 800, margin: '6px 0' }}>Pagamento confirmado!</div>
+                <p className="muted" style={{ margin: '0 0 10px', fontSize: 12.5 }}>Seu acesso foi liberado. Toque em Entrar.</p>
+                <button type="button" className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }} onClick={handleSubmit}>Entrar agora</button>
+              </div>
+            ) : (
+              <>
+                <div style={{ fontSize: 22, fontWeight: 900, color: 'var(--primary, #d4af37)' }}>{plano.valor}</div>
+                <div className="muted" style={{ fontSize: 12, marginBottom: 8 }}>Cleyton de Souza Santos · {plano.periodo} de acesso</div>
+                {mpAtivo && !pix && (
+                  <>
+                    <button type="button" className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }} disabled={gerando || !senha} onClick={gerarPix}>
+                      {gerando ? 'Gerando Pix...' : '⚡ Gerar Pix de ' + plano.valor}
+                    </button>
+                    {!senha && <p className="muted" style={{ margin: '8px 0 0', fontSize: 11.5 }}>Digite a sua senha acima para gerar o Pix.</p>}
+                    {erroPix && <div className="login-error">{erroPix}</div>}
+                  </>
+                )}
+                {(!mpAtivo || pix) && (
+                  <>
+                    <div style={{ display: 'block', width: 'fit-content', margin: '0 auto', background: '#fff', borderRadius: 10, padding: 6 }}
+                      dangerouslySetInnerHTML={{ __html: pix && pix.qrBase64 ? '<img alt="QR Code Pix" style="width:190px;height:190px;margin:0" src="data:image/png;base64,' + pix.qrBase64 + '" />' : qrSvg(codigoAtual, { tamanho: 190 }) }} />
+                    <input readOnly value={codigoAtual} style={{ display: 'block', width: '100%', marginTop: 10, fontSize: 11 }} onFocus={(e) => e.target.select()} />
+                    <button type="button" className="btn btn-secondary" style={{ width: '100%', justifyContent: 'center', marginTop: 8 }} onClick={copiarPix}>{copiado ? '✅ Código copiado!' : '📋 Copiar código Pix'}</button>
+                    {pix ? (
+                      <p className="muted" style={{ margin: '10px 0 0', fontSize: 12.5 }}>⏳ Aguardando o pagamento... assim que o Pix cair, o acesso é liberado sozinho.</p>
+                    ) : null}
+                    <a className="btn btn-secondary" style={{ width: '100%', justifyContent: 'center', textDecoration: 'none', marginTop: 8 }} href={linkPago} target="_blank" rel="noopener noreferrer">{pix ? 'Problema? Enviar comprovante' : '📤 Já paguei, enviar comprovante'}</a>
+                  </>
+                )}
+              </>
+            )}
             <p className="muted" style={{ margin: '10px 0 0', fontSize: 11.5 }}>🛡️ Garantia de 7 dias: se não gostar, devolvemos o valor pago.</p>
           </div>
         )}

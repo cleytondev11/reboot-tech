@@ -67,6 +67,14 @@ import { criarApiImpressora } from './impressao-web.js';
   }
 
   window.api = {
+    // Renovação por Pix (Mercado Pago): só funciona se o servidor tiver MP_ACCESS_TOKEN.
+    pagamento: {
+      config: () => fetch(`${API_URL}/api/pagamento/config`).then((r) => r.json()).catch(() => ({ ok: false, ativo: false })),
+      gerarPix: (usuario, senha, plano) => fetch(`${API_URL}/api/pagamento/pix`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ usuario, senha, plano }),
+      }).then((r) => r.json()).catch(() => ({ ok: false, error: 'Sem conexão com o servidor.' })),
+      status: (id, t) => fetch(`${API_URL}/api/pagamento/status/${encodeURIComponent(id)}?t=${encodeURIComponent(t)}`, { cache: 'no-store' }).then((r) => r.json()).catch(() => ({ ok: false })),
+    },
     auth: {
       login: async (usuario, senha) => {
         const resposta = await fetch(`${API_URL}/api/auth/login`, {

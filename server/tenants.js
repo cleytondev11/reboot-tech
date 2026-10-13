@@ -57,6 +57,14 @@ async function iniciarRegistro() {
   }
   // Contas de TESTE GRÁTIS (criadas pelo site) são bloqueadas sozinhas quando o prazo acaba.
   try { await dbPrincipal.run('ALTER TABLE rt_clientes ADD COLUMN teste INTEGER DEFAULT 0'); } catch (e) { /* coluna já existe */ }
+  // Pagamentos online (Mercado Pago): cada pagamento aprovado é registrado uma única vez.
+  await dbPrincipal.run(`CREATE TABLE IF NOT EXISTS rt_pagamentos (
+    id TEXT PRIMARY KEY,
+    cliente_id INTEGER NOT NULL,
+    plano TEXT,
+    valor REAL,
+    criado_em TEXT NOT NULL
+  )`);
   // Central de Acessos: marca se a mensagem de boas-vindas já foi enviada ao cliente.
   try { await dbPrincipal.run('ALTER TABLE rt_clientes ADD COLUMN boasvindas INTEGER DEFAULT 0'); } catch (e) { /* coluna já existe */ }
   let nome = 'Banco principal';
@@ -221,6 +229,26 @@ async function autenticar(usuario, senha) {
 
   const user = { id: row.id, nome: row.nome, usuario: row.usuario, papel: row.papel };
   return { cliente, user, token: gerarToken(user, cliente.id) };
+}
+
+// Confere usuário e senha SEM exigir plano em dia (usado na tela "Renovar plano"). Retorna o cliente ou null.
+async function identificarCliente(usuario, senha) {
+  const login = String(usuario || '').trim();
+  const reg = await dbPrincipal.get('SELECT cliente_id FROM rt_logins WHERE login = ?', [login]);
+  const cliente = reg ? await buscarCliente(reg.cliente_id) : null;
+  if (!cliente || cliente.principal) return null;
+  const db = await bancoDoCliente(cliente);
+  const row = await db.get('SELECT * FROM usuarios WHERE usuario = ?', [login]);
+  if (!row || !row.ativo || !bcrypt.compareSync(String(senha || ''), row.senha_hash)) return null;
+  return cliente;
+}
+
+// Registra um pagamento aprovado. Retorna true só na primeira vez (evita renovar duas vezes).
+async function registrarPagamento(id, clienteId, plano, valor) {
+  const ja = await dbPrincipal.get('SELECT id FROM rt_pagamentos WHERE id = ?', [String(id)]);
+  if (ja) return false;
+  await dbPrincipal.run('INSERT INTO rt_pagamentos (id, cliente_id, plano, valor, criado_em) VALUES (?,?,?,?,?)', [String(id), clienteId, plano, valor, agoraIso()]);
+  return true;
 }
 
 // ---------- painel do dono (veja admin.js) ----------
@@ -443,6 +471,8 @@ async function listarClientesAtivos() {
 
 module.exports = {
   ID_PRINCIPAL,
+  identificarCliente,
+  registrarPagamento,
   marcarBoasVindas,
   planoVencido,
   mensagemVencido,
