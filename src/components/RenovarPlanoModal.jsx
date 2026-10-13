@@ -76,11 +76,12 @@ const PLANOS_MP = [
   { id: 'anual', nome: 'Anual', valor: 319.99, rotulo: '365 dias' },
 ];
 
-// Pix automático (Mercado Pago): gera o QR Code, confere o pagamento sozinho e renova na hora.
+// Pix automático (Asaas): gera o QR Code, confere o pagamento sozinho e renova na hora.
 function PixAutomatico({ plano, onClose, onPago, onFalha }) {
   const { user, showToast } = useApp();
   const [escolhido, setEscolhido] = useState('mensal');
   const [pix, setPix] = useState(null);
+  const [cpf, setCpf] = useState(() => { try { return localStorage.getItem('rt-cpf') || ''; } catch { return ''; } });
   const [gerando, setGerando] = useState(false);
   const [erro, setErro] = useState('');
   const [liberado, setLiberado] = useState(false);
@@ -91,10 +92,10 @@ function PixAutomatico({ plano, onClose, onPago, onFalha }) {
 
   async function gerar() {
     setGerando(true); setErro('');
-    const r = await window.api.pagamento.gerarPixLogado(escolhido);
+    const r = await window.api.pagamento.gerarPixLogado(escolhido, cpf);
     if (!vivo.current) return;
     setGerando(false);
-    if (r && r.ok) setPix(r); else setErro((r && r.error) || 'Não foi possível gerar o Pix agora.');
+    if (r && r.ok) { setPix(r); try { localStorage.setItem('rt-cpf', cpf); } catch { /* sem armazenamento */ } } else setErro((r && r.error) || 'Não foi possível gerar o Pix agora.');
   }
 
   useEffect(() => {
@@ -160,9 +161,13 @@ function PixAutomatico({ plano, onClose, onPago, onFalha }) {
                 </button>
               ))}
             </div>
+            <div className="field" style={{ marginTop: 12 }}>
+              <label>CPF ou CNPJ de quem vai pagar</label>
+              <input inputMode="numeric" placeholder="Somente números" value={cpf} onChange={(e) => setCpf(e.target.value)} />
+            </div>
             {erro && <div className="muted" style={{ color: 'var(--danger, #e5484d)', marginTop: 10, fontSize: 13, textAlign: 'center' }}>{erro}</div>}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 14 }}>
-              <button type="button" className="btn btn-primary" disabled={gerando} onClick={gerar}>{gerando ? 'Gerando Pix…' : `Gerar Pix de ${formatCurrency(sel.valor)}`}</button>
+              <button type="button" className="btn btn-primary" disabled={gerando || cpf.replace(/\D/g, '').length < 11} onClick={gerar}>{gerando ? 'Gerando Pix…' : `Gerar Pix de ${formatCurrency(sel.valor)}`}</button>
               {erro && <button type="button" className="btn btn-ghost" onClick={onFalha}>Usar o Pix manual</button>}
             </div>
           </>
@@ -187,7 +192,7 @@ function PixAutomatico({ plano, onClose, onPago, onFalha }) {
   );
 }
 
-// Usa o Pix automático quando o servidor tem o Mercado Pago configurado; senão, o Pix fixo.
+// Usa o Pix automático quando o servidor tem o Asaas configurado; senão, o Pix fixo.
 export default function RenovarPlanoModal({ plano, onClose, onPago }) {
   const [modo, setModo] = useState('carregando');
   useEffect(() => {

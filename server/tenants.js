@@ -57,7 +57,7 @@ async function iniciarRegistro() {
   }
   // Contas de TESTE GRÁTIS (criadas pelo site) são bloqueadas sozinhas quando o prazo acaba.
   try { await dbPrincipal.run('ALTER TABLE rt_clientes ADD COLUMN teste INTEGER DEFAULT 0'); } catch (e) { /* coluna já existe */ }
-  // Pagamentos online (Mercado Pago): cada pagamento aprovado é registrado uma única vez.
+  // Pagamentos online (Asaas): cada pagamento aprovado é registrado uma única vez.
   await dbPrincipal.run(`CREATE TABLE IF NOT EXISTS rt_pagamentos (
     id TEXT PRIMARY KEY,
     cliente_id INTEGER NOT NULL,
@@ -65,6 +65,7 @@ async function iniciarRegistro() {
     valor REAL,
     criado_em TEXT NOT NULL
   )`);
+  try { await dbPrincipal.run('ALTER TABLE rt_clientes ADD COLUMN cpf_cnpj TEXT'); } catch (e) { /* coluna já existe */ }
   // Central de Acessos: marca se a mensagem de boas-vindas já foi enviada ao cliente.
   try { await dbPrincipal.run('ALTER TABLE rt_clientes ADD COLUMN boasvindas INTEGER DEFAULT 0'); } catch (e) { /* coluna já existe */ }
   let nome = 'Banco principal';
@@ -249,6 +250,12 @@ async function registrarPagamento(id, clienteId, plano, valor) {
   if (ja) return false;
   await dbPrincipal.run('INSERT INTO rt_pagamentos (id, cliente_id, plano, valor, criado_em) VALUES (?,?,?,?,?)', [String(id), clienteId, plano, valor, agoraIso()]);
   return true;
+}
+
+// Guarda o CPF/CNPJ do pagador (o Asaas exige para gerar a cobrança), para não pedir de novo.
+async function salvarCpfCnpj(id, doc) {
+  await dbPrincipal.run('UPDATE rt_clientes SET cpf_cnpj = ? WHERE id = ?', [doc, id]);
+  cache.delete(id);
 }
 
 // ---------- painel do dono (veja admin.js) ----------
@@ -473,6 +480,7 @@ module.exports = {
   ID_PRINCIPAL,
   identificarCliente,
   registrarPagamento,
+  salvarCpfCnpj,
   marcarBoasVindas,
   planoVencido,
   mensagemVencido,

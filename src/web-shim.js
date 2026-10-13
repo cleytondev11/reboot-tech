@@ -67,14 +67,14 @@ import { criarApiImpressora } from './impressao-web.js';
   }
 
   window.api = {
-    // Renovação por Pix (Mercado Pago): só funciona se o servidor tiver MP_ACCESS_TOKEN.
+    // Renovação por Pix (Asaas): só funciona se o servidor tiver ASAAS_API_KEY.
     pagamento: {
       config: () => fetch(`${API_URL}/api/pagamento/config`).then((r) => r.json()).catch(() => ({ ok: false, ativo: false })),
-      gerarPix: (usuario, senha, plano) => fetch(`${API_URL}/api/pagamento/pix`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ usuario, senha, plano }),
+      gerarPix: (usuario, senha, plano, cpfCnpj) => fetch(`${API_URL}/api/pagamento/pix`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ usuario, senha, plano, cpfCnpj }),
       }).then((r) => r.json()).catch(() => ({ ok: false, error: 'Sem conexão com o servidor.' })),
-      gerarPixLogado: (plano) => fetch(`${API_URL}/api/pagamento/pix-logado`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json', ...(getToken() ? { Authorization: `Bearer ${getToken()}` } : {}) }, body: JSON.stringify({ plano }),
+      gerarPixLogado: (plano, cpfCnpj) => fetch(`${API_URL}/api/pagamento/pix-logado`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', ...(getToken() ? { Authorization: `Bearer ${getToken()}` } : {}) }, body: JSON.stringify({ plano, cpfCnpj }),
       }).then((r) => r.json()).catch(() => ({ ok: false, error: 'Sem conexão com o servidor.' })),
       status: (id, t) => fetch(`${API_URL}/api/pagamento/status/${encodeURIComponent(id)}?t=${encodeURIComponent(t)}`, { cache: 'no-store' }).then((r) => r.json()).catch(() => ({ ok: false })),
     },

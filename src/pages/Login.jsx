@@ -16,8 +16,9 @@ export default function Login() {
   const [renovar, setRenovar] = useState(false); // painel "Renovar plano" (Pix)
   const [planoId, setPlanoId] = useState('mensal');
   const [copiado, setCopiado] = useState(false);
-  const [mpAtivo, setMpAtivo] = useState(false); // Mercado Pago configurado no servidor?
+  const [mpAtivo, setMpAtivo] = useState(false); // Pix automático (Asaas) configurado no servidor?
   const [pix, setPix] = useState(null);          // Pix gerado: { id, t, valor, plano, qrCode, qrBase64 }
+  const [cpf, setCpf] = useState(() => { try { return localStorage.getItem('rt-cpf') || ''; } catch { return ''; } });
   const [gerando, setGerando] = useState(false);
   const [pago, setPago] = useState(false);
   const [erroPix, setErroPix] = useState('');
@@ -42,8 +43,8 @@ export default function Login() {
   async function gerarPix() {
     setErroPix(''); setGerando(true);
     try {
-      const r = await window.api.pagamento.gerarPix(usuario.trim(), senha, planoId);
-      if (r.ok) setPix(r); else setErroPix(r.error || 'Não foi possível gerar o Pix.');
+      const r = await window.api.pagamento.gerarPix(usuario.trim(), senha, planoId, cpf);
+      if (r.ok) { setPix(r); try { localStorage.setItem('rt-cpf', cpf); } catch { /* sem armazenamento */ } } else setErroPix(r.error || 'Não foi possível gerar o Pix.');
     } finally { setGerando(false); }
   }
 
@@ -149,10 +150,11 @@ export default function Login() {
                 <div className="muted" style={{ fontSize: 12, marginBottom: 8 }}>Cleyton de Souza Santos · {plano.periodo} de acesso</div>
                 {mpAtivo && !pix && (
                   <>
-                    <button type="button" className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }} disabled={gerando || !senha} onClick={gerarPix}>
+                    <input inputMode="numeric" placeholder="CPF ou CNPJ de quem vai pagar" value={cpf} onChange={(e) => setCpf(e.target.value)} style={{ display: 'block', width: '100%', marginBottom: 8, fontSize: 13 }} />
+                    <button type="button" className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }} disabled={gerando || !senha || cpf.replace(/\D/g, '').length < 11} onClick={gerarPix}>
                       {gerando ? 'Gerando Pix...' : '⚡ Gerar Pix de ' + plano.valor}
                     </button>
-                    {!senha && <p className="muted" style={{ margin: '8px 0 0', fontSize: 11.5 }}>Digite a sua senha acima para gerar o Pix.</p>}
+                    {!senha && <p className="muted" style={{ margin: '8px 0 0', fontSize: 11.5 }}>Digite a sua senha acima e o CPF/CNPJ para gerar o Pix.</p>}
                     {erroPix && <div className="login-error">{erroPix}</div>}
                   </>
                 )}

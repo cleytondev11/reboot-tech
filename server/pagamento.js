@@ -1,11 +1,12 @@
-// Renovação do plano por Pix pelo Mercado Pago (cobrança única por cliente, confirmação automática).
+// Renovação do plano por Pix pelo Asaas (cobrança única por cliente, confirmação automática).
 //
-// Precisa da variável MP_ACCESS_TOKEN (Access Token de PRODUÇÃO da conta Mercado Pago).
-// Opcionais: PUBLIC_URL (endereço público do sistema, para o aviso do Mercado Pago) e MP_WEBHOOK_SECRET.
+// Variáveis: ASAAS_API_KEY (chave de API da conta Asaas), ASAAS_WEBHOOK_TOKEN (senha do webhook),
+// ASAAS_AMBIENTE=sandbox (opcional, para testar sem dinheiro de verdade) e PUBLIC_URL (opcional).
 //
-// Fluxo: tela de login bloqueada → POST /api/pagamento/pix (login+senha+plano) → Pix (QR + copia e cola)
-//        → Mercado Pago avisa em POST /api/pagamento/webhook (e a tela também consulta GET /api/pagamento/status/:id)
-//        → pagamento "approved" renova o plano na hora, uma única vez.
+// Fluxo: tela de login bloqueada (ou "Renovar plano" dentro do sistema) → POST /api/pagamento/pix
+//        → Asaas cria cliente + cobrança Pix → QR Code e copia e cola
+//        → Asaas avisa em POST /api/pagamento/webhook (e a tela também consulta GET /api/pagamento/status/:id)
+//        → pagamento recebido renova o plano na hora, uma única vez.
 const crypto = require('crypto');
 const express = require('express');
 const tenants = require('./tenants');
@@ -13,7 +14,8 @@ const push = require('./push');
 const { authMiddleware } = require('./auth');
 
 const router = express.Router();
-const API = 'https://api.mercadopago.com';
+const UA = 'RebootTechSystem/1.0';
+function apiBase() { return process.env.ASAAS_AMBIENTE === 'sandbox' ? 'https://api-sandbox.asaas.com/v3' : 'https://api.asaas.com/v3'; }
 
 // Planos (o valor é definido AQUI, nunca pelo navegador).
 const PLANOS = {
@@ -22,19 +24,21 @@ const PLANOS = {
   anual: { nome: 'Anual', valor: 319.99, dias: 365 },
 };
 
-function token() { return process.env.MP_ACCESS_TOKEN || ''; }
+function token() { return process.env.ASAAS_API_KEY || ''; }
 function ativo() { return !!token(); }
 
-async function mp(metodo, caminho, corpo, extra = {}) {
-  const resp = await fetch(API + caminho, {
+async function asaas(metodo, caminho, corpo) {
+  const resp = await fetch(apiBase() + caminho, {
     method: metodo,
-    headers: { Authorization: 'Bearer ' + token(), 'Content-Type': 'application/json', ...extra },
+    headers: { access_token: token(), 'Content-Type': 'application/json', 'User-Agent': UA },
     body: corpo ? JSON.stringify(corpo) : undefined,
   });
   const json = await resp.json().catch(() => ({}));
   if (!resp.ok) {
-    const e = new Error((json && (json.message || json.error)) || ('Mercado Pago respondeu ' + resp.status));
-    e.status = 502; e.detalhe = json; throw e;
+    const desc = json && Array.isArray(json.errors) && json.errors[0] && json.errors[0].description;
+    const e = new Error(desc || ('Asaas respondeu ' + resp.status));
+    // erro de dados (ex.: CPF inválido) volta para o cliente; erro de chave/servidor vira mensagem genérica
+    e.status = resp.status === 400 ? 400 : 502; e.detalhe = json; throw e;
   }
   return json;
 }
@@ -61,14 +65,16 @@ function limitado(ip) {
   return false;
 }
 
+const PAGO = ['RECEIVED', 'CONFIRMED', 'RECEIVED_IN_CASH'];
+
 // Aplica um pagamento aprovado: renova o plano uma única vez e avisa o dono.
 async function aplicarPagamento(pagamento) {
-  if (!pagamento || pagamento.status !== 'approved') return { aplicado: false, motivo: 'nao_aprovado' };
-  const ref = String(pagamento.external_reference || '');
+  if (!pagamento || !PAGO.includes(pagamento.status)) return { aplicado: false, motivo: 'nao_aprovado' };
+  const ref = String(pagamento.externalReference || '');
   const m = ref.match(/^rt:(\d+):(mensal|trimestral|anual):/);
   if (!m) return { aplicado: false, motivo: 'referencia' };
   const clienteId = Number(m[1]); const plano = PLANOS[m[2]];
-  if (Math.abs(Number(pagamento.transaction_amount) - plano.valor) > 0.009) return { aplicado: false, motivo: 'valor' };
+  if (Math.abs(Number(pagamento.value) - plano.valor) > 0.009) return { aplicado: false, motivo: 'valor' };
   const novo = await tenants.registrarPagamento(pagamento.id, clienteId, m[2], plano.valor);
   if (!novo) return { aplicado: false, motivo: 'ja_processado' };
   const r = await tenants.renovarPlano(clienteId, plano.dias);
@@ -83,23 +89,44 @@ router.get('/config', (req, res) => {
   res.json({ ok: true, ativo: ativo(), planos: Object.entries(PLANOS).map(([id, p]) => ({ id, nome: p.nome, valor: p.valor, dias: p.dias })) });
 });
 
-// Cria a cobrança Pix no Mercado Pago para um cliente já identificado.
-async function criarPix(req, cliente, planoId) {
+function limparDoc(v) { return String(v || '').replace(/\D/g, ''); }
+
+function hojeBrasil() {
+  return new Date(Date.now() - 3 * 3600 * 1000).toISOString().slice(0, 10);
+}
+
+// Acha (ou cria) o cliente no Asaas. O CPF/CNPJ é exigido por eles para gerar a cobrança.
+async function clienteAsaas(cliente, doc) {
+  const ext = 'rt:' + cliente.id;
+  const achados = await asaas('GET', '/customers?externalReference=' + encodeURIComponent(ext) + '&limit=1');
+  if (achados && achados.data && achados.data[0]) {
+    const c = achados.data[0];
+    if (doc && limparDoc(c.cpfCnpj) !== doc) { try { await asaas('PUT', '/customers/' + c.id, { cpfCnpj: doc }); } catch (e) { /* segue com o cadastro atual */ } }
+    return c.id;
+  }
+  const email = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(cliente.contato_email || '') ? cliente.contato_email : undefined;
+  const novo = await asaas('POST', '/customers', { name: cliente.nome || ('Cliente ' + cliente.id), cpfCnpj: doc, email, externalReference: ext, notificationDisabled: true });
+  return novo.id;
+}
+
+// Cria a cobrança Pix no Asaas para um cliente já identificado.
+async function criarPix(req, cliente, planoId, docInformado) {
   const plano = PLANOS[planoId];
-  const email = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(cliente.contato_email || '') ? cliente.contato_email : `cliente${cliente.id}@reboottechsystem.com`;
-  const ref = `rt:${cliente.id}:${planoId}:${Date.now()}`;
-  const pag = await mp('POST', '/v1/payments', {
-    transaction_amount: plano.valor,
+  let doc = limparDoc(docInformado) || limparDoc(cliente.cpf_cnpj);
+  if (doc.length !== 11 && doc.length !== 14) throw Object.assign(new Error('Informe o CPF ou CNPJ de quem vai pagar (somente números).'), { status: 400 });
+  const customer = await clienteAsaas(cliente, doc);
+  const pag = await asaas('POST', '/payments', {
+    customer,
+    billingType: 'PIX',
+    value: plano.valor,
+    dueDate: hojeBrasil(),
     description: `Reboot Tech System - plano ${plano.nome.toLowerCase()}`,
-    payment_method_id: 'pix',
-    payer: { email },
-    external_reference: ref,
-    notification_url: baseUrl(req) + '/api/pagamento/webhook',
-    date_of_expiration: new Date(Date.now() + 60 * 60 * 1000).toISOString().replace('Z', '+00:00'),
-  }, { 'X-Idempotency-Key': crypto.randomUUID() });
-  const td = pag.point_of_interaction && pag.point_of_interaction.transaction_data;
-  if (!td || !td.qr_code) throw Object.assign(new Error('O Mercado Pago não devolveu o código Pix.'), { status: 502 });
-  return { ok: true, id: String(pag.id), t: assinar(pag.id), valor: plano.valor, plano: plano.nome, qrCode: td.qr_code, qrBase64: td.qr_code_base64 || '' };
+    externalReference: `rt:${cliente.id}:${planoId}:${Date.now()}`,
+  });
+  const qr = await asaas('GET', '/payments/' + encodeURIComponent(pag.id) + '/pixQrCode');
+  if (!qr || !qr.payload) throw Object.assign(new Error('O Asaas não devolveu o código Pix.'), { status: 502 });
+  if (doc !== limparDoc(cliente.cpf_cnpj)) { try { await tenants.salvarCpfCnpj(cliente.id, doc); } catch (e) { /* opcional */ } }
+  return { ok: true, id: String(pag.id), t: assinar(pag.id), valor: plano.valor, plano: plano.nome, qrCode: qr.payload, qrBase64: qr.encodedImage || '', cpfCnpj: doc };
 }
 
 function ipDe(req) {
@@ -120,7 +147,7 @@ router.post('/pix', async (req, res) => {
     if (!PLANOS[b.plano]) return res.status(400).json({ ok: false, error: 'Plano inválido.' });
     const cliente = await tenants.identificarCliente(b.usuario, b.senha);
     if (!cliente) return res.status(401).json({ ok: false, error: 'Usuário ou senha incorretos.' });
-    res.json(await criarPix(req, cliente, b.plano));
+    res.json(await criarPix(req, cliente, b.plano, b.cpfCnpj));
   } catch (err) { erroPix(res, err, 'pix'); }
 });
 
@@ -134,39 +161,41 @@ router.post('/pix-logado', authMiddleware, async (req, res) => {
     const cliente = await tenants.buscarCliente(tenants.clienteIdDe(req));
     if (!cliente) return res.status(404).json({ ok: false, error: 'Cliente não encontrado.' });
     if (cliente.principal) return res.status(400).json({ ok: false, error: 'Este acesso não tem plano a renovar.' });
-    res.json(await criarPix(req, cliente, b.plano));
+    res.json(await criarPix(req, cliente, b.plano, b.cpfCnpj));
   } catch (err) { erroPix(res, err, 'pix-logado'); }
 });
 
-// A tela consulta de tempos em tempos; se o Mercado Pago já aprovou, libera na hora.
+// A tela consulta de tempos em tempos; se o Asaas já recebeu, libera na hora.
 router.get('/status/:id', async (req, res) => {
   try {
-    const id = String(req.params.id || '').replace(/\D/g, '');
+    const id = String(req.params.id || '').replace(/[^A-Za-z0-9_]/g, '');
     const t = String(req.query.t || '');
     const esperado = Buffer.from(assinar(id)); const recebido = Buffer.from(t);
     if (!id || esperado.length !== recebido.length || !crypto.timingSafeEqual(esperado, recebido)) return res.status(403).json({ ok: false, error: 'Consulta inválida.' });
-    const pag = await mp('GET', '/v1/payments/' + id);
+    const pag = await asaas('GET', '/payments/' + id);
     const r = await aplicarPagamento(pag);
-    res.json({ ok: true, status: pag.status, liberado: pag.status === 'approved' && (r.aplicado || r.motivo === 'ja_processado') });
+    res.json({ ok: true, status: pag.status, liberado: PAGO.includes(pag.status) && (r.aplicado || r.motivo === 'ja_processado') });
   } catch (err) {
     res.status(500).json({ ok: false, error: 'Não foi possível consultar o pagamento.' });
   }
 });
 
-// Aviso do Mercado Pago. Não confiamos no corpo: buscamos o pagamento direto na API deles.
+// Aviso do Asaas. Confere a senha do webhook e busca o pagamento direto na API (não confia no corpo).
 router.post('/webhook', async (req, res) => {
   try {
-    const q = req.query || {}; const b = req.body || {};
-    const tipo = b.type || q.type || q.topic;
-    const id = (b.data && b.data.id) || q['data.id'] || q.id;
-    if (ativo() && String(tipo) === 'payment' && id) {
-      const pag = await mp('GET', '/v1/payments/' + encodeURIComponent(id));
+    const esperado = process.env.ASAAS_WEBHOOK_TOKEN || '';
+    const recebido = String(req.headers['asaas-access-token'] || '');
+    const okToken = !esperado || (Buffer.byteLength(esperado) === Buffer.byteLength(recebido) && crypto.timingSafeEqual(Buffer.from(esperado), Buffer.from(recebido)));
+    const b = req.body || {};
+    const id = b.payment && b.payment.id;
+    if (ativo() && okToken && /^PAYMENT_(RECEIVED|CONFIRMED)$/.test(String(b.event || '')) && id) {
+      const pag = await asaas('GET', '/payments/' + encodeURIComponent(id));
       await aplicarPagamento(pag);
     }
   } catch (err) {
     console.error('[Pagamento] webhook:', err && err.message);
   }
-  res.status(200).json({ ok: true }); // sempre 200, para o Mercado Pago não ficar reenviando
+  res.status(200).json({ ok: true }); // sempre 200, para o Asaas não pausar a fila de avisos
 });
 
 module.exports = { router, aplicarPagamento, PLANOS };
