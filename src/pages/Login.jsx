@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { useApp } from '../context.jsx';
 import { SUPORTE_WHATSAPP } from '../utils.js';
+import { PLANOS_PIX } from '../pix-planos.js';
+import { qrSvg } from '../qr.js';
 
 export default function Login() {
   const { setUser } = useApp();
@@ -11,6 +13,9 @@ export default function Login() {
   const [esqueci, setEsqueci] = useState(false); // painel "Esqueci minha senha" (só na versão web)
   const [pedidoEnviado, setPedidoEnviado] = useState(false);
   const [enviando, setEnviando] = useState(false);
+  const [renovar, setRenovar] = useState(false); // painel "Renovar plano" (Pix)
+  const [planoId, setPlanoId] = useState('mensal');
+  const [copiado, setCopiado] = useState(false);
   const podeEsquecer = !!window.api?.auth?.esqueciSenha;
 
   async function pedirNovaSenha() {
@@ -33,12 +38,14 @@ export default function Login() {
 
   // Acesso bloqueado (teste acabou, plano vencido ou bloqueio manual): mostra o botão de suporte com a mensagem pronta.
   const bloqueado = /terminou|venceu|bloquead|suspens/i.test(error || '');
-  const testeAcabou = /teste gr/i.test(error || '');
-  const msgBloq = encodeURIComponent(
-    (testeAcabou ? 'Olá! Meu teste grátis do Reboot Tech terminou e eu quero assinar um plano.' : 'Olá! O meu acesso ao Reboot Tech está bloqueado e eu preciso de ajuda para liberar.')
-    + '\nMeu usuário (login) é: ' + usuario.trim()
+  const plano = PLANOS_PIX.find((p) => p.id === planoId) || PLANOS_PIX[0];
+  const linkPago = 'https://wa.me/' + String(SUPORTE_WHATSAPP || '').replace(/\D/g, '') + '?text=' + encodeURIComponent(
+    'Olá! Acabei de pagar o Pix de ' + plano.valor + ' (plano ' + plano.nome.toLowerCase() + ') para renovar o Reboot Tech. Segue o comprovante.\nMeu usuário (login) é: ' + usuario.trim()
   );
-  const linkBloq = 'https://wa.me/' + String(SUPORTE_WHATSAPP || '').replace(/\D/g, '') + '?text=' + msgBloq;
+  async function copiarPix() {
+    try { await navigator.clipboard.writeText(plano.codigo); } catch (e) { /* o campo abaixo está selecionável */ }
+    setCopiado(true); setTimeout(() => setCopiado(false), 2200);
+  }
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -78,10 +85,30 @@ export default function Login() {
           {loading ? 'Entrando...' : 'Entrar'}
         </button>
         {error && <div className="login-error">{error}</div>}
-        {error && bloqueado && (
-          <a className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', textDecoration: 'none', marginTop: 10 }} href={linkBloq} target="_blank" rel="noopener noreferrer">
-            💬 Contatar suporte
-          </a>
+        {error && bloqueado && !renovar && (
+          <button type="button" className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', marginTop: 10 }} onClick={() => setRenovar(true)}>
+            💳 Renovar plano
+          </button>
+        )}
+        {error && bloqueado && renovar && (
+          <div style={{ marginTop: 12, padding: 14, border: '1px solid var(--border, #333)', borderRadius: 10, textAlign: 'center', fontSize: 14 }}>
+            <div style={{ fontWeight: 800, marginBottom: 4 }}>Renovar plano</div>
+            <p className="muted" style={{ margin: '0 0 10px', fontSize: 12.5 }}>Escolha o plano e pague o Pix. Depois envie o comprovante: a gente libera o acesso <b>{usuario.trim()}</b>.</p>
+            <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+              {PLANOS_PIX.map((p) => (
+                <button key={p.id} type="button" className={'btn ' + (p.id === planoId ? 'btn-primary' : 'btn-secondary')} style={{ flex: 1, justifyContent: 'center', padding: '8px 4px', flexDirection: 'column', lineHeight: 1.2 }} onClick={() => { setPlanoId(p.id); setCopiado(false); }}>
+                  <span>{p.nome}</span><small style={{ fontWeight: 700 }}>{p.valor}</small>
+                </button>
+              ))}
+            </div>
+            <div style={{ fontSize: 22, fontWeight: 900, color: 'var(--primary, #d4af37)' }}>{plano.valor}</div>
+            <div className="muted" style={{ fontSize: 12, marginBottom: 8 }}>Cleyton de Souza Santos · {plano.periodo} de acesso</div>
+            <div style={{ display: 'inline-block', background: '#fff', borderRadius: 10, padding: 6 }} dangerouslySetInnerHTML={{ __html: qrSvg(plano.codigo, { tamanho: 190 }) }} />
+            <input readOnly value={plano.codigo} style={{ marginTop: 10, fontSize: 11 }} onFocus={(e) => e.target.select()} />
+            <button type="button" className="btn btn-secondary" style={{ width: '100%', justifyContent: 'center', marginTop: 8 }} onClick={copiarPix}>{copiado ? '✅ Código copiado!' : '📋 Copiar código Pix'}</button>
+            <a className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', textDecoration: 'none', marginTop: 8 }} href={linkPago} target="_blank" rel="noopener noreferrer">📤 Já paguei, enviar comprovante</a>
+            <p className="muted" style={{ margin: '10px 0 0', fontSize: 11.5 }}>🛡️ Garantia de 7 dias: se não gostar, devolvemos o valor pago.</p>
+          </div>
         )}
 
         {podeEsquecer && !esqueci && (

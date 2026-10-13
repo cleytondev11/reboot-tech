@@ -85,8 +85,8 @@ async function buscarCliente(id) {
 
 // Plano vencido? Vale até o fim do dia do vencimento; no dia seguinte o acesso é bloqueado sozinho.
 // Vale para todos os clientes, menos o principal (o do dono) e quem não tem data cadastrada.
-const MSG_TESTE = 'Seu teste grátis terminou. Para continuar usando, faça a assinatura pelo site ou fale com o suporte.';
-const MSG_VENCIDO = 'O plano desta empresa venceu. Para voltar a usar, renove o plano falando com o suporte.';
+const MSG_TESTE = 'Seu teste grátis terminou. Para continuar usando, faça a assinatura e libere o acesso.';
+const MSG_VENCIDO = 'O plano desta empresa venceu. Para voltar a usar, renove o plano e libere o acesso.';
 function planoVencido(cliente) {
   if (!cliente || cliente.principal || !cliente.data_vencimento) return false;
   return String(cliente.data_vencimento) < hojeIso();
