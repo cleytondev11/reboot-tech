@@ -140,7 +140,7 @@ const PAGINA = `<!doctype html>
   <div class="topo">
     <h1>🛡️ Central de Acessos</h1>
     <div style="display:flex;gap:10px;flex-wrap:wrap">
-      <button class="btn" id="btBv">👋 Mensagem de boas-vindas</button>
+      <button class="btn" id="btBv">✏️ Modelos de mensagem</button>
       <button class="btn" id="btNotif">🔔 Ativar notificações</button>
       <button class="btn" id="btImportar">Importar banco</button>
       <button class="btn pri" id="btNovo">+ Novo assinante</button>
@@ -194,13 +194,21 @@ const PAGINA = `<!doctype html>
   <div class="rod"><button class="btn" data-fechar="mImportar">Cancelar</button><button class="btn pri" id="importar">Importar</button></div>
 </div></div>
 
-<!-- Mensagem de boas-vindas -->
-<div class="fundo" id="mBv"><div class="modal">
-  <h2>Mensagem de boas-vindas</h2>
-  <p class="mut" style="margin:0">Enviada pelo WhatsApp a cada pessoa que cria o teste grátis. Você toca em enviar. Use <b>{nome}</b>, <b>{loja}</b>, <b>{login}</b>, <b>{dias}</b> e <b>{vencimento}</b>: o sistema troca pelos dados de cada cliente.</p>
-  <label>Texto da mensagem</label><textarea id="bvTexto" rows="14" style="width:100%;padding:11px 12px;border:1px solid var(--bd);border-radius:10px;background:var(--bg);color:var(--tx);font:inherit"></textarea>
+<!-- Modelos de mensagem -->
+<div class="fundo" id="mBv"><div class="modal" style="max-width:600px">
+  <h2>✏️ Modelos de mensagem</h2>
+  <p class="mut" style="margin:0">Use as palavras-chave e o sistema troca pelos dados de cada assinante: <b>{nome}</b> · <b>{negocio}</b> · <b>{link}</b> · <b>{usuario}</b> · <b>{vence}</b> · <b>{valor}</b> · <b>{dias}</b>. Texto entre *asteriscos* fica em negrito no WhatsApp.</p>
+  <div id="modelosLista"></div>
   <div id="msgBv" class="msg"></div>
-  <div class="rod"><button class="btn" id="bvPadrao">Restaurar padrão</button><button class="btn" data-fechar="mBv">Fechar</button><button class="btn pri" id="bvSalvar">Salvar</button></div>
+  <div class="rod"><button class="btn" data-fechar="mBv">Cancelar</button><button class="btn pri" id="bvSalvar">Salvar modelos</button></div>
+</div></div>
+
+<!-- Enviar mensagem pronta a um assinante -->
+<div class="fundo" id="mEnv"><div class="modal" style="max-width:600px">
+  <h2 id="envTitulo">Mensagens prontas</h2>
+  <p class="mut" style="margin:0">Escolha a mensagem: o WhatsApp abre com o texto pronto, só tocar em enviar.</p>
+  <div id="envLista"></div>
+  <div class="rod"><button class="btn" data-fechar="mEnv">Fechar</button></div>
 </div></div>
 
 <div id="toast"></div>
@@ -280,24 +288,90 @@ function linkWhats(c, texto) {
   return 'https://wa.me/' + n + '?text=' + encodeURIComponent(texto);
 }
 
-var BV_PADRAO = 'Olá, {nome}! 👋\\n\\nSeja muito bem-vindo(a) ao *Reboot Tech System*! 🎉\\n\\nSeu teste grátis de {dias} dias já está liberado, até {vencimento}. 🎁\\n\\n🔑 Seu login: {login}\\n(a senha é a que você escolheu no cadastro)\\n\\nO que você já pode fazer:\\n🧾 Abrir ordens de serviço\\n📲 Avisar o cliente pelo WhatsApp quando o aparelho ficar pronto\\n📦 Controlar estoque e peças\\n💰 Organizar o financeiro\\n🧮 Calcular preço e taxa da maquininha na Calculadora Pro\\n\\nQualquer dúvida, é só responder esta mensagem que eu te ajudo. 🤝\\n\\nQuando gostar, você escolhe o plano e ainda tem 🛡️ garantia de 7 dias.';
-function bvModelo() { try { return localStorage.getItem('bvMsg') || BV_PADRAO; } catch (e) { return BV_PADRAO; } }
-function bvMensagem(c) {
+var LINK_SISTEMA = 'https://www.reboottech1.com.br';
+var MODELOS = [
+  { id: 'promocao', icone: '🔥', nome: 'Promoção', texto: 'Oi, {nome}! Tudo bem? 😊\\n\\n🔥 *CONHEÇA O REBOOT TECH SYSTEM* 🔥\\n\\nO sistema completo para assistência técnica: ordem de serviço, orçamento, estoque, financeiro, Kanban da bancada e aviso automático ao cliente pelo WhatsApp.\\n\\n✅ Teste grátis por 3 dias, sem cartão\\n✅ Plano mensal por apenas *{valor}*\\n✅ 🛡️ Garantia de 7 dias: se não gostar, devolvemos o valor\\n\\nCrie seu acesso agora: {link}' },
+  { id: 'boasvindas', icone: '👋', nome: 'Boas-vindas', texto: 'Olá, {nome}! 👋\\n\\nSeja muito bem-vindo(a) ao *Reboot Tech System*! 🎉\\n\\nSeu teste grátis de {dias} dias da *{negocio}* já está liberado, até {vence}. 🎁\\n\\n🔗 Seu sistema: {link}\\n🔑 Seu login: {usuario}\\n(a senha é a que você escolheu no cadastro)\\n\\nO que você já pode fazer:\\n🧾 Abrir ordens de serviço\\n📲 Avisar o cliente pelo WhatsApp quando o aparelho ficar pronto\\n📦 Controlar estoque e peças\\n💰 Organizar o financeiro\\n🧮 Calcular preço e taxa da maquininha na Calculadora Pro\\n\\nQualquer dúvida, é só responder esta mensagem que eu te ajudo. 🤝\\n\\nQuando gostar, você escolhe o plano e ainda tem 🛡️ garantia de 7 dias.' },
+  { id: 'comoindo', icone: '🤝', nome: 'Como está indo? (2º dia)', texto: 'Oi, {nome}! Tudo bem? 😊\\n\\nPassando para saber como está sendo o teste do Reboot Tech System na *{negocio}*. Já conseguiu abrir uma ordem de serviço e cadastrar seus clientes?\\n\\nSe ficou com alguma dúvida, faço uma chamada rápida e te ajudo a deixar tudo pronto. 😉\\n\\n🔗 {link}' },
+  { id: 'ultimodia', icone: '⏳', nome: 'Último dia do teste', texto: 'Oi, {nome}! Seu teste grátis termina em *{vence}*. ⏳\\n\\nPara continuar com suas ordens de serviço, clientes e estoque, é só assinar por *{valor}/mês* (sem fidelidade). Pague por Pix ou cartão e o acesso é liberado na hora, de forma automática.\\n\\n🔗 {link}\\n👤 Usuário: {usuario}\\n\\nNo sistema, toque em *Renovar plano*. 🔄' },
+  { id: 'encerrado', icone: '🔒', nome: 'Teste encerrado', texto: 'Oi, {nome}! O teste grátis da *{negocio}* terminou, mas está tudo guardado: ordens, clientes e estoque. 💾\\n\\nPara voltar a usar, assine por *{valor}/mês*: entre em {link}, toque em *Renovar plano* e pague por Pix ou cartão. A liberação é automática.\\n\\nPosso te ajudar com alguma dúvida? 😊' },
+  { id: 'renovacao', icone: '🔄', nome: 'Renovação do plano', texto: 'Oi, {nome}! Tudo bem?\\n\\nO plano da *{negocio}* no Reboot Tech vence em *{vence}*. Para não ficar sem acesso, renove pelo sistema (Meu Plano → Renovar plano) por Pix ou cartão: a liberação é automática. 🔄\\n\\n🔗 {link}\\n\\nQualquer dúvida, estou por aqui! 🙏' }
+];
+function modelosSalvos() {
+  var o = {};
+  try { o = JSON.parse(localStorage.getItem('msgModelos') || '{}') || {}; } catch (e) { o = {}; }
+  // quem já tinha salvo a mensagem de boas-vindas antiga mantém o texto (as palavras-chave antigas continuam funcionando)
+  try { var antigo = localStorage.getItem('bvMsg'); if (antigo && !o.boasvindas) o.boasvindas = antigo; } catch (e) { /* sem armazenamento */ }
+  return o;
+}
+function modeloPadrao(id) { for (var i = 0; i < MODELOS.length; i++) if (MODELOS[i].id === id) return MODELOS[i].texto; return ''; }
+function modeloTexto(id) { var o = modelosSalvos(); return o[id] || modeloPadrao(id); }
+function trocar(texto, mapa) {
+  Object.keys(mapa).forEach(function (k) { texto = texto.split('{' + k + '}').join(mapa[k]); });
+  return texto;
+}
+function msgModelo(id, c) {
   var d = c.dataVencimento ? Math.max(0, diasAte(c.dataVencimento)) : 3;
   var p = (c.contatoNome || c.nome || '').trim().split(' ')[0] || 'tudo bem';
-  return bvModelo().split('{nome}').join(p).split('{loja}').join(c.nome || '').split('{login}').join(c.login || '').split('{dias}').join(String(d)).split('{vencimento}').join(c.dataVencimento ? fmt(c.dataVencimento) : '');
+  var venc = c.dataVencimento ? fmt(c.dataVencimento) : '';
+  var valor = c.valorMensal != null ? brl(c.valorMensal) : 'R$ 39,90';
+  return trocar(modeloTexto(id), { nome: p, negocio: c.nome || '', loja: c.nome || '', usuario: c.login || '', login: c.login || '', vence: venc, vencimento: venc, valor: valor, dias: String(d), link: LINK_SISTEMA });
 }
 function bvPendente(c) { return !c.boasVindas && !c.principal && c.ativo && String(c.contatoTelefone || '').replace(/[^0-9]/g, '').length >= 10; }
 async function enviarBv(c) {
-  var lk = linkWhats(c, bvMensagem(c));
+  var lk = linkWhats(c, msgModelo('boasvindas', c));
   if (!lk) { toast('Esse cliente não tem WhatsApp cadastrado.'); return; }
   window.open(lk, '_blank');
   try { await api('POST', '/clientes/' + c.id + '/boasvindas', { enviada: true }); c.boasVindas = true; toast('Boas-vindas marcada como enviada.'); } catch (e) { toast(e.message); }
   desenharKpis(); desenharFiltros(); desenharLista();
 }
-$('btBv').onclick = function () { $('bvTexto').value = bvModelo(); $('msgBv').className = 'msg'; $('mBv').classList.add('on'); };
-$('bvPadrao').onclick = function () { $('bvTexto').value = BV_PADRAO; };
-$('bvSalvar').onclick = function () { try { localStorage.setItem('bvMsg', $('bvTexto').value.trim() || BV_PADRAO); msg('msgBv', 'ok', 'Mensagem salva.'); } catch (e) { msg('msgBv', 'erro', 'Não foi possível salvar neste navegador.'); } };
+
+// Modal "Modelos de mensagem": um campo para cada modelo, cada um com "Restaurar padrão".
+$('btBv').onclick = function () {
+  var box = $('modelosLista'); box.innerHTML = '';
+  var salvos = modelosSalvos();
+  MODELOS.forEach(function (m) {
+    var topo = h('div', '');
+    topo.style.cssText = 'display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:16px';
+    var tit = h('b', '', m.icone + ' ' + m.nome); topo.appendChild(tit);
+    var bp = h('button', 'btn sm', 'Restaurar padrão'); topo.appendChild(bp);
+    var ta = document.createElement('textarea'); ta.id = 'mod_' + m.id; ta.rows = 7; ta.value = salvos[m.id] || m.texto;
+    ta.style.cssText = 'width:100%;margin-top:6px;padding:11px 12px;border:1px solid var(--bd);border-radius:10px;background:var(--bg);color:var(--tx);font:inherit';
+    bp.onclick = function () { ta.value = m.texto; };
+    box.appendChild(topo); box.appendChild(ta);
+  });
+  $('msgBv').className = 'msg'; $('mBv').classList.add('on');
+};
+$('bvSalvar').onclick = function () {
+  var o = {};
+  MODELOS.forEach(function (m) { var v = $('mod_' + m.id).value.trim(); if (v && v !== m.texto) o[m.id] = v; });
+  try { localStorage.setItem('msgModelos', JSON.stringify(o)); localStorage.removeItem('bvMsg'); msg('msgBv', 'ok', 'Modelos salvos.'); } catch (e) { msg('msgBv', 'erro', 'Não foi possível salvar neste navegador.'); }
+};
+
+// Enviar uma mensagem pronta a um assinante (abre o WhatsApp com o texto já preenchido).
+function abrirEnviar(c) {
+  $('envTitulo').textContent = 'Mensagens para ' + c.nome;
+  var box = $('envLista'); box.innerHTML = '';
+  MODELOS.forEach(function (m) {
+    var texto = msgModelo(m.id, c);
+    var cx = h('div', ''); cx.style.cssText = 'margin-top:14px;padding:12px;border:1px solid var(--bd);border-radius:12px;background:var(--bg)';
+    var topo = h('div', ''); topo.style.cssText = 'display:flex;justify-content:space-between;align-items:center;gap:10px';
+    topo.appendChild(h('b', '', m.icone + ' ' + m.nome));
+    var bz = h('button', 'btn pri sm', '💬 Enviar no WhatsApp');
+    bz.onclick = function () {
+      var lk = linkWhats(c, texto);
+      if (!lk) { toast('Esse cliente não tem WhatsApp cadastrado.'); return; }
+      window.open(lk, '_blank');
+      if (m.id === 'boasvindas') { api('POST', '/clientes/' + c.id + '/boasvindas', { enviada: true }).then(function () { c.boasVindas = true; desenharKpis(); desenharFiltros(); desenharLista(); }).catch(function () {}); }
+    };
+    topo.appendChild(bz); cx.appendChild(topo);
+    var pre = h('div', ''); pre.style.cssText = 'white-space:pre-wrap;color:var(--mut);font-size:13.5px;margin-top:8px;max-height:130px;overflow:auto'; pre.textContent = texto; cx.appendChild(pre);
+    var bc = h('button', 'btn sm', '📋 Copiar texto'); bc.style.marginTop = '8px';
+    bc.onclick = function () { try { navigator.clipboard.writeText(texto).then(function () { toast('Texto copiado.'); }, function () { toast('Não foi possível copiar.'); }); } catch (e) { toast('Não foi possível copiar.'); } };
+    cx.appendChild(bc); box.appendChild(cx);
+  });
+  $('mEnv').classList.add('on');
+}
 
 function desenharLista() {
   var q = termo.trim().toLowerCase();
@@ -340,6 +414,7 @@ function desenharLista() {
       add('📅 Renovar por 60 dias', function () { renovar(c, 60); });
       add('📅 Renovar por 365 dias', function () { renovar(c, 365); });
       if (!c.principal && c.contatoTelefone) add('👋 ' + (c.boasVindas ? 'Reenviar' : 'Enviar') + ' boas-vindas', function () { enviarBv(c); });
+      if (!c.principal && c.contatoTelefone) add('💬 Mensagens prontas…', function () { abrirEnviar(c); });
       add('🔑 Nova senha do cliente', function () { novaSenha(c); });
       var lk = linkWhats(c, 'Olá' + (c.contatoNome ? ', ' + c.contatoNome : '') + '! Passando para lembrar do vencimento do seu sistema' + (c.dataVencimento ? ' (' + fmt(c.dataVencimento) + ')' : '') + '. Posso gerar o Pix para renovar? 🙏');
       if (lk) add('💬 Cobrar no WhatsApp', function () { window.open(lk, '_blank'); });
