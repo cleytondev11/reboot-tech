@@ -194,6 +194,50 @@ router.post('/pix-logado', authMiddleware, async (req, res) => {
   } catch (err) { erroPix(res, err, 'pix-logado'); }
 });
 
+// ---------- assinatura no cartão: ver e cancelar (quem já está dentro do sistema) ----------
+const CICLO_NOME = { MONTHLY: 'mensal', QUARTERLY: 'trimestral', YEARLY: 'anual' };
+
+async function assinaturaAtiva(cliente) {
+  const achados = await asaas('GET', '/customers?externalReference=' + encodeURIComponent('rt:' + cliente.id) + '&limit=1');
+  const cus = achados && achados.data && achados.data[0];
+  if (!cus) return null;
+  const lista = await asaas('GET', '/subscriptions?customer=' + encodeURIComponent(cus.id) + '&status=ACTIVE&limit=10');
+  return ((lista && lista.data) || []).find((a) => /^rt:/.test(String(a.externalReference || ''))) || null;
+}
+
+async function clienteLogado(req) {
+  const cliente = await tenants.buscarCliente(tenants.clienteIdDe(req));
+  return cliente && !cliente.principal ? cliente : null;
+}
+
+router.get('/assinatura', authMiddleware, async (req, res) => {
+  try {
+    if (!ativo()) return res.json({ ok: true, ativa: false });
+    const cliente = await clienteLogado(req);
+    const a = cliente ? await assinaturaAtiva(cliente) : null;
+    if (!a) return res.json({ ok: true, ativa: false });
+    res.json({ ok: true, ativa: true, ciclo: CICLO_NOME[a.cycle] || '', valor: a.value, proximoVencimento: a.nextDueDate || '' });
+  } catch (err) {
+    console.error('[Pagamento] assinatura:', err && err.message);
+    res.json({ ok: true, ativa: false });
+  }
+});
+
+router.post('/assinatura/cancelar', authMiddleware, async (req, res) => {
+  try {
+    if (!ativo()) return res.status(503).json({ ok: false, error: 'Pagamento automático indisponível no momento.' });
+    const cliente = await clienteLogado(req);
+    const a = cliente ? await assinaturaAtiva(cliente) : null;
+    if (!a) return res.status(404).json({ ok: false, error: 'Nenhuma assinatura ativa encontrada.' });
+    await asaas('DELETE', '/subscriptions/' + encodeURIComponent(a.id));
+    try { push.avisarDono('🔁 Assinatura cancelada: ' + (cliente.nome || 'cliente ' + cliente.id), 'O cliente cancelou a cobrança recorrente no cartão.').catch(() => {}); } catch (e) { /* aviso é opcional */ }
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[Pagamento] cancelar:', err && err.message);
+    res.status(500).json({ ok: false, error: 'Não foi possível cancelar agora. Tente de novo ou fale com o suporte.' });
+  }
+});
+
 // A tela consulta de tempos em tempos; se o Asaas já recebeu, libera na hora.
 router.get('/status/:id', async (req, res) => {
   try {

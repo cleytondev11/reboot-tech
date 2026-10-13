@@ -1,12 +1,16 @@
 import React, { useEffect, useState } from 'react';
 import { useApp } from '../context.jsx';
-import { formatDiaCurto } from '../utils.js';
+import { formatDiaCurto, formatCurrency } from '../utils.js';
 import { statusPlano, DIAS_PLANO, DIAS_AVISO } from '../plano.js';
 
 // Meu Plano: data contratada, vencimento (30 dias), dias que faltam e botão para renovar pelo WhatsApp.
 export default function MeuPlano({ onRenovar }) {
   const [plano, setPlano] = useState(null);
   const [erro, setErro] = useState('');
+  const [ass, setAss] = useState(null); // assinatura no cartão: { ativa, ciclo, valor, proximoVencimento }
+  const [confirmando, setConfirmando] = useState(false);
+  const [cancelando, setCancelando] = useState(false);
+  const [msgAss, setMsgAss] = useState('');
 
   async function carregar() {
     try {
@@ -16,7 +20,18 @@ export default function MeuPlano({ onRenovar }) {
       setErro(String((err && err.message) || err));
     }
   }
-  useEffect(() => { carregar(); }, []);
+  useEffect(() => {
+    carregar();
+    if (window.api?.pagamento?.assinatura) window.api.pagamento.assinatura().then((r) => setAss(r && r.ativa ? r : null)).catch(() => {});
+  }, []);
+
+  async function cancelarAssinatura() {
+    setCancelando(true); setMsgAss('');
+    const r = await window.api.pagamento.cancelarAssinatura();
+    setCancelando(false); setConfirmando(false);
+    if (r && r.ok) { setAss(null); setMsgAss('Assinatura cancelada. Seu plano continua valendo até o vencimento.'); }
+    else setMsgAss((r && r.error) || 'Não foi possível cancelar agora.');
+  }
 
   if (erro) return <div className="empty-state">Não foi possível carregar o plano: {erro}</div>;
   if (!plano) return <div className="empty-state">Carregando...</div>;
@@ -66,8 +81,31 @@ export default function MeuPlano({ onRenovar }) {
           <button className="btn btn-primary" onClick={onRenovar}>🔄 Renovar plano</button>
           <button className="btn btn-secondary" onClick={carregar}>Atualizar</button>
         </div>
-        <p className="muted" style={{ fontSize: 12, margin: '10px 0 0' }}>O botão gera o Pix; ao pagar, o plano é renovado automaticamente em instantes.</p>
+        <p className="muted" style={{ fontSize: 12, margin: '10px 0 0' }}>O botão gera o Pix ou o pagamento no cartão; ao pagar, o plano é renovado automaticamente em instantes.</p>
       </div>
+
+      {(ass || msgAss) && (
+        <div className="card" style={{ marginTop: 14 }}>
+          <h3 style={{ margin: '0 0 6px' }}>🔁 Assinatura no cartão</h3>
+          {ass && (
+            <>
+              <p className="muted" style={{ fontSize: 13.5, margin: '0 0 10px' }}>
+                Cobrança {ass.ciclo} de <b>{formatCurrency(ass.valor)}</b> no cartão{ass.proximoVencimento ? <>, próxima em <b>{formatDiaCurto(String(ass.proximoVencimento).slice(0, 10))}</b></> : ''}. O plano é renovado sozinho a cada cobrança paga.
+              </p>
+              {!confirmando ? (
+                <button type="button" className="btn btn-secondary" onClick={() => setConfirmando(true)}>Cancelar assinatura</button>
+              ) : (
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                  <span style={{ fontSize: 13.5 }}>Tem certeza? As próximas cobranças deixam de acontecer.</span>
+                  <button type="button" className="btn btn-primary" disabled={cancelando} onClick={cancelarAssinatura}>{cancelando ? 'Cancelando…' : 'Sim, cancelar'}</button>
+                  <button type="button" className="btn btn-ghost" onClick={() => setConfirmando(false)}>Voltar</button>
+                </div>
+              )}
+            </>
+          )}
+          {msgAss && <p className="muted" style={{ fontSize: 13, margin: '8px 0 0' }}>{msgAss}</p>}
+        </div>
+      )}
     </div>
   );
 }
