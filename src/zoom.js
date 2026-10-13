@@ -28,7 +28,22 @@ export function aplicarZoom() {
     r.style.zoom = z === 1 ? '' : String(z);
   } catch { /* ignora */ }
 }
+// Densidade: "compacto" (padrão no computador) deixa menus, tabelas, cartões e botões menores,
+// para caber mais informação na tela. Em "confortavel" o visual volta ao espaçamento original.
+const CHAVE_DENS = 'rt-densidade';
+export function densidadePref() {
+  try { return localStorage.getItem(CHAVE_DENS) || 'compacto'; } catch { return 'compacto'; }
+}
+export function aplicarDensidade() {
+  try { document.documentElement.setAttribute('data-densidade', densidadePref()); } catch { /* ignora */ }
+}
+export function definirDensidade(v) {
+  try { if (v === 'compacto') localStorage.removeItem(CHAVE_DENS); else localStorage.setItem(CHAVE_DENS, v); } catch { /* ignora */ }
+  aplicarDensidade();
+}
+
 if (typeof window !== 'undefined') {
+  aplicarDensidade();
   aplicarZoom();
   window.addEventListener('resize', aplicarZoom);
 }

@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useApp } from '../context.jsx';
 import { formatDateTime } from '../utils.js';
 import { somAtivo, definirSom, tocarSom } from '../som.js';
-import { zoomPref, definirZoom } from '../zoom.js';
+import { zoomPref, definirZoom, densidadePref, definirDensidade } from '../zoom.js';
 import { perguntarAvisoStatus, definirPerguntarAvisoStatus } from '../components/AvisoProntoModal.jsx';
 
 const EMPTY_EMPRESA = {
@@ -15,6 +15,7 @@ export default function Configuracoes() {
   const [tab, setTab] = useState('geral');
   const [somLigado, setSomLigado] = useState(() => somAtivo());
   const [zoomSel, setZoomSel] = useState(() => zoomPref());
+  const [densSel, setDensSel] = useState(() => densidadePref());
   const [avisoStatus, setAvisoStatus] = useState(() => perguntarAvisoStatus());
   const [logs, setLogs] = useState([]);
   const [version, setVersion] = useState('');
@@ -206,6 +207,12 @@ export default function Configuracoes() {
                 <option value="1">100%</option>
                 <option value="1.1">110%</option>
                 <option value="1.2">120%</option>
+              </select>
+              <div className="section-title" style={{ marginTop: 18 }}>📐 Densidade (computador)</div>
+              <p className="muted" style={{ fontSize: 12.5 }}>O modo compacto reduz menus, tabelas, cartões e botões para mostrar mais informação na tela. No celular não muda nada.</p>
+              <select value={densSel} onChange={(e) => { setDensSel(e.target.value); definirDensidade(e.target.value); }}>
+                <option value="compacto">Compacto (recomendado)</option>
+                <option value="confortavel">Confortável</option>
               </select>
             </div>
 
