@@ -31,6 +31,15 @@ export default function Login() {
   const msgZap = encodeURIComponent('Olá! Esqueci a minha senha do Reboot Tech. Meu usuário (login) é: ' + usuario.trim());
   const linkZap = 'https://wa.me/' + String(SUPORTE_WHATSAPP || '').replace(/\D/g, '') + '?text=' + msgZap;
 
+  // Acesso bloqueado (teste acabou, plano vencido ou bloqueio manual): mostra o botão de suporte com a mensagem pronta.
+  const bloqueado = /terminou|venceu|bloquead|suspens/i.test(error || '');
+  const testeAcabou = /teste gr/i.test(error || '');
+  const msgBloq = encodeURIComponent(
+    (testeAcabou ? 'Olá! Meu teste grátis do Reboot Tech terminou e eu quero assinar um plano.' : 'Olá! O meu acesso ao Reboot Tech está bloqueado e eu preciso de ajuda para liberar.')
+    + '\nMeu usuário (login) é: ' + usuario.trim()
+  );
+  const linkBloq = 'https://wa.me/' + String(SUPORTE_WHATSAPP || '').replace(/\D/g, '') + '?text=' + msgBloq;
+
   async function handleSubmit(e) {
     e.preventDefault();
     setError('');
@@ -69,6 +78,11 @@ export default function Login() {
           {loading ? 'Entrando...' : 'Entrar'}
         </button>
         {error && <div className="login-error">{error}</div>}
+        {error && bloqueado && (
+          <a className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', textDecoration: 'none', marginTop: 10 }} href={linkBloq} target="_blank" rel="noopener noreferrer">
+            💬 Contatar suporte
+          </a>
+        )}
 
         {podeEsquecer && !esqueci && (
           <button type="button" className="btn-link" style={{ marginTop: 14, background: 'none', border: 'none', color: 'var(--primary, #d4af37)', cursor: 'pointer', textDecoration: 'underline', fontSize: 13.5 }} onClick={() => { setEsqueci(true); setPedidoEnviado(false); }}>
