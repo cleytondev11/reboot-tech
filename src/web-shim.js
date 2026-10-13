@@ -73,6 +73,7 @@ import { criarApiImpressora } from './impressao-web.js';
       gerarPix: (usuario, senha, plano, cpfCnpj, metodo) => fetch(`${API_URL}/api/pagamento/pix`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ usuario, senha, plano, cpfCnpj, metodo }),
       }).then((r) => r.json()).catch(() => ({ ok: false, error: 'Sem conexão com o servidor.' })),
+      historico: () => fetch(`${API_URL}/api/pagamento/historico`, { headers: { ...(getToken() ? { Authorization: `Bearer ${getToken()}` } : {}) }, cache: 'no-store' }).then((r) => r.json()).catch(() => ({ ok: false, pagamentos: [] })),
       assinatura: () => fetch(`${API_URL}/api/pagamento/assinatura`, { headers: { ...(getToken() ? { Authorization: `Bearer ${getToken()}` } : {}) }, cache: 'no-store' }).then((r) => r.json()).catch(() => ({ ok: false, ativa: false })),
       cancelarAssinatura: () => fetch(`${API_URL}/api/pagamento/assinatura/cancelar`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(getToken() ? { Authorization: `Bearer ${getToken()}` } : {}) }, body: '{}' }).then((r) => r.json()).catch(() => ({ ok: false, error: 'Sem conexão com o servidor.' })),
       gerarPixLogado: (plano, cpfCnpj, metodo) => fetch(`${API_URL}/api/pagamento/pix-logado`, {

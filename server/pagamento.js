@@ -80,9 +80,10 @@ async function aplicarPagamento(pagamento) {
   if (!m) return { aplicado: false, motivo: 'referencia' };
   const clienteId = Number(m[1]); const plano = PLANOS[m[2]];
   if (Math.abs(Number(pagamento.value) - plano.valor) > 0.009) return { aplicado: false, motivo: 'valor' };
-  const novo = await tenants.registrarPagamento(pagamento.id, clienteId, m[2], plano.valor);
+  const novo = await tenants.registrarPagamento(pagamento.id, clienteId, m[2], plano.valor, pagamento.billingType);
   if (!novo) return { aplicado: false, motivo: 'ja_processado' };
   const r = await tenants.renovarPlano(clienteId, plano.dias);
+  try { await tenants.marcarPagamentoAte(pagamento.id, r.dataVencimento); } catch (e) { /* só para o histórico */ }
   try {
     const c = await tenants.buscarCliente(clienteId);
     push.avisarDono('💰 Pagamento recebido: ' + (c ? c.nome : 'cliente ' + clienteId), 'Plano ' + plano.nome + ' · R$ ' + plano.valor.toFixed(2).replace('.', ',') + ' · acesso liberado até ' + r.dataVencimento.split('-').reverse().join('/')).catch(() => {});
@@ -209,6 +210,21 @@ async function clienteLogado(req) {
   const cliente = await tenants.buscarCliente(tenants.clienteIdDe(req));
   return cliente && !cliente.principal ? cliente : null;
 }
+
+// Histórico de pagamentos do cliente que está logado.
+router.get('/historico', authMiddleware, async (req, res) => {
+  try {
+    const cliente = await clienteLogado(req);
+    const linhas = cliente ? await tenants.listarPagamentos(cliente.id) : [];
+    res.json({ ok: true, pagamentos: linhas.map((l) => ({
+      id: l.id, plano: PLANOS[l.plano] ? PLANOS[l.plano].nome : (l.plano || ''), valor: Number(l.valor) || 0,
+      data: l.criado_em || '', forma: l.forma === 'CREDIT_CARD' ? 'Cartão' : l.forma === 'PIX' ? 'Pix' : '', ate: l.ate || '',
+    })) });
+  } catch (err) {
+    console.error('[Pagamento] historico:', err && err.message);
+    res.json({ ok: true, pagamentos: [] });
+  }
+});
 
 router.get('/assinatura', authMiddleware, async (req, res) => {
   try {

@@ -65,6 +65,8 @@ async function iniciarRegistro() {
     valor REAL,
     criado_em TEXT NOT NULL
   )`);
+  try { await dbPrincipal.run('ALTER TABLE rt_pagamentos ADD COLUMN forma TEXT'); } catch (e) { /* coluna já existe */ }
+  try { await dbPrincipal.run('ALTER TABLE rt_pagamentos ADD COLUMN ate TEXT'); } catch (e) { /* coluna já existe */ }
   try { await dbPrincipal.run('ALTER TABLE rt_clientes ADD COLUMN cpf_cnpj TEXT'); } catch (e) { /* coluna já existe */ }
   // Central de Acessos: marca se a mensagem de boas-vindas já foi enviada ao cliente.
   try { await dbPrincipal.run('ALTER TABLE rt_clientes ADD COLUMN boasvindas INTEGER DEFAULT 0'); } catch (e) { /* coluna já existe */ }
@@ -245,11 +247,19 @@ async function identificarCliente(usuario, senha) {
 }
 
 // Registra um pagamento aprovado. Retorna true só na primeira vez (evita renovar duas vezes).
-async function registrarPagamento(id, clienteId, plano, valor) {
+async function registrarPagamento(id, clienteId, plano, valor, forma) {
   const ja = await dbPrincipal.get('SELECT id FROM rt_pagamentos WHERE id = ?', [String(id)]);
   if (ja) return false;
-  await dbPrincipal.run('INSERT INTO rt_pagamentos (id, cliente_id, plano, valor, criado_em) VALUES (?,?,?,?,?)', [String(id), clienteId, plano, valor, agoraIso()]);
+  await dbPrincipal.run('INSERT INTO rt_pagamentos (id, cliente_id, plano, valor, criado_em, forma) VALUES (?,?,?,?,?,?)', [String(id), clienteId, plano, valor, agoraIso(), forma || null]);
   return true;
+}
+
+// Histórico: anota até quando o pagamento liberou o acesso, e lista os pagamentos de um cliente.
+async function marcarPagamentoAte(id, ate) {
+  await dbPrincipal.run('UPDATE rt_pagamentos SET ate = ? WHERE id = ?', [ate, String(id)]);
+}
+async function listarPagamentos(clienteId) {
+  return dbPrincipal.all('SELECT id, plano, valor, criado_em, forma, ate FROM rt_pagamentos WHERE cliente_id = ? ORDER BY criado_em DESC LIMIT 100', [clienteId]);
 }
 
 // Guarda o CPF/CNPJ do pagador (o Asaas exige para gerar a cobrança), para não pedir de novo.
@@ -481,6 +491,8 @@ module.exports = {
   identificarCliente,
   registrarPagamento,
   salvarCpfCnpj,
+  marcarPagamentoAte,
+  listarPagamentos,
   marcarBoasVindas,
   planoVencido,
   mensagemVencido,

@@ -11,6 +11,7 @@ export default function MeuPlano({ onRenovar }) {
   const [confirmando, setConfirmando] = useState(false);
   const [cancelando, setCancelando] = useState(false);
   const [msgAss, setMsgAss] = useState('');
+  const [historico, setHistorico] = useState(null); // pagamentos já confirmados
 
   async function carregar() {
     try {
@@ -22,6 +23,7 @@ export default function MeuPlano({ onRenovar }) {
   }
   useEffect(() => {
     carregar();
+    if (window.api?.pagamento?.historico) window.api.pagamento.historico().then((r) => setHistorico((r && r.pagamentos) || [])).catch(() => setHistorico([]));
     if (window.api?.pagamento?.assinatura) window.api.pagamento.assinatura().then((r) => setAss(r && r.ativa ? r : null)).catch(() => {});
   }, []);
 
@@ -82,6 +84,36 @@ export default function MeuPlano({ onRenovar }) {
           <button className="btn btn-secondary" onClick={carregar}>Atualizar</button>
         </div>
         <p className="muted" style={{ fontSize: 12, margin: '10px 0 0' }}>O botão gera o Pix ou o pagamento no cartão; ao pagar, o plano é renovado automaticamente em instantes.</p>
+      </div>
+
+      <div className="card" style={{ marginTop: 14 }}>
+        <h3 style={{ margin: '0 0 8px' }}>🧾 Histórico de pagamentos</h3>
+        {historico === null ? (
+          <p className="muted" style={{ fontSize: 13, margin: 0 }}>Carregando...</p>
+        ) : historico.length === 0 ? (
+          <p className="muted" style={{ fontSize: 13, margin: 0 }}>Nenhum pagamento online registrado ainda. Os pagamentos feitos por Pix ou cartão aparecem aqui.</p>
+        ) : (
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', fontSize: 13.5, borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ textAlign: 'left' }} className="muted">
+                  <th style={{ padding: '4px 8px 6px 0' }}>Data</th><th style={{ padding: '4px 8px 6px 0' }}>Plano</th><th style={{ padding: '4px 8px 6px 0' }}>Forma</th><th style={{ padding: '4px 8px 6px 0', textAlign: 'right' }}>Valor</th><th style={{ padding: '4px 0 6px 8px' }}>Liberado até</th>
+                </tr>
+              </thead>
+              <tbody>
+                {historico.map((h) => (
+                  <tr key={h.id} style={{ borderTop: '1px solid var(--border, #333)' }}>
+                    <td style={{ padding: '6px 8px 6px 0' }}>{h.data ? formatDiaCurto(String(h.data).slice(0, 10)) : '—'}</td>
+                    <td style={{ padding: '6px 8px 6px 0' }}>{h.plano || '—'}</td>
+                    <td style={{ padding: '6px 8px 6px 0' }}>{h.forma || '—'}</td>
+                    <td style={{ padding: '6px 8px 6px 0', textAlign: 'right', fontWeight: 700 }}>{formatCurrency(h.valor)}</td>
+                    <td style={{ padding: '6px 0 6px 8px' }}>{h.ate ? formatDiaCurto(String(h.ate).slice(0, 10)) : '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       {(ass || msgAss) && (
