@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from '../context.jsx';
 import { formatCurrency } from '../utils.js';
 import { qrSvg } from '../qr.js';
@@ -6,7 +6,7 @@ import { PIX_RENOVACAO, DADOS_PIX, enviarComprovantePeloWhatsapp } from '../plan
 
 // Renovar plano: mostra o QR Code e o Pix "copia e cola". Depois de pagar, o cliente toca em
 // "Já fiz o pagamento" e aparece o botão para enviar o comprovante no WhatsApp do suporte.
-export default function RenovarPlanoModal({ plano, onClose }) {
+function PixEstatico({ plano, onClose }) {
   const { user, showToast } = useApp();
   const [pago, setPago] = useState(false);
   const svg = useMemo(() => qrSvg(PIX_RENOVACAO, { tamanho: 232 }), []);
@@ -68,4 +68,136 @@ export default function RenovarPlanoModal({ plano, onClose }) {
       </div>
     </div>
   );
+}
+
+const PLANOS_MP = [
+  { id: 'mensal', nome: 'Mensal', valor: 39.9, rotulo: '30 dias' },
+  { id: 'trimestral', nome: 'Trimestral', valor: 99.7, rotulo: '90 dias' },
+  { id: 'anual', nome: 'Anual', valor: 319.99, rotulo: '365 dias' },
+];
+
+// Pix automático (Mercado Pago): gera o QR Code, confere o pagamento sozinho e renova na hora.
+function PixAutomatico({ plano, onClose, onPago, onFalha }) {
+  const { user, showToast } = useApp();
+  const [escolhido, setEscolhido] = useState('mensal');
+  const [pix, setPix] = useState(null);
+  const [gerando, setGerando] = useState(false);
+  const [erro, setErro] = useState('');
+  const [liberado, setLiberado] = useState(false);
+  const [vencimento, setVencimento] = useState('');
+  const [comprovante, setComprovante] = useState(false);
+  const vivo = useRef(true);
+  useEffect(() => () => { vivo.current = false; }, []);
+
+  async function gerar() {
+    setGerando(true); setErro('');
+    const r = await window.api.pagamento.gerarPixLogado(escolhido);
+    if (!vivo.current) return;
+    setGerando(false);
+    if (r && r.ok) setPix(r); else setErro((r && r.error) || 'Não foi possível gerar o Pix agora.');
+  }
+
+  useEffect(() => {
+    if (!pix || liberado) return undefined;
+    let parar = false;
+    const t = setInterval(async () => {
+      const r = await window.api.pagamento.status(pix.id, pix.t);
+      if (parar || !vivo.current) return;
+      if (r && r.liberado) {
+        parar = true; setLiberado(true);
+        try {
+          const p = await window.api.plano.get();
+          if (p && p.dataVencimento) setVencimento(p.dataVencimento.split('-').reverse().join('/'));
+        } catch { /* a data é só um detalhe */ }
+        if (onPago) onPago();
+      }
+    }, 4000);
+    return () => { parar = true; clearInterval(t); };
+  }, [pix, liberado]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function copiar() {
+    try { await navigator.clipboard.writeText(pix.qrCode); showToast('Código Pix copiado! Cole no app do seu banco.'); }
+    catch { showToast('Não foi possível copiar. Segure o texto do código para copiar manualmente.', 'error'); }
+  }
+
+  const sel = PLANOS_MP.find((p) => p.id === escolhido);
+  return (
+    <div className="modal-backdrop" style={{ zIndex: 250 }} onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="modal" style={{ width: 'min(460px, 94vw)' }}>
+        <div className="modal-header">
+          <h3>🔄 Renovar plano</h3>
+          <button type="button" className="icon-btn" onClick={onClose} aria-label="Fechar">✕</button>
+        </div>
+
+        {liberado ? (
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: 44 }}>✅</div>
+            <h3 style={{ margin: '4px 0 6px' }}>Pagamento confirmado!</h3>
+            <p className="muted" style={{ fontSize: 13.5, margin: '0 0 14px' }}>
+              Seu plano foi renovado{vencimento ? <> até <b>{vencimento}</b></> : ''}. Obrigado!
+            </p>
+            <button type="button" className="btn btn-primary" onClick={onClose}>Fechar</button>
+          </div>
+        ) : comprovante ? (
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: 42 }}>🧾</div>
+            <h3 style={{ margin: '4px 0 6px' }}>Enviar comprovante</h3>
+            <p className="muted" style={{ fontSize: 13.5, margin: '0 0 14px' }}>
+              Normalmente o plano é liberado sozinho em instantes. Se já pagou e não liberou, envie o comprovante ao suporte.
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <button type="button" className="btn btn-primary" onClick={() => enviarComprovantePeloWhatsapp(plano, user).catch((err) => showToast(String((err && err.message) || err), 'error'))}>💬 Enviar comprovante no WhatsApp</button>
+              <button type="button" className="btn btn-secondary" onClick={() => setComprovante(false)}>← Voltar ao QR Code</button>
+            </div>
+          </div>
+        ) : !pix ? (
+          <>
+            <p className="muted" style={{ marginTop: 0, textAlign: 'center', fontSize: 13 }}>Escolha o plano. O Pix é gerado na hora e o acesso é renovado automaticamente após o pagamento.</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {PLANOS_MP.map((p) => (
+                <button key={p.id} type="button" className={'btn ' + (escolhido === p.id ? 'btn-primary' : 'btn-secondary')} onClick={() => setEscolhido(p.id)} style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span>{p.nome} · {p.rotulo}</span><b>{formatCurrency(p.valor)}</b>
+                </button>
+              ))}
+            </div>
+            {erro && <div className="muted" style={{ color: 'var(--danger, #e5484d)', marginTop: 10, fontSize: 13, textAlign: 'center' }}>{erro}</div>}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 14 }}>
+              <button type="button" className="btn btn-primary" disabled={gerando} onClick={gerar}>{gerando ? 'Gerando Pix…' : `Gerar Pix de ${formatCurrency(sel.valor)}`}</button>
+              {erro && <button type="button" className="btn btn-ghost" onClick={onFalha}>Usar o Pix manual</button>}
+            </div>
+          </>
+        ) : (
+          <>
+            <p className="muted" style={{ marginTop: 0, textAlign: 'center', fontSize: 13 }}>Plano {pix.plano}: leia o QR Code no app do seu banco ou use o Pix copia e cola.</p>
+            <div className="rn-valor">{formatCurrency(pix.valor)}</div>
+            {pix.qrBase64 && <div className="rn-qr"><img alt="QR Code do Pix" src={'data:image/png;base64,' + pix.qrBase64} style={{ width: 220, height: 220 }} /></div>}
+            <div className="field" style={{ marginTop: 14 }}>
+              <label>Pix copia e cola</label>
+              <textarea className="rn-codigo" readOnly rows={4} value={pix.qrCode} onFocus={(e) => e.target.select()} />
+            </div>
+            <div className="muted" style={{ textAlign: 'center', fontSize: 12.5, margin: '6px 0' }}>⏳ Aguardando o pagamento… a liberação é automática.</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <button type="button" className="btn btn-secondary" onClick={copiar}>📋 Copiar código Pix</button>
+              <button type="button" className="btn btn-ghost" onClick={() => setComprovante(true)}>Problema? Enviar comprovante</button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Usa o Pix automático quando o servidor tem o Mercado Pago configurado; senão, o Pix fixo.
+export default function RenovarPlanoModal({ plano, onClose, onPago }) {
+  const [modo, setModo] = useState('carregando');
+  useEffect(() => {
+    let vivo = true;
+    const f = window.api && window.api.pagamento && window.api.pagamento.config;
+    if (!f) { setModo('estatico'); return undefined; }
+    f().then((c) => { if (vivo) setModo(c && c.ativo ? 'auto' : 'estatico'); }).catch(() => { if (vivo) setModo('estatico'); });
+    return () => { vivo = false; };
+  }, []);
+  if (modo === 'carregando') return null;
+  if (modo === 'auto') return <PixAutomatico plano={plano} onClose={onClose} onPago={onPago} onFalha={() => setModo('estatico')} />;
+  return <PixEstatico plano={plano} onClose={onClose} />;
 }

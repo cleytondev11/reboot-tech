@@ -73,6 +73,9 @@ import { criarApiImpressora } from './impressao-web.js';
       gerarPix: (usuario, senha, plano) => fetch(`${API_URL}/api/pagamento/pix`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ usuario, senha, plano }),
       }).then((r) => r.json()).catch(() => ({ ok: false, error: 'Sem conexão com o servidor.' })),
+      gerarPixLogado: (plano) => fetch(`${API_URL}/api/pagamento/pix-logado`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', ...(getToken() ? { Authorization: `Bearer ${getToken()}` } : {}) }, body: JSON.stringify({ plano }),
+      }).then((r) => r.json()).catch(() => ({ ok: false, error: 'Sem conexão com o servidor.' })),
       status: (id, t) => fetch(`${API_URL}/api/pagamento/status/${encodeURIComponent(id)}?t=${encodeURIComponent(t)}`, { cache: 'no-store' }).then((r) => r.json()).catch(() => ({ ok: false })),
     },
     auth: {

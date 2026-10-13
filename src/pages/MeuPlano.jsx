@@ -66,7 +66,7 @@ export default function MeuPlano({ onRenovar }) {
           <button className="btn btn-primary" onClick={onRenovar}>🔄 Renovar plano</button>
           <button className="btn btn-secondary" onClick={carregar}>Atualizar</button>
         </div>
-        <p className="muted" style={{ fontSize: 12, margin: '10px 0 0' }}>O botão mostra o QR Code do Pix para pagar; depois você envia o comprovante pelo WhatsApp.</p>
+        <p className="muted" style={{ fontSize: 12, margin: '10px 0 0' }}>O botão gera o Pix; ao pagar, o plano é renovado automaticamente em instantes.</p>
       </div>
     </div>
   );

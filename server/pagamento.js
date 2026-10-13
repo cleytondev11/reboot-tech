@@ -10,6 +10,7 @@ const crypto = require('crypto');
 const express = require('express');
 const tenants = require('./tenants');
 const push = require('./push');
+const { authMiddleware } = require('./auth');
 
 const router = express.Router();
 const API = 'https://api.mercadopago.com';
@@ -82,37 +83,59 @@ router.get('/config', (req, res) => {
   res.json({ ok: true, ativo: ativo(), planos: Object.entries(PLANOS).map(([id, p]) => ({ id, nome: p.nome, valor: p.valor, dias: p.dias })) });
 });
 
-// Gera o Pix de renovação. Exige login e senha corretos (o plano pode estar vencido).
+// Cria a cobrança Pix no Mercado Pago para um cliente já identificado.
+async function criarPix(req, cliente, planoId) {
+  const plano = PLANOS[planoId];
+  const email = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(cliente.contato_email || '') ? cliente.contato_email : `cliente${cliente.id}@reboottechsystem.com`;
+  const ref = `rt:${cliente.id}:${planoId}:${Date.now()}`;
+  const pag = await mp('POST', '/v1/payments', {
+    transaction_amount: plano.valor,
+    description: `Reboot Tech System - plano ${plano.nome.toLowerCase()}`,
+    payment_method_id: 'pix',
+    payer: { email },
+    external_reference: ref,
+    notification_url: baseUrl(req) + '/api/pagamento/webhook',
+    date_of_expiration: new Date(Date.now() + 60 * 60 * 1000).toISOString().replace('Z', '+00:00'),
+  }, { 'X-Idempotency-Key': crypto.randomUUID() });
+  const td = pag.point_of_interaction && pag.point_of_interaction.transaction_data;
+  if (!td || !td.qr_code) throw Object.assign(new Error('O Mercado Pago não devolveu o código Pix.'), { status: 502 });
+  return { ok: true, id: String(pag.id), t: assinar(pag.id), valor: plano.valor, plano: plano.nome, qrCode: td.qr_code, qrBase64: td.qr_code_base64 || '' };
+}
+
+function ipDe(req) {
+  return req.headers['x-forwarded-for'] ? String(req.headers['x-forwarded-for']).split(',')[0].trim() : req.ip;
+}
+
+function erroPix(res, err, rotulo) {
+  console.error('[Pagamento] ' + rotulo + ':', err && err.message, err && err.detalhe ? JSON.stringify(err.detalhe).slice(0, 400) : '');
+  res.status(err.status || 500).json({ ok: false, error: err.status && err.status < 500 ? err.message : 'Não foi possível gerar o Pix agora. Tente de novo ou use o Pix pelo site.' });
+}
+
+// Gera o Pix de renovação na tela de login. Exige login e senha corretos (o plano pode estar vencido).
 router.post('/pix', async (req, res) => {
   try {
     if (!ativo()) return res.status(503).json({ ok: false, error: 'Pagamento automático indisponível no momento.' });
     const b = req.body || {};
-    const ip = req.headers['x-forwarded-for'] ? String(req.headers['x-forwarded-for']).split(',')[0].trim() : req.ip;
-    if (limitado(ip)) return res.status(429).json({ ok: false, error: 'Muitas tentativas. Tente novamente mais tarde.' });
-    const plano = PLANOS[b.plano];
-    if (!plano) return res.status(400).json({ ok: false, error: 'Plano inválido.' });
+    if (limitado(ipDe(req))) return res.status(429).json({ ok: false, error: 'Muitas tentativas. Tente novamente mais tarde.' });
+    if (!PLANOS[b.plano]) return res.status(400).json({ ok: false, error: 'Plano inválido.' });
     const cliente = await tenants.identificarCliente(b.usuario, b.senha);
     if (!cliente) return res.status(401).json({ ok: false, error: 'Usuário ou senha incorretos.' });
+    res.json(await criarPix(req, cliente, b.plano));
+  } catch (err) { erroPix(res, err, 'pix'); }
+});
 
-    const email = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(cliente.contato_email || '') ? cliente.contato_email : `cliente${cliente.id}@reboottechsystem.com`;
-    const ref = `rt:${cliente.id}:${b.plano}:${Date.now()}`;
-    const pag = await mp('POST', '/v1/payments', {
-      transaction_amount: plano.valor,
-      description: `Reboot Tech System - plano ${plano.nome.toLowerCase()}`,
-      payment_method_id: 'pix',
-      payer: { email },
-      external_reference: ref,
-      notification_url: baseUrl(req) + '/api/pagamento/webhook',
-      date_of_expiration: new Date(Date.now() + 60 * 60 * 1000).toISOString().replace('Z', '+00:00'),
-    }, { 'X-Idempotency-Key': crypto.randomUUID() });
-
-    const td = pag.point_of_interaction && pag.point_of_interaction.transaction_data;
-    if (!td || !td.qr_code) throw Object.assign(new Error('O Mercado Pago não devolveu o código Pix.'), { status: 502 });
-    res.json({ ok: true, id: String(pag.id), t: assinar(pag.id), valor: plano.valor, plano: plano.nome, qrCode: td.qr_code, qrBase64: td.qr_code_base64 || '' });
-  } catch (err) {
-    console.error('[Pagamento] pix:', err && err.message, err && err.detalhe ? JSON.stringify(err.detalhe).slice(0, 400) : '');
-    res.status(err.status || 500).json({ ok: false, error: err.status && err.status < 500 ? err.message : 'Não foi possível gerar o Pix agora. Tente de novo ou use o Pix pelo site.' });
-  }
+// Gera o Pix de renovação para quem já está dentro do sistema (usa a sessão, sem pedir a senha).
+router.post('/pix-logado', authMiddleware, async (req, res) => {
+  try {
+    if (!ativo()) return res.status(503).json({ ok: false, error: 'Pagamento automático indisponível no momento.' });
+    const b = req.body || {};
+    if (limitado(ipDe(req))) return res.status(429).json({ ok: false, error: 'Muitas tentativas. Tente novamente mais tarde.' });
+    if (!PLANOS[b.plano]) return res.status(400).json({ ok: false, error: 'Plano inválido.' });
+    const cliente = await tenants.buscarCliente(tenants.clienteIdDe(req));
+    if (!cliente) return res.status(404).json({ ok: false, error: 'Cliente não encontrado.' });
+    if (cliente.principal) return res.status(400).json({ ok: false, error: 'Este acesso não tem plano a renovar.' });
+    res.json(await criarPix(req, cliente, b.plano));
+  } catch (err) { erroPix(res, err, 'pix-logado'); }
 });
 
 // A tela consulta de tempos em tempos; se o Mercado Pago já aprovou, libera na hora.

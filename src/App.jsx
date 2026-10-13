@@ -189,7 +189,7 @@ function Shell() {
         <PlanoAviso plano={plano} onVerPlano={() => irPara('plano')} onRenovar={() => setRenovando(true)} />
         <div className="content">{renderPage()}</div>
       </div>
-      {renovando && <RenovarPlanoModal plano={plano} onClose={() => setRenovando(false)} />}
+      {renovando && <RenovarPlanoModal plano={plano} onClose={() => setRenovando(false)} onPago={() => window.api.plano.get().then(setPlano).catch(() => {})} />}
     </div>
   );
 }
