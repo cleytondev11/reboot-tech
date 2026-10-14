@@ -154,6 +154,7 @@ export default function Dashboard({ goTo }) {
             <div className="dnew-k"><div className="dnew-ic" style={{ background: 'var(--success)' }}>↑</div><div><small>Entradas do mês</small><b>{meta ? formatCurrency(meta.receitas) : '—'}</b></div></div>
             <div className="dnew-k"><div className="dnew-ic" style={{ background: 'var(--danger)' }}>↓</div><div><small>Saídas do mês</small><b>{meta ? formatCurrency(meta.despesas) : '—'}</b></div></div>
             <div className="dnew-k"><div className="dnew-ic dnew-gold">▣</div><div><small>Resultado do mês</small><b style={{ color: meta && meta.lucroRealizado < 0 ? 'var(--danger)' : 'var(--gold-light)' }}>{meta ? formatCurrency(meta.lucroRealizado) : '—'}</b></div></div>
+            <CartaoMeta meta={meta} onDefinir={abrirDefinirMeta} podeEditar={user.papel === 'Administrador' || user.papel === 'Financeiro'} />
           </div>
           <div className="grid grid-2" style={{ marginTop: 14 }}>
             <div className="card">
@@ -644,6 +645,42 @@ function BarChart({ data, compact }) {
           </div>
         );
       })}
+    </div>
+  );
+}
+
+// Quarto cartão do topo: meta de lucro do mês e a situação dela (atingida / em andamento / não atingida).
+function CartaoMeta({ meta, onDefinir, podeEditar }) {
+  const temMeta = !!meta && meta.metaLucro != null && meta.metaLucro > 0;
+  let cor = '#9aa0ab'; let rotulo = 'Sem meta'; let valor = '—'; let pct = null; let sub = podeEditar ? 'Toque para definir a meta do mês' : 'Meta não definida';
+  if (temMeta) {
+    const lucro = meta.lucroRealizado || 0;
+    const real = meta.metaLucro > 0 ? Math.round((lucro / meta.metaLucro) * 100) : 0;
+    pct = Math.max(0, Math.min(100, real));
+    valor = formatCurrency(meta.metaLucro);
+    const st = meta.statusRitmo;
+    const dias = meta.ehMesFuturo ? meta.diasNoMes : meta.diasRestantes;
+    if (st === 'atingida' || (!st && real >= 100)) {
+      cor = 'var(--success)'; rotulo = '🏆 Atingida';
+      sub = `${real}% — passou ${formatCurrency(Math.max(0, lucro - meta.metaLucro))} da meta`;
+    } else if (st === 'nao_atingida') {
+      cor = 'var(--danger)'; rotulo = '✖ Não atingida';
+      sub = `Fechou com ${Math.max(0, real)}% da meta — faltou ${formatCurrency(meta.faltaAtingir != null ? meta.faltaAtingir : Math.max(0, meta.metaLucro - lucro))}`;
+    } else {
+      cor = 'var(--info)'; rotulo = '⏳ Em andamento';
+      sub = `${Math.max(0, real)}% — faltam ${formatCurrency(meta.faltaAtingir != null ? meta.faltaAtingir : Math.max(0, meta.metaLucro - lucro))}${dias != null ? ` · ${dias} dia${dias === 1 ? '' : 's'} restante${dias === 1 ? '' : 's'}` : ''}`;
+    }
+  }
+  const clicavel = !temMeta && podeEditar;
+  return (
+    <div className="dnew-k dnew-k-meta" style={clicavel ? { cursor: 'pointer' } : undefined} onClick={clicavel ? onDefinir : undefined}>
+      <div className="dnew-ic" style={{ background: cor }}>🎯</div>
+      <div className="dnew-meta">
+        <div className="dnew-meta-top"><small>Meta de lucro</small><span className="dnew-pill" style={{ background: `color-mix(in srgb, ${cor} 15%, transparent)`, color: cor }}>{rotulo}</span></div>
+        <b>{valor}</b>
+        {pct != null && <div className="dnew-bar"><i style={{ width: `${pct}%`, background: cor }} /></div>}
+        <div className="dnew-sub">{sub}</div>
+      </div>
     </div>
   );
 }
