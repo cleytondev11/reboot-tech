@@ -29,7 +29,7 @@ export default function Catalogo() {
   useEffect(() => { carregar(); carregarProdutos(); }, []);
   useEffect(() => { carregarPedidos(); }, [filtro]);
 
-  const qr = useMemo(() => (dados ? qrSvg(dados.link, { tamanho: 200 }) : ''), [dados]);
+  const qr = useMemo(() => (dados ? qrSvg(dados.link, { tamanho: 130 }) : ''), [dados]);
 
   async function salvarCfg(novo) {
     try { await window.api.catalogo.save(novo); showToast('Catálogo salvo.'); setCfg(novo); carregar(); } catch (e) { showToast(String((e && e.message) || e), 'error'); }
@@ -53,7 +53,7 @@ export default function Catalogo() {
   return (
     <div>
       <div className="card" style={{ display: 'flex', gap: 18, flexWrap: 'wrap', alignItems: 'center' }}>
-        <div dangerouslySetInnerHTML={{ __html: qr }} style={{ width: 130, height: 130 }} />
+        <div dangerouslySetInnerHTML={{ __html: qr }} style={{ flex: '0 0 130px', width: 130, height: 130, borderRadius: 8, overflow: 'hidden' }} />
         <div style={{ flex: 1, minWidth: 240 }}>
           <h3 style={{ margin: '0 0 4px' }}>🛍️ Seu catálogo online</h3>
           <div className="muted" style={{ fontSize: 13, marginBottom: 8 }}>{cfg.ativo ? 'No ar — qualquer pessoa com o link vê os produtos publicados.' : 'Desativado — o link ainda não abre para os clientes.'}</div>
@@ -66,7 +66,7 @@ export default function Catalogo() {
         </div>
       </div>
 
-      <div className="tabs" style={{ display: 'flex', gap: 8, margin: '14px 0' }}>
+      <div className="tabs" style={{ display: 'flex', gap: 8, margin: '16px 0', flexWrap: 'wrap', position: 'relative' }}>
         {[['pedidos', `Pedidos${novos ? ` (${novos})` : ''}`], ['produtos', `Produtos (${dados.publicados})`], ['config', 'Configurar']].map(([k, t]) => (
           <button key={k} className={`btn ${aba === k ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setAba(k)}>{t}</button>
         ))}
