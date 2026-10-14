@@ -208,6 +208,7 @@ tbody tr:last-child td { border-bottom: none; }
 .badge-Recebido { background: #3a3a3f22; color: var(--info); border: 1px solid var(--info); }
 .badge-EmAnálise { background: #4a90d922; color: var(--info); border: 1px solid var(--info); }
 .badge-AguardandoOrçamento, .badge-OrçamentoEnviado, .badge-AguardandoAprovação { background: #e0a83c22; color: var(--warning); border: 1px solid var(--warning); }
+.badge-Aprovado { background: #2f9e6322; color: var(--success); border: 1px solid var(--success); }
 .badge-AguardandoPeça { background: #e0a83c22; color: var(--warning); border: 1px solid var(--warning); }
 .badge-EmManutenção, .badge-Teste { background: #4a90d922; color: var(--info); border: 1px solid var(--info); }
 .badge-Pronto { background: #4caf7d22; color: var(--success); border: 1px solid var(--success); }

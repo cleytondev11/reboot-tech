@@ -708,6 +708,16 @@ export default function OrdensServico() {
               <div>
                 <p className="muted" style={{ fontSize: 12, marginTop: 0 }}>Assinatura do cliente confirmando o recebimento das condições do checklist e orçamento.</p>
                 <SignaturePad value={form.assinatura_cliente} onChange={(v) => set('assinatura_cliente', v)} />
+                {form.aprovacao_status === 'aprovada' && form.assinatura_aprovacao && (
+                  <div style={{ marginTop: 16, padding: 12, border: '1px solid var(--success)', borderRadius: 10 }}>
+                    <div style={{ fontWeight: 700, marginBottom: 6 }}>✅ Cliente autorizou o orçamento à distância (pelo link)</div>
+                    <img src={form.assinatura_aprovacao} alt="" style={{ height: 70, background: '#fff', borderRadius: 6 }} />
+                    <div className="muted" style={{ fontSize: 12, marginTop: 6 }}>{formatDateTime(form.aprovacao_em)} · IP {form.aprovacao_ip || '-'} · termos aceitos</div>
+                  </div>
+                )}
+                {form.aprovacao_status === 'recusada' && (
+                  <div style={{ marginTop: 16, padding: 12, border: '1px solid var(--danger)', borderRadius: 10 }}>❌ O cliente <b>não autorizou</b> o orçamento pelo link em {formatDateTime(form.aprovacao_em)}.</div>
+                )}
               </div>
             )}
 

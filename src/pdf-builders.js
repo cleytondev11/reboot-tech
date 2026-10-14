@@ -248,7 +248,19 @@ function buildOsHtml(os) {
     ${os.observacoes ? `<div class="section-title">Observações</div><p>${escapeHtml(os.observacoes)}</p>` : ''}
 
     ${assinaturaHtml}
+    ${blocoAprovacao(os)}
   `;
+}
+
+function blocoAprovacao(os) {
+  if (!os.assinatura_aprovacao) return '';
+  const quando = os.aprovacao_em ? new Date(os.aprovacao_em).toLocaleString('pt-BR') : '';
+  return `
+    <div class="signature-box">
+      <img src="${os.assinatura_aprovacao}" style="height:70px;" />
+      <div class="signature-line">Autorização do orçamento assinada à distância (link) — ${escapeHtml(os.cliente_nome || '')}</div>
+      <div style="font-size:10px;color:#666;">Registrado em ${escapeHtml(quando)}${os.aprovacao_ip ? ' · IP ' + escapeHtml(os.aprovacao_ip) : ''} · termos aceitos</div>
+    </div>`;
 }
 
 const TERMOS_ACEITE_ITENS = [
@@ -343,6 +355,7 @@ function buildChecklistOnlyHtml(os) {
     ${senhaHtml}
     ${termosHtml}
     ${assinaturaHtml}
+    ${blocoAprovacao(os)}
   `;
 }
 

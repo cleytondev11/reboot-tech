@@ -43,7 +43,8 @@ export function definirPerguntarAvisoStatus(v) {
 const TEXTO_STATUS = {
   'Recebido': (e) => `Recebemos o seu aparelho${e} 📥\nEle já está registrado e logo vai para análise.`,
   'Em análise': (e) => `O seu aparelho${e} está *em análise* 🔍\nNosso técnico está fazendo o diagnóstico.`,
-  'Aguardando aprovação': (e) => `O orçamento do seu aparelho${e} está pronto 📝\nResponda esta mensagem para *aprovar* o serviço.`,
+  'Aguardando aprovação': (e) => `O orçamento do seu aparelho${e} está pronto 📝\nAbra o link abaixo para ver o orçamento e *autorizar o serviço com a sua assinatura* ✍️`,
+  'Aprovado': (e) => `Recebemos a autorização do serviço do seu aparelho${e} ✅\nJá vamos iniciar o conserto.`,
   'Aguardando peça': (e) => `O seu aparelho${e} está *aguardando a chegada de uma peça* 📦\nAssim que ela chegar, o conserto continua e a gente avisa.`,
   'Em manutenção': (e) => `O seu aparelho${e} está *em manutenção* 🔧\nO conserto já começou.`,
   'Teste': (e) => `O conserto do seu aparelho${e} terminou e ele está *em testes finais* 🧪`,

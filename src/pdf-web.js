@@ -282,6 +282,7 @@ function buildOsHtml(os) {
     ${os.observacoes ? `<div class="section-title">Observações</div><p>${escapeHtml(os.observacoes)}</p>` : ''}
 
     ${assinaturaHtml}
+    ${blocoAprovacao(os)}
 
     ${os.link_acompanhamento ? `<div class="signature-box" style="display:flex;align-items:center;gap:5mm;margin-top:6mm;border:1px solid #ddd;border-radius:3mm;padding:3mm;">
       <div style="line-height:0;">${qrSvg(os.link_acompanhamento, { tamanho: 110, margem: 2 })}</div>
@@ -289,6 +290,17 @@ function buildOsHtml(os) {
       <div style="font-size:11.5px;color:#555;">Aponte a câmera para o QR code e veja em que etapa está a sua OS, sem precisar ligar.</div></div>
     </div>` : ''}
   `;
+}
+
+function blocoAprovacao(os) {
+  if (!os.assinatura_aprovacao) return '';
+  const quando = os.aprovacao_em ? new Date(os.aprovacao_em).toLocaleString('pt-BR') : '';
+  return `
+    <div class="signature-box">
+      <img src="${os.assinatura_aprovacao}" style="height:70px;" />
+      <div class="signature-line">Autorização do orçamento assinada à distância (link) — ${escapeHtml(os.cliente_nome || '')}</div>
+      <div style="font-size:10px;color:#666;">Registrado em ${escapeHtml(quando)}${os.aprovacao_ip ? ' · IP ' + escapeHtml(os.aprovacao_ip) : ''} · termos aceitos</div>
+    </div>`;
 }
 
 const TERMOS_ACEITE_ITENS = [
@@ -383,6 +395,7 @@ function buildChecklistOnlyHtml(os) {
     ${senhaHtml}
     ${termosHtml}
     ${assinaturaHtml}
+    ${blocoAprovacao(os)}
   `;
 }
 

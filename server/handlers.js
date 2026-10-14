@@ -43,7 +43,7 @@ const TABELAS_MIGRAVEIS = {
   produtos: ['id', 'nome', 'categoria', 'fabricante', 'fornecedor_id', 'codigo_interno', 'codigo_barras', 'quantidade', 'estoque_minimo', 'valor_compra', 'valor_venda', 'localizacao', 'ativo', 'criado_em', 'atualizado_em'],
   equipamentos: ['id', 'cliente_id', 'marca', 'modelo', 'imei', 'numero_serie', 'cor', 'senha_desbloqueio', 'capacidade', 'operadora', 'estado_conservacao', 'acessorios', 'fotos', 'criado_em'],
   servicos: ['id', 'nome', 'descricao', 'categoria', 'valor_padrao', 'ativo', 'criado_em', 'atualizado_em'],
-  ordens_servico: ['id', 'numero', 'cliente_id', 'equipamento_id', 'defeito_informado', 'diagnostico', 'servicos_executados', 'pecas_utilizadas', 'valor_mao_obra', 'valor_pecas', 'desconto', 'valor_total', 'garantia_dias', 'data_entrada', 'previsao', 'data_saida', 'status', 'observacoes', 'assinatura_cliente', 'checklist', 'usuario_id', 'criado_em', 'atualizado_em', 'itens_pecas', 'estoque_baixado', 'forma_pagamento', 'financeiro_lancado', 'despesa_pecas_lancada', 'tecnico_id', 'termos_aceite', 'senha_tipo', 'senha_valor', 'checklist_acessorios', 'financeiro_receber_lancado'],
+  ordens_servico: ['id', 'numero', 'cliente_id', 'equipamento_id', 'defeito_informado', 'diagnostico', 'servicos_executados', 'pecas_utilizadas', 'valor_mao_obra', 'valor_pecas', 'desconto', 'valor_total', 'garantia_dias', 'data_entrada', 'previsao', 'data_saida', 'status', 'observacoes', 'assinatura_cliente', 'checklist', 'usuario_id', 'criado_em', 'atualizado_em', 'itens_pecas', 'estoque_baixado', 'forma_pagamento', 'financeiro_lancado', 'despesa_pecas_lancada', 'tecnico_id', 'termos_aceite', 'senha_tipo', 'senha_valor', 'checklist_acessorios', 'financeiro_receber_lancado', 'assinatura_aprovacao', 'aprovacao_status', 'aprovacao_em', 'aprovacao_ip'],
   orcamentos: ['id', 'numero', 'cliente_id', 'equipamento_id', 'descricao', 'itens', 'valor_servicos', 'desconto', 'valor_total', 'validade_dias', 'data_orcamento', 'status', 'observacoes', 'os_id', 'usuario_id', 'criado_em', 'atualizado_em'],
   vendas: ['id', 'numero', 'cliente_id', 'itens', 'valor_itens', 'desconto', 'valor_total', 'forma_pagamento', 'status', 'observacoes', 'usuario_id', 'criado_em', 'garantia_dias'],
   compras: ['id', 'numero', 'fornecedor_id', 'itens', 'valor_total', 'status', 'data_pedido', 'data_prevista', 'data_recebimento', 'observacoes', 'estoque_lancado', 'despesa_lancada', 'usuario_id', 'criado_em', 'atualizado_em'],
@@ -71,7 +71,7 @@ async function caixaAberto(db) {
 
 const STATUS_LIST = [
   'Recebido', 'Em análise',
-  'Aguardando aprovação', 'Aguardando peça', 'Em manutenção', 'Teste',
+  'Aguardando aprovação', 'Aprovado', 'Aguardando peça', 'Em manutenção', 'Teste',
   'Pronto', 'Entregue', 'Cancelado',
 ];
 
@@ -974,6 +974,7 @@ const handlers = {
     const abertas = await db.get(`SELECT COUNT(*) c FROM ordens_servico WHERE status NOT IN ('Entregue','Cancelado')`);
     const aguardandoPeca = await db.get(`SELECT COUNT(*) c FROM ordens_servico WHERE status = 'Aguardando peça'`);
     const prontos = await db.get(`SELECT COUNT(*) c FROM ordens_servico WHERE status = 'Pronto'`);
+    const aprovadas = await db.get(`SELECT COUNT(*) c FROM ordens_servico WHERE status = 'Aprovado'`).catch(() => ({ c: 0 }));
     const hoje = hojeBr();
     const mesAtual = hoje.slice(0, 7);
     const entreguesHoje = await db.get(`SELECT COUNT(*) c FROM ordens_servico WHERE status='Entregue' AND substr(data_saida,1,10) = ?`, [hoje]);
@@ -1029,7 +1030,7 @@ const handlers = {
     const faturamentoAno = await db.get(`SELECT COALESCE(SUM(valor),0) v FROM lancamentos_financeiros WHERE tipo='receita' AND status='Pago' AND substr(data_pagamento,1,4) = ?`, [hoje.slice(0, 4)]);
 
     return {
-      abertas: abertas.c, aguardandoPeca: aguardandoPeca.c, prontos: prontos.c,
+      abertas: abertas.c, aguardandoPeca: aguardandoPeca.c, prontos: prontos.c, aprovadas: (aprovadas && aprovadas.c) || 0,
       entreguesHoje: entreguesHoje.c, totalClientes: totalClientes.c, ultimasOs, porStatus,
       estoqueBaixo: estoqueBaixo.c, estoqueBaixoList, faturamentoDia: faturamentoDia.v, faturamentoMes: faturamentoMes.v,
       faturamentoAno: faturamentoAno.v, faturamentoSemana, faturamentoMensal,

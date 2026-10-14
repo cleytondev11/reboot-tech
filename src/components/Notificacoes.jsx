@@ -36,6 +36,7 @@ export default function Notificacoes({ plano, goTo }) {
     } catch { /* sem meta */ }
     try {
       const d = await window.api.dashboard.resumo();
+      if (d.aprovadas > 0) itens.push({ id: 'aprovadas', icon: '✍️', titulo: `${d.aprovadas} OS autorizada(s) pelo cliente`, texto: 'Pode iniciar o conserto.', destino: 'kanban' });
       if (d.prontos > 0) itens.push({ id: 'prontos', icon: '✅', titulo: `${d.prontos} aparelho(s) pronto(s) p/ retirada`, texto: 'Avise o cliente.', destino: 'kanban' });
       if (d.estoqueBaixo > 0) itens.push({ id: 'estoque', icon: '⚠️', titulo: `${d.estoqueBaixo} item(ns) com estoque baixo`, texto: 'Confira o estoque.', destino: 'estoque' });
       if (d.contasAPagarQtd > 0) itens.push({ id: 'pagar', icon: '🔴', titulo: `${d.contasAPagarQtd} conta(s) a pagar`, texto: formatCurrency(d.contasAPagar), destino: 'financeiro' });

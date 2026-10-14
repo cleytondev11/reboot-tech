@@ -12,7 +12,7 @@ import AvisoProntoModal, { perguntarAvisoStatus } from '../components/AvisoPront
 const COLUNAS = [
   { key: 'analise', titulo: 'Em análise', icon: '🔍', destino: 'Em análise', status: ['Recebido', 'Em análise', 'Aguardando aprovação'] },
   { key: 'peca', titulo: 'Aguardando peça', icon: '📦', destino: 'Aguardando peça', status: ['Aguardando peça'] },
-  { key: 'manutencao', titulo: 'Em manutenção', icon: '🔧', destino: 'Em manutenção', status: ['Em manutenção', 'Teste'] },
+  { key: 'manutencao', titulo: 'Em manutenção', icon: '🔧', destino: 'Em manutenção', status: ['Aprovado', 'Em manutenção', 'Teste'] },
   { key: 'pronto', titulo: 'Pronto', icon: '✅', destino: 'Pronto', status: ['Pronto'] },
   { key: 'entregue', titulo: 'Entregue', icon: '🤝', destino: 'Entregue', status: ['Entregue'] },
 ];

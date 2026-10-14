@@ -114,7 +114,7 @@ function textoValor(valor) {
 
 const EMOJI_STATUS_OS = {
   'Recebido': '📥', 'Em análise': '🔍', 'Aguardando orçamento': '📝', 'Orçamento enviado': '📤',
-  'Aguardando aprovação': '⏳', 'Aguardando peça': '📦', 'Em manutenção': '🔧', 'Teste': '🧪',
+  'Aguardando aprovação': '⏳', 'Aprovado': '✍️', 'Aguardando peça': '📦', 'Em manutenção': '🔧', 'Teste': '🧪',
   'Pronto': '✅', 'Entregue': '🏁', 'Cancelado': '❌',
 };
 const EMOJI_STATUS_ORC = {
@@ -225,6 +225,22 @@ async function avisarOsStatus(db, osId, statusAnterior, statusNovo) {
       som: statusNovo === 'Pronto' ? 'pronta' : (statusNovo === 'Entregue' ? 'entregue' : undefined),
     });
   } catch (err) { console.error('[Push] avisarOsStatus:', err && err.message); }
+}
+
+// O cliente autorizou (ou recusou) o serviço pelo link, com assinatura.
+async function avisarAprovacaoOS(db, osId, decisao) {
+  try {
+    const d = await dadosDaOs(db, osId);
+    if (!d) return;
+    const ok = decisao === 'aprovada';
+    notificarSemEsperar(db, ['os_status', 'os_nova', 'os_pronta'], {
+      titulo: ok ? `✅ ${d.numero} autorizada pelo cliente` : `❌ ${d.numero}: cliente não autorizou`,
+      corpo: ok ? `${d.cliente || 'Cliente'} assinou e aceitou os termos. Status: Aprovado.\n${corpoOs(d)}` : `${d.cliente || 'Cliente'} recusou o orçamento pelo link.\n${corpoOs(d)}`,
+      url: './',
+      tag: `os-${osId}`,
+      som: ok ? 'venda' : undefined,
+    });
+  } catch (err) { console.error('[Push] avisarAprovacaoOS:', err && err.message); }
 }
 
 // Orçamento novo.
@@ -535,6 +551,7 @@ module.exports = {
   avisarOrcamentoConvertido,
   avisarVenda,
   avisarPedidoCatalogo,
+  avisarAprovacaoOS,
   avisarEstoqueBaixo,
   verificarContasAPagar,
   verificarTodosOsClientes,
