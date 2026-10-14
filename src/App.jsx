@@ -9,6 +9,7 @@ import OrdensServico from './pages/OrdensServico.jsx';
 import Orcamentos from './pages/Orcamentos.jsx';
 import Compras from './pages/Compras.jsx';
 import Estoque from './pages/Estoque.jsx';
+import Catalogo from './pages/Catalogo.jsx';
 import Servicos from './pages/Servicos.jsx';
 import Vendas from './pages/Vendas.jsx';
 import Financeiro from './pages/Financeiro.jsx';
@@ -40,6 +41,7 @@ const NAV = [
   { key: 'orcamentos', label: 'Orçamentos', icon: '📝' },
   { key: 'compras', label: 'Compras', icon: '🚚' },
   { key: 'estoque', label: 'Estoque', icon: '📦' },
+  { key: 'catalogo', label: 'Catálogo Online', icon: '🛍️', hideInElectron: true },
   { key: 'servicos', label: 'Serviços', icon: '🔧' },
   { key: 'vendas', label: 'Vendas', icon: '🛒' },
   { key: 'calcpro', label: 'Calculadora Pro', icon: '🧮' },
@@ -56,7 +58,7 @@ const NAV = [
 
 const TITLES = {
   dashboard: 'Dashboard', clientes: 'Clientes', equipamentos: 'Equipamentos',
-  os: 'Ordens de Serviço', kanban: 'Bancada — Kanban', cobrancas: 'Cobranças', comissoes: 'Comissões', plano: 'Meu Plano', suporte: 'Fale com o Suporte', download: 'Download App', orcamentos: 'Orçamentos', compras: 'Compras', estoque: 'Estoque', servicos: 'Serviços', vendas: 'Vendas', financeiro: 'Financeiro',
+  os: 'Ordens de Serviço', kanban: 'Bancada — Kanban', cobrancas: 'Cobranças', comissoes: 'Comissões', plano: 'Meu Plano', suporte: 'Fale com o Suporte', download: 'Download App', orcamentos: 'Orçamentos', compras: 'Compras', estoque: 'Estoque', catalogo: 'Catálogo Online', servicos: 'Serviços', vendas: 'Vendas', financeiro: 'Financeiro',
   relatorios: 'Relatórios', calcpro: 'Calculadora Pro', usuarios: 'Usuários', config: 'Configurações',
 };
 
@@ -128,6 +130,7 @@ function Shell() {
       case 'orcamentos': return <Orcamentos />;
       case 'compras': return <Compras />;
       case 'estoque': return <Estoque />;
+      case 'catalogo': return <Catalogo />;
       case 'servicos': return <Servicos />;
       case 'vendas': return <Vendas />;
       case 'financeiro': return <Financeiro />;

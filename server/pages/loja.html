@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Catálogo</title>
+<style>
+:root{--bg:#f4f5f7;--card:#fff;--tx:#14181f;--mut:#6b7380;--bd:#e3e6eb;--pri:#1f6feb;--ok:#18a058}
+@media(prefers-color-scheme:dark){:root{--bg:#0f1318;--card:#171c23;--tx:#eef1f5;--mut:#98a2b0;--bd:#262d37}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;padding-bottom:90px}
+header{background:var(--card);border-bottom:1px solid var(--bd);padding:14px 16px;display:flex;gap:12px;align-items:center;position:sticky;top:0;z-index:5}
+header img{width:44px;height:44px;border-radius:10px;object-fit:cover}
+header h1{font-size:17px;margin:0}header small{color:var(--mut)}
+.wrap{max-width:760px;margin:0 auto;padding:12px 16px}
+.aviso{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:10px 12px;color:var(--mut);margin-bottom:10px}
+input,textarea,select{width:100%;padding:11px 12px;border:1px solid var(--bd);border-radius:10px;background:var(--card);color:var(--tx);font:inherit}
+.chips{display:flex;gap:8px;overflow-x:auto;padding:10px 0}
+.chip{white-space:nowrap;border:1px solid var(--bd);background:var(--card);color:var(--tx);padding:7px 13px;border-radius:99px;cursor:pointer;font:inherit}
+.chip.on{background:var(--pri);border-color:var(--pri);color:#fff}
+.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+@media(min-width:620px){.grid{grid-template-columns:repeat(3,1fr)}}
+.p{background:var(--card);border:1px solid var(--bd);border-radius:14px;overflow:hidden;display:flex;flex-direction:column}
+.p .f{aspect-ratio:1/1;background:var(--bg);display:flex;align-items:center;justify-content:center;font-size:34px;color:var(--mut)}
+.p .f img{width:100%;height:100%;object-fit:cover}
+.p .i{padding:10px;display:flex;flex-direction:column;gap:4px;flex:1}
+.p b{font-size:14px}.p .d{color:var(--mut);font-size:12px}
+.p .v{font-weight:700;font-size:16px;margin-top:auto}
+button.b{border:0;background:var(--pri);color:#fff;padding:10px 14px;border-radius:10px;font:inherit;font-weight:600;cursor:pointer}
+button.b.o{background:var(--ok)}button.b.g{background:transparent;color:var(--pri);border:1px solid var(--bd)}
+button.b:disabled{opacity:.5}
+.qtd{display:flex;align-items:center;justify-content:space-between;gap:6px}
+.qtd button{width:36px;height:36px;border-radius:10px;border:1px solid var(--bd);background:var(--card);color:var(--tx);font-size:18px;cursor:pointer}
+.bar{position:fixed;left:0;right:0;bottom:0;background:var(--card);border-top:1px solid var(--bd);padding:10px 16px calc(10px + env(safe-area-inset-bottom));display:none;z-index:6}
+.bar .in{max-width:760px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;gap:10px}
+.sheet{position:fixed;inset:0;background:rgba(0,0,0,.5);display:none;z-index:10;align-items:flex-end;justify-content:center}
+.sheet.on{display:flex}
+.sheet .c{background:var(--bg);width:100%;max-width:560px;max-height:92vh;overflow:auto;border-radius:18px 18px 0 0;padding:16px}
+.sheet h2{margin:0 0 10px;font-size:18px}
+.lin{display:flex;justify-content:space-between;gap:8px;padding:8px 0;border-bottom:1px solid var(--bd)}
+label{display:block;font-size:13px;color:var(--mut);margin:10px 0 4px}
+.seg{display:flex;gap:8px}.seg .chip{flex:1;text-align:center}
+.err{color:#d33;margin:8px 0;min-height:1em}
+.qr{width:220px;max-width:70%;margin:10px auto;display:block;border-radius:12px;border:1px solid var(--bd)}
+.cc{word-break:break-all;font-size:12px;background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:10px;max-height:90px;overflow:auto}
+.vazio{text-align:center;color:var(--mut);padding:40px 10px}
+.tot{font-size:18px;font-weight:700}
+</style>
+</head>
+<body>
+<header id="hd" hidden><img id="logo" alt="" hidden><div><h1 id="nome"></h1><small id="cid"></small></div></header>
+<div class="wrap">
+  <div id="msg" class="aviso" hidden></div>
+  <div id="erroGeral" class="vazio" hidden></div>
+  <div id="lista" hidden>
+    <input id="busca" type="search" placeholder="Buscar produto…" autocomplete="off">
+    <div class="chips" id="cats"></div>
+    <div class="grid" id="grid"></div>
+    <div class="vazio" id="semProd" hidden>Nenhum produto encontrado.</div>
+  </div>
+</div>
+<div class="bar" id="bar"><div class="in"><div><small style="color:var(--mut)" id="qn"></small><div class="tot" id="qt"></div></div><button class="b" id="abrir">Ver carrinho</button></div></div>
+
+<div class="sheet" id="sh"><div class="c">
+  <div id="v1">
+    <h2>Seu pedido</h2>
+    <div id="itens"></div>
+    <div class="lin"><b>Total</b><b id="tot"></b></div>
+    <label>Seu nome</label><input id="fNome" autocomplete="name" maxlength="80">
+    <label>Seu WhatsApp (com DDD)</label><input id="fZap" type="tel" inputmode="tel" autocomplete="tel" placeholder="(11) 99999-9999">
+    <label>Como quer receber?</label>
+    <div class="seg"><button class="chip on" data-e="retirada" type="button">Retirar na loja</button><button class="chip" data-e="entrega" type="button" id="bEnt">Entrega</button></div>
+    <div id="infoEnt" class="aviso" style="margin-top:8px" hidden></div>
+    <div id="boxEnd" hidden><label>Endereço de entrega</label><input id="fEnd" maxlength="200" autocomplete="street-address"></div>
+    <label>Observações (opcional)</label><textarea id="fObs" rows="2" maxlength="300"></textarea>
+    <div class="err" id="err"></div>
+    <div style="display:flex;gap:8px"><button class="b g" id="fecha" type="button">Voltar</button><button class="b o" id="envia" type="button" style="flex:1">Enviar pedido</button></div>
+  </div>
+  <div id="v2" hidden>
+    <h2 id="okT"></h2>
+    <div id="okS" class="aviso"></div>
+    <div id="pixBox" hidden>
+      <div style="text-align:center"><b>Pague com Pix</b><div id="qrBox"></div></div>
+      <div class="cc" id="cc"></div>
+      <button class="b" id="copia" type="button" style="width:100%;margin-top:8px">Copiar código Pix</button>
+    </div>
+    <a id="zap" class="b o" style="display:block;text-align:center;text-decoration:none;margin-top:10px;border-radius:10px;padding:12px;color:#fff;background:var(--ok);font-weight:600" target="_blank" rel="noopener">Enviar pedido no WhatsApp</a>
+    <button class="b g" id="novo" type="button" style="width:100%;margin-top:8px">Voltar ao catálogo</button>
+  </div>
+</div></div>
+
+<script>
+(function(){
+var $=function(i){return document.getElementById(i)};
+var codigo=(location.pathname.split('/loja/')[1]||'').split('/')[0];
+var api='/api/loja/'+encodeURIComponent(codigo);
+var loja=null,prods=[],cart={},cat='',entrega='retirada',ultimo=null;
+var R=function(v){return 'R$ '+Number(v).toFixed(2).replace('.',',')};
+function esc(t){return String(t==null?'':t).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
+try{var salvo=JSON.parse(localStorage.getItem('cat-'+codigo)||'null');if(salvo){$('fNome').value=salvo.n||'';$('fZap').value=salvo.z||''}}catch(e){}
+
+fetch(api).then(function(r){return r.json()}).then(function(d){
+  if(!d.ok){$('erroGeral').hidden=false;$('erroGeral').textContent=d.error||'Catálogo indisponível.';return}
+  loja=d.loja;prods=d.produtos;document.title=loja.nome+' — Catálogo';
+  $('hd').hidden=false;$('nome').textContent=loja.nome;$('cid').textContent=loja.cidade||'';
+  if(loja.logo){$('logo').src=loja.logo;$('logo').hidden=false}
+  if(loja.mensagem){$('msg').hidden=false;$('msg').textContent=loja.mensagem}
+  if(loja.entregaInfo){$('infoEnt').hidden=false;$('infoEnt').textContent=loja.entregaInfo}
+  $('lista').hidden=false;cats();desenha();
+}).catch(function(){$('erroGeral').hidden=false;$('erroGeral').textContent='Sem conexão. Tente novamente.'});
+
+function cats(){
+  var set={};prods.forEach(function(p){if(p.categoria)set[p.categoria]=1});
+  var ls=Object.keys(set).sort();
+  if(!ls.length){$('cats').hidden=true;return}
+  $('cats').innerHTML=['Todos'].concat(ls).map(function(c){return '<button type="button" class="chip'+((c==='Todos'&&!cat)||c===cat?' on':'')+'" data-c="'+esc(c==='Todos'?'':c)+'">'+esc(c)+'</button>'}).join('');
+}
+$('cats').onclick=function(e){var b=e.target.closest('.chip');if(!b)return;cat=b.getAttribute('data-c');cats();desenha()};
+$('busca').oninput=desenha;
+
+function desenha(){
+  var q=$('busca').value.trim().toLowerCase();
+  var ls=prods.filter(function(p){return (!cat||p.categoria===cat)&&(!q||(p.nome+' '+p.descricao).toLowerCase().indexOf(q)>=0)});
+  $('semProd').hidden=ls.length>0;
+  $('grid').innerHTML=ls.map(function(p){
+    var n=cart[p.id]||0;
+    return '<div class="p"><div class="f">'+(p.foto?'<img loading="lazy" alt="" src="'+api+'/foto/'+p.id+'">':'📦')+'</div><div class="i"><b>'+esc(p.nome)+'</b>'+(p.descricao?'<span class="d">'+esc(p.descricao)+'</span>':'')+'<span class="v">'+R(p.preco)+'</span>'+
+    (n?'<div class="qtd"><button data-m="'+p.id+'" type="button">−</button><b>'+n+'</b><button data-a="'+p.id+'" type="button">+</button></div>':'<button class="b" data-a="'+p.id+'" type="button">Adicionar</button>')+'</div></div>';
+  }).join('');
+  barra();
+}
+$('grid').onclick=function(e){var b=e.target.closest('button');if(!b)return;
+  var a=b.getAttribute('data-a'),m=b.getAttribute('data-m');
+  if(a)mexe(Number(a),1);if(m)mexe(Number(m),-1)};
+function mexe(id,d){
+  var p=prods.filter(function(x){return x.id===id})[0];if(!p)return;
+  var n=(cart[id]||0)+d;if(n>p.estoque)n=p.estoque;if(n<=0)delete cart[id];else cart[id]=n;
+  desenha();if($('sh').classList.contains('on'))resumo();
+}
+function total(){var t=0;prods.forEach(function(p){if(cart[p.id])t+=cart[p.id]*p.preco});return Math.round(t*100)/100}
+function barra(){
+  var q=0;for(var k in cart)q+=cart[k];
+  $('bar').style.display=q?'block':'none';$('qn').textContent=q+(q===1?' item':' itens');$('qt').textContent=R(total());
+}
+function resumo(){
+  var h='';prods.forEach(function(p){var n=cart[p.id];if(n)h+='<div class="lin"><span>'+esc(p.nome)+'</span><span class="qtd" style="gap:4px"><button data-m="'+p.id+'" type="button">−</button><b>'+n+'</b><button data-a="'+p.id+'" type="button">+</button><span style="min-width:74px;text-align:right">'+R(n*p.preco)+'</span></span></div>'});
+  $('itens').innerHTML=h;$('tot').textContent=R(total());
+  if(!total())fecha();
+}
+$('itens').onclick=function(e){var b=e.target.closest('button');if(!b)return;var a=b.getAttribute('data-a'),m=b.getAttribute('data-m');if(a)mexe(Number(a),1);if(m)mexe(Number(m),-1)};
+$('abrir').onclick=function(){$('v1').hidden=false;$('v2').hidden=true;$('err').textContent='';resumo();$('sh').classList.add('on')};
+function fecha(){$('sh').classList.remove('on')}
+$('fecha').onclick=fecha;
+$('sh').onclick=function(e){if(e.target===$('sh')&&$('v2').hidden)fecha()};
+document.querySelectorAll('.seg .chip').forEach(function(c){c.onclick=function(){
+  entrega=c.getAttribute('data-e');document.querySelectorAll('.seg .chip').forEach(function(x){x.classList.toggle('on',x===c)});$('boxEnd').hidden=entrega!=='entrega'}});
+
+$('envia').onclick=function(){
+  $('err').textContent='';
+  var body={nome:$('fNome').value,whatsapp:$('fZap').value,entrega:entrega,endereco:$('fEnd').value,obs:$('fObs').value,itens:Object.keys(cart).map(function(k){return {id:Number(k),qtd:cart[k]}})};
+  $('envia').disabled=true;
+  fetch(api+'/pedido',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(function(r){return r.json()}).then(function(d){
+    $('envia').disabled=false;
+    if(!d.ok){$('err').textContent=d.error||'Não foi possível enviar.';return}
+    try{localStorage.setItem('cat-'+codigo,JSON.stringify({n:body.nome,z:body.whatsapp}))}catch(e){}
+    ultimo=d;cart={};
+    $('v1').hidden=true;$('v2').hidden=false;
+    $('okT').textContent='Pedido '+d.numero+' enviado!';
+    $('okS').textContent='Total '+R(d.total)+'. '+(d.pix?'Pague pelo Pix abaixo e envie o pedido no WhatsApp da loja para agilizar.':'Envie o pedido no WhatsApp da loja para combinar o pagamento.');
+    $('pixBox').hidden=!d.pix;
+    if(d.pix){$('qrBox').innerHTML=d.pix.qr;var s=$('qrBox').firstChild;if(s&&s.setAttribute){s.setAttribute('class','qr')}$('cc').textContent=d.pix.codigo}
+    var z=d.whatsapp;$('zap').hidden=!z;
+    if(z)$('zap').href='https://wa.me/'+z+'?text='+encodeURIComponent(d.mensagem+(d.pix?'\nPagamento: Pix (envio o comprovante em seguida)':''));
+    desenha();
+  }).catch(function(){$('envia').disabled=false;$('err').textContent='Sem conexão. Tente de novo.'});
+};
+$('copia').onclick=function(){
+  var t=ultimo&&ultimo.pix&&ultimo.pix.codigo;if(!t)return;
+  var ok=function(){$('copia').textContent='Código copiado ✓'};
+  if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(t).then(ok,function(){sel()});else sel();
+  function sel(){var r=document.createRange();r.selectNodeContents($('cc'));var s=getSelection();s.removeAllRanges();s.addRange(r);try{document.execCommand('copy');ok()}catch(e){}}
+};
+$('novo').onclick=function(){fecha()};
+})();
+</script>
+</body>
+</html>

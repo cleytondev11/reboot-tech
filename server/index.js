@@ -53,6 +53,9 @@ app.use('/api/admin', admin.router);
 
 // Acompanhamento da OS pelo cliente (QR code impresso): páginas públicas, sem login.
 app.get('/acompanhar/:codigo', acompanhar.pagina);
+const catalogo = require('./catalogo');
+app.get('/loja/:codigo', catalogo.pagina);
+app.use('/api/loja', catalogo.router);
 app.use('/api/acompanhar', acompanhar.router);
 
 app.use('/api/cadastro', require('./cadastro'));

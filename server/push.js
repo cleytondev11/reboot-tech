@@ -292,6 +292,20 @@ async function avisarVenda(db, vendaId) {
   } catch (err) { console.error('[Push] avisarVenda:', err && err.message); }
 }
 
+// Pedido novo vindo do Catálogo Online (avisa quem ligou o aviso de vendas).
+async function avisarPedidoCatalogo(db, pedido) {
+  try {
+    const linhas = linhasItensVenda(JSON.stringify((pedido.itens || []).map((i) => ({ descricao: i.descricao, quantidade: i.quantidade, valor_unit: i.valor_unit }))));
+    notificarSemEsperar(db, ['venda'], {
+      titulo: `🛒 Pedido ${pedido.numero}: ${brl(pedido.total)}`,
+      corpo: [...linhas, pedido.nome].filter(Boolean).join('\n'),
+      url: './',
+      tag: `pedido-${pedido.id}`,
+      som: 'venda',
+    });
+  } catch (err) { console.error('[Push] avisarPedidoCatalogo:', err && err.message); }
+}
+
 // Estoque: avisa só quando o produto CRUZA o mínimo (de acima para dentro/abaixo
 // dele) ou acaba — não repete a cada venda enquanto continua baixo.
 // Produto com mínimo 0 avisa quando zera.
@@ -520,6 +534,7 @@ module.exports = {
   avisarOrcamentoStatus,
   avisarOrcamentoConvertido,
   avisarVenda,
+  avisarPedidoCatalogo,
   avisarEstoqueBaixo,
   verificarContasAPagar,
   verificarTodosOsClientes,

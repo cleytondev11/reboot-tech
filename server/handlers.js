@@ -16,6 +16,7 @@ const { requirePapel } = require('./auth');
 const push = require('./push');
 const tenants = require('./tenants');
 const acompanhar = require('./acompanhar');
+const catalogo = require('./catalogo');
 
 function nowIso() {
   return new Date().toISOString();
@@ -1305,6 +1306,66 @@ const handlers = {
     await log(db, req, 'MOVIMENTAR_ESTOQUE', 'produtos', produto_id, `${tipo} ${quantidade} — ${motivo || ''}`);
     if (tipo === 'saida' || tipo === 'ajuste') await push.avisarEstoqueBaixo(db, produto_id, produto.quantidade || 0);
     return { ok: true };
+  },
+
+  // ---------- Catálogo online ----------
+  'catalogo:get': async (db, _a, req) => {
+    const cfg = (await db.get('SELECT * FROM configuracoes_catalogo WHERE id = 1')) || {};
+    const pub = await db.get('SELECT COUNT(*) AS n FROM produtos WHERE ativo = 1 AND catalogo = 1');
+    return { ok: true, link: catalogo.linkDaLoja(req), config: { ativo: !!cfg.ativo, chave_pix: cfg.chave_pix || '', nome_pix: cfg.nome_pix || '', cidade_pix: cfg.cidade_pix || '', mensagem: cfg.mensagem || '', entrega_info: cfg.entrega_info || '' }, publicados: pub ? pub.n : 0 };
+  },
+  'catalogo:save': async (db, { config }, req) => {
+    requirePapel(req, ['Administrador']);
+    const c = config || {};
+    const chave = String(c.chave_pix || '').trim().slice(0, 120);
+    await db.run('INSERT OR IGNORE INTO configuracoes_catalogo (id, ativo) VALUES (1, 0)');
+    await db.run(
+      'UPDATE configuracoes_catalogo SET ativo=?, chave_pix=?, nome_pix=?, cidade_pix=?, mensagem=?, entrega_info=?, atualizado_em=? WHERE id=1',
+      [c.ativo ? 1 : 0, chave, String(c.nome_pix || '').trim().slice(0, 25), String(c.cidade_pix || '').trim().slice(0, 15), String(c.mensagem || '').trim().slice(0, 200), String(c.entrega_info || '').trim().slice(0, 200), nowIso()]
+    );
+    await log(db, req, 'EDITAR', 'catalogo', 1, c.ativo ? 'ativo' : 'desativado');
+    return { ok: true };
+  },
+  'catalogo:produtos': async (db) => db.all(
+    `SELECT id, nome, categoria, descricao, valor_venda, quantidade, catalogo,
+            CASE WHEN imagem_mini IS NOT NULL AND imagem_mini <> '' THEN 1 ELSE 0 END AS foto
+     FROM produtos WHERE ativo = 1 ORDER BY nome LIMIT 2000`
+  ),
+  'catalogo:publicar': async (db, { ids, publicar, id, descricao }, req) => {
+    if (id && descricao !== undefined) {
+      await db.run('UPDATE produtos SET descricao = ? WHERE id = ?', [String(descricao || '').slice(0, 200), id]);
+      return { ok: true };
+    }
+    const lista = (Array.isArray(ids) ? ids : []).map(Number).filter(Boolean).slice(0, 2000);
+    for (const pid of lista) await db.run('UPDATE produtos SET catalogo = ? WHERE id = ?', [publicar ? 1 : 0, pid]);
+    await log(db, req, 'EDITAR', 'catalogo', 0, `${publicar ? 'publicou' : 'retirou'} ${lista.length} produto(s)`);
+    return { ok: true, n: lista.length };
+  },
+  'catalogo:pedidos': async (db, { status } = {}) => {
+    const linhas = status ? await db.all('SELECT * FROM pedidos_catalogo WHERE status = ? ORDER BY id DESC LIMIT 300', [status]) : await db.all('SELECT * FROM pedidos_catalogo ORDER BY id DESC LIMIT 300');
+    return linhas.map((p) => ({ ...p, itens: (() => { try { return JSON.parse(p.itens || '[]'); } catch (e) { return []; } })() }));
+  },
+  'catalogo:pedidoStatus': async (db, { id, status }, req) => {
+    if (!['Novo', 'Pago', 'Enviado', 'Entregue', 'Cancelado'].includes(status)) throw new Error('Status inválido.');
+    const r = await db.run('UPDATE pedidos_catalogo SET status = ? WHERE id = ?', [status, id]);
+    await log(db, req, 'EDITAR', 'pedidos_catalogo', id, status);
+    return { ok: true };
+  },
+  // Vira uma venda de verdade: baixa o estoque, lança no financeiro e marca o pedido como Pago.
+  'catalogo:pedidoVenda': async (db, { id, forma }, req) => {
+    const ped = await db.get('SELECT * FROM pedidos_catalogo WHERE id = ?', [id]);
+    if (!ped) throw new Error('Pedido não encontrado.');
+    if (ped.venda_id) throw new Error('Este pedido já virou venda.');
+    const itens = JSON.parse(ped.itens || '[]');
+    const zap = String(ped.cliente_whatsapp || '').replace(/\D/g, '');
+    let clienteId = null;
+    if (zap) {
+      const achado = await db.get('SELECT id FROM clientes WHERE REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(telefone,\'\'),\'(\',\'\'),\')\',\'\'),\'-\',\'\'),\' \',\'\') LIKE ? LIMIT 1', ['%' + zap.slice(-9)]).catch(() => null);
+      clienteId = achado ? achado.id : null;
+    }
+    const r = await handlers['vendas:save'](db, { venda: { cliente_id: clienteId, itens, desconto: 0, forma_pagamento: forma || 'PIX', observacoes: `Pedido do catálogo ${ped.numero} — ${ped.cliente_nome} (${ped.cliente_whatsapp})${ped.entrega === 'entrega' ? ' — Entrega: ' + ped.endereco : ' — Retirada'}` } }, req);
+    await db.run('UPDATE pedidos_catalogo SET venda_id = ?, status = ? WHERE id = ?', [r.id, 'Pago', id]);
+    return { ok: true, vendaId: r.id, numero: r.numero };
   },
 
   'produtos:movimentacoes': async (db, { produto_id }) => db.all('SELECT * FROM movimentacoes_estoque WHERE produto_id = ? ORDER BY id DESC LIMIT 100', [produto_id]),

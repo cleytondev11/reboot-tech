@@ -280,6 +280,32 @@ CREATE TABLE IF NOT EXISTS configuracoes_empresa (
   atualizado_em TEXT
 );
 
+CREATE TABLE IF NOT EXISTS configuracoes_catalogo (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  ativo INTEGER NOT NULL DEFAULT 0,
+  chave_pix TEXT,
+  nome_pix TEXT,
+  cidade_pix TEXT,
+  mensagem TEXT,
+  entrega_info TEXT,
+  atualizado_em TEXT
+);
+
+CREATE TABLE IF NOT EXISTS pedidos_catalogo (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  numero TEXT NOT NULL,
+  cliente_nome TEXT NOT NULL,
+  cliente_whatsapp TEXT,
+  entrega TEXT, -- 'retirada' ou 'entrega'
+  endereco TEXT,
+  observacoes TEXT,
+  itens TEXT, -- JSON [{produto_id, descricao, quantidade, valor_unit}]
+  valor_total REAL NOT NULL DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'Novo', -- Novo, Pago, Enviado, Entregue, Cancelado
+  venda_id INTEGER,
+  criado_em TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS licenca_local (
   id INTEGER PRIMARY KEY CHECK (id = 1),
   chave TEXT,
