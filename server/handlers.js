@@ -1411,7 +1411,7 @@ const handlers = {
     if (termo) { w.push('(peca LIKE ? OR aparelho LIKE ? OR local LIKE ?)'); p.push(`%${termo}%`, `%${termo}%`, `%${termo}%`); }
     if (situacao) { w.push('situacao = ?'); p.push(situacao); }
     const itens = await db.all(`SELECT * FROM sucata ${w.length ? 'WHERE ' + w.join(' AND ') : ''} ORDER BY id DESC LIMIT 1000`, p);
-    const t = (await db.get("SELECT COALESCE(SUM(CASE WHEN situacao='Disponível' THEN 1 ELSE 0 END),0) AS disp, COALESCE(SUM(CASE WHEN situacao='Disponível' THEN valor ELSE 0 END),0) AS valor, COALESCE(SUM(CASE WHEN situacao='Usada' THEN 1 ELSE 0 END),0) AS usadas FROM sucata")) || {};
+    const t = (await db.get("SELECT COALESCE(SUM(CASE WHEN situacao='Disponível' THEN quantidade ELSE 0 END),0) AS disp, COALESCE(SUM(CASE WHEN situacao='Disponível' THEN valor*quantidade ELSE 0 END),0) AS valor, COALESCE(SUM(CASE WHEN situacao='Usada' THEN quantidade ELSE 0 END),0) AS usadas FROM sucata")) || {};
     const ap = (await db.get("SELECT COUNT(DISTINCT LOWER(TRIM(aparelho))) AS n FROM sucata WHERE TRIM(COALESCE(aparelho,'')) <> ''")) || {};
     return { itens, resumo: { disponiveis: t.disp || 0, valor: t.valor || 0, usadas: t.usadas || 0, aparelhos: ap.n || 0 } };
   },
@@ -1420,13 +1420,14 @@ const handlers = {
     const nome = String(s.peca || '').trim();
     if (nome.length < 2) throw new Error('Informe o tipo da peça.');
     const foto = typeof s.foto === 'string' && s.foto.startsWith('data:image/') && s.foto.length < 400000 ? s.foto : '';
-    const c = [nome.slice(0, 120), String(s.aparelho || '').trim().slice(0, 120), ['Testada', 'Não testada', 'Defeituosa'].includes(s.estado) ? s.estado : 'Não testada', String(s.local || '').trim().slice(0, 80), Math.max(0, Number(s.valor) || 0), foto, String(s.obs || '').trim().slice(0, 500)];
+    const qtd = Math.max(1, Math.min(100000, parseInt(s.quantidade, 10) || 1));
+    const c = [nome.slice(0, 120), qtd, String(s.aparelho || '').trim().slice(0, 120), ['Testada', 'Não testada', 'Defeituosa'].includes(s.estado) ? s.estado : 'Não testada', String(s.local || '').trim().slice(0, 80), Math.max(0, Number(s.valor) || 0), foto, String(s.obs || '').trim().slice(0, 500)];
     if (s.id) {
-      await db.run('UPDATE sucata SET peca=?, aparelho=?, estado=?, local=?, valor=?, foto=?, obs=?, atualizado_em=? WHERE id=?', [...c, nowIso(), s.id]);
+      await db.run('UPDATE sucata SET peca=?, quantidade=?, aparelho=?, estado=?, local=?, valor=?, foto=?, obs=?, atualizado_em=? WHERE id=?', [...c, nowIso(), s.id]);
       await log(db, req, 'EDITAR', 'sucata', s.id, nome);
       return { ok: true, id: s.id };
     }
-    const id = await db.insert('INSERT INTO sucata (peca, aparelho, estado, local, valor, foto, obs, criado_em) VALUES (?,?,?,?,?,?,?,?)', [...c, nowIso()]);
+    const id = await db.insert('INSERT INTO sucata (peca, quantidade, aparelho, estado, local, valor, foto, obs, criado_em) VALUES (?,?,?,?,?,?,?,?,?)', [...c, nowIso()]);
     await log(db, req, 'CRIAR', 'sucata', id, nome);
     return { ok: true, id };
   },
@@ -1434,6 +1435,22 @@ const handlers = {
     if (!['Disponível', 'Reservada', 'Usada', 'Descartada'].includes(situacao)) throw new Error('Situação inválida.');
     await db.run('UPDATE sucata SET situacao = ?, os_ref = ?, atualizado_em = ? WHERE id = ?', [situacao, situacao === 'Disponível' ? '' : String(os_ref || '').trim().slice(0, 60), nowIso(), id]);
     await log(db, req, 'EDITAR', 'sucata', id, situacao);
+    return { ok: true };
+  },
+  'sucata:usar': async (db, { id, quantidade, os_ref }, req) => {
+    const s = await db.get('SELECT * FROM sucata WHERE id = ?', [id]);
+    if (!s) throw new Error('Peça não encontrada.');
+    const q = parseInt(quantidade, 10);
+    if (!(q > 0)) throw new Error('Informe a quantidade usada.');
+    if (q > s.quantidade) throw new Error(`Só há ${s.quantidade} unidade(s) desta peça.`);
+    const ref = String(os_ref || '').trim().slice(0, 60);
+    if (q === s.quantidade) {
+      await db.run("UPDATE sucata SET situacao = 'Usada', os_ref = ?, atualizado_em = ? WHERE id = ?", [ref, nowIso(), id]);
+    } else {
+      await db.run('UPDATE sucata SET quantidade = quantidade - ?, atualizado_em = ? WHERE id = ?', [q, nowIso(), id]);
+      await db.run("INSERT INTO sucata (peca, quantidade, aparelho, estado, local, valor, foto, obs, situacao, os_ref, criado_em) VALUES (?,?,?,?,?,?,?,?,'Usada',?,?)", [s.peca, q, s.aparelho, s.estado, s.local, s.valor, s.foto, s.obs, ref, nowIso()]);
+    }
+    await log(db, req, 'EDITAR', 'sucata', id, `usada x${q}`);
     return { ok: true };
   },
   'sucata:delete': async (db, { id }, req) => {

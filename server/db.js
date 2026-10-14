@@ -54,6 +54,7 @@ async function migrate() {
   const tryAdd = async (sql) => {
     try { await client.execute(sql); } catch (e) { /* coluna já existe, ignora */ }
   };
+  await tryAdd(`ALTER TABLE sucata ADD COLUMN quantidade INTEGER NOT NULL DEFAULT 1`);
   await tryAdd(`ALTER TABLE ordens_servico ADD COLUMN itens_pecas TEXT`);
   await tryAdd(`ALTER TABLE ordens_servico ADD COLUMN estoque_baixado INTEGER DEFAULT 0`);
   await tryAdd(`ALTER TABLE ordens_servico ADD COLUMN forma_pagamento TEXT`);

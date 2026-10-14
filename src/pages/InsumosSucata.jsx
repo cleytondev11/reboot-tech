@@ -11,7 +11,7 @@ const ESTADOS = ['Testada', 'Não testada', 'Defeituosa'];
 const COR_EST = { Testada: 'var(--success)', 'Não testada': 'var(--warning)', Defeituosa: 'var(--danger)' };
 const COR_SIT = { 'Disponível': 'var(--success)', Reservada: 'var(--info)', Usada: 'var(--text-dim, #888)', Descartada: 'var(--text-dim, #888)' };
 const EMPTY_I = { id: null, nome: '', categoria: 'Solda', unidade: 'un', quantidade: '', minimo: '1', custo: '', fornecedor: '' };
-const EMPTY_S = { id: null, peca: 'Tela / display', aparelho: '', estado: 'Testada', local: '', valor: '', foto: '', obs: '' };
+const EMPTY_S = { id: null, peca: 'Tela / display', quantidade: '1', aparelho: '', estado: 'Testada', local: '', valor: '', foto: '', obs: '' };
 
 const pill = (cor, txt) => <span style={{ fontSize: 11, fontWeight: 800, padding: '3px 9px', borderRadius: 99, background: `color-mix(in srgb, ${cor} 18%, transparent)`, color: cor, whiteSpace: 'nowrap' }}>{txt}</span>;
 const nf = (n) => String(Math.round((Number(n) || 0) * 100) / 100).replace('.', ',');
@@ -162,11 +162,12 @@ function Sucata() {
   }
   async function salvar(e) {
     e.preventDefault();
-    try { await window.api.sucata.save({ ...form, valor: parseDecimal(form.valor) }); showToast('Peça salva.'); setForm(null); carregar(); } catch (err) { erro(err); }
+    try { await window.api.sucata.save({ ...form, valor: parseDecimal(form.valor), quantidade: parseInt(form.quantidade, 10) || 1 }); showToast('Peça salva.'); setForm(null); carregar(); } catch (err) { erro(err); }
   }
   async function aplicarSituacao(e) {
     e.preventDefault();
-    try { await window.api.sucata.situacao(uso.item.id, uso.situacao, uso.os); showToast('Situação atualizada.'); setUso(null); carregar(); } catch (err) { erro(err); }
+    try { if (uso.situacao === 'Usada' && (uso.item.situacao === 'Disponível' || uso.item.situacao === 'Reservada')) await window.api.sucata.usar(uso.item.id, parseInt(uso.qtd, 10) || 0, uso.os);
+      else await window.api.sucata.situacao(uso.item.id, uso.situacao, uso.os); showToast('Situação atualizada.'); setUso(null); carregar(); } catch (err) { erro(err); }
   }
   async function excluir(s) {
     if (!window.confirm(`Excluir "${s.peca}" (${s.aparelho || 'sem aparelho'})?`)) return;
@@ -178,7 +179,7 @@ function Sucata() {
 
   return (
     <div>
-      <Resumo itens={[['Peças disponíveis', r.disponiveis || 0], ['Aparelhos desmontados', r.aparelhos || 0], ['Valor estimado (disponíveis)', formatCurrency(r.valor || 0)], ['Já aproveitadas', r.usadas || 0]]} />
+      <Resumo itens={[['Peças disponíveis (unid.)', r.disponiveis || 0], ['Aparelhos desmontados', r.aparelhos || 0], ["Valor estimado (disponíveis)", formatCurrency(r.valor || 0)], ['Já aproveitadas', r.usadas || 0]]} />
       <div className="toolbar">
         <div className="toolbar-left" style={{ flex: 1 }}>
           <input className="search-input" style={{ flex: 1, minWidth: 200 }} placeholder="Buscar peça, aparelho ou local…" value={termo} onChange={(e) => setTermo(e.target.value)} />
@@ -188,12 +189,13 @@ function Sucata() {
       </div>
       <div className="table-wrap">
         <table>
-          <thead><tr><th></th><th>Peça</th><th>Veio de</th><th>Estado</th><th>Local</th><th>Valor est.</th><th>Situação</th><th></th></tr></thead>
+          <thead><tr><th></th><th>Peça</th><th>Qtd</th><th>Veio de</th><th>Estado</th><th>Local</th><th>Valor unit.</th><th>Situação</th><th></th></tr></thead>
           <tbody>
             {itens.map((s) => (
               <tr key={s.id}>
                 <td>{s.foto ? <img className="prod-mini" src={s.foto} alt="" /> : <span className="prod-mini prod-mini-vazio">♻️</span>}</td>
                 <td><b>{s.peca}</b>{s.obs ? <div className="muted" style={{ fontSize: 11 }}>{s.obs}</div> : null}</td>
+                <td><b>{s.quantidade || 1}</b></td>
                 <td>{s.aparelho || '-'}</td>
                 <td>{pill(COR_EST[s.estado] || 'var(--warning)', s.estado)}</td>
                 <td>{s.local || '-'}</td>
@@ -201,14 +203,14 @@ function Sucata() {
                 <td>{pill(COR_SIT[s.situacao] || 'var(--info)', s.situacao + (s.os_ref ? ` · ${s.os_ref}` : ''))}</td>
                 <td><div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
                   {s.situacao === 'Disponível' || s.situacao === 'Reservada'
-                    ? <button className="btn btn-secondary btn-sm" onClick={() => setUso({ item: s, situacao: 'Usada', os: s.os_ref || '' })}>Usar na OS</button>
+                    ? <button className="btn btn-secondary btn-sm" onClick={() => setUso({ item: s, situacao: 'Usada', os: s.os_ref || '', qtd: '1' })}>Usar na OS</button>
                     : <button className="btn btn-secondary btn-sm" onClick={() => setUso({ item: s, situacao: 'Disponível', os: '' })}>Voltar p/ disponível</button>}
-                  <button className="icon-btn" title="Editar" onClick={() => setForm({ ...EMPTY_S, ...s, valor: String(s.valor || '').replace('.', ',') })}>✏️</button>
+                  <button className="icon-btn" title="Editar" onClick={() => setForm({ ...EMPTY_S, ...s, valor: String(s.valor || '').replace('.', ','), quantidade: String(s.quantidade || 1) })}>✏️</button>
                   <button className="icon-btn" title="Excluir" onClick={() => excluir(s)}>🗑️</button>
                 </div></td>
               </tr>
             ))}
-            {dados && itens.length === 0 && <tr><td colSpan={8} className="muted" style={{ textAlign: 'center', padding: 24 }}>Nenhuma peça nesta lista. Clique em “＋ Nova peça de sucata”.</td></tr>}
+            {dados && itens.length === 0 && <tr><td colSpan={9} className="muted" style={{ textAlign: 'center', padding: 24 }}>Nenhuma peça nesta lista. Clique em “＋ Nova peça de sucata”.</td></tr>}
           </tbody>
         </table>
       </div>
@@ -219,6 +221,7 @@ function Sucata() {
             <div className="modal-header"><h3>{form.id ? 'Editar peça de sucata' : '♻️ Nova peça de sucata'}</h3><button type="button" className="icon-btn" onClick={() => setForm(null)}>✕</button></div>
             <div className="form-grid">
               <div className="field"><label>Tipo da peça *</label><input list="suc-pecas" value={form.peca} onChange={(e) => set('peca', e.target.value)} /><datalist id="suc-pecas">{PECAS.map((p) => <option key={p} value={p} />)}</datalist></div>
+              <div className="field"><label>Quantidade</label><input inputMode="numeric" value={form.quantidade} onChange={(e) => set('quantidade', e.target.value.replace(/\D/g, ''))} /></div>
               <div className="field"><label>Aparelho de origem</label><input value={form.aparelho} onChange={(e) => set('aparelho', e.target.value)} placeholder="Ex.: Samsung A12" /></div>
               <div className="field"><label>Estado</label><select value={form.estado} onChange={(e) => set('estado', e.target.value)}>{ESTADOS.map((x) => <option key={x}>{x}</option>)}</select></div>
               <div className="field"><label>Local onde guardou</label><input value={form.local} onChange={(e) => set('local', e.target.value)} placeholder="Ex.: Gaveta 2" /></div>
@@ -245,6 +248,7 @@ function Sucata() {
           <form className="modal" style={{ width: 400 }} onSubmit={aplicarSituacao}>
             <div className="modal-header"><h3>{uso.item.peca}</h3><button type="button" className="icon-btn" onClick={() => setUso(null)}>✕</button></div>
             <div className="field"><label>Situação</label><select value={uso.situacao} onChange={(e) => setUso({ ...uso, situacao: e.target.value })}>{['Disponível', 'Reservada', 'Usada', 'Descartada'].map((x) => <option key={x}>{x}</option>)}</select></div>
+            {uso.situacao === 'Usada' && (uso.item.situacao === 'Disponível' || uso.item.situacao === 'Reservada') && <div className="field" style={{ marginTop: 10 }}><label>Quantidade usada (há {uso.item.quantidade})</label><input inputMode="numeric" value={uso.qtd} onChange={(e) => setUso({ ...uso, qtd: e.target.value.replace(/\D/g, '') })} /></div>}
             {uso.situacao !== 'Disponível' && <div className="field" style={{ marginTop: 10 }}><label>OS / observação (opcional)</label><input value={uso.os} onChange={(e) => setUso({ ...uso, os: e.target.value })} placeholder="Ex.: OS #1042" autoFocus /></div>}
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 14 }}>
               <button type="button" className="btn btn-secondary" onClick={() => setUso(null)}>Cancelar</button>

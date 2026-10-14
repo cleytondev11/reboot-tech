@@ -168,6 +168,7 @@ import { criarApiImpressora } from './impressao-web.js';
       list: (f) => invoke('sucata:list', f || {}),
       save: (peca) => invoke('sucata:save', { peca }),
       situacao: (id, situacao, os_ref) => invoke('sucata:situacao', { id, situacao, os_ref }),
+      usar: (id, quantidade, os_ref) => invoke('sucata:usar', { id, quantidade, os_ref }),
       delete: (id) => invoke('sucata:delete', { id }),
     },
     catalogo: {

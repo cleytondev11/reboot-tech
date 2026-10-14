@@ -322,6 +322,7 @@ CREATE TABLE IF NOT EXISTS insumos_mov (
 CREATE TABLE IF NOT EXISTS sucata (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   peca TEXT NOT NULL,
+  quantidade INTEGER NOT NULL DEFAULT 1,
   aparelho TEXT,
   estado TEXT DEFAULT 'Não testada', -- Testada, Não testada, Defeituosa
   local TEXT,
