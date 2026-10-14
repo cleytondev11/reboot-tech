@@ -156,17 +156,6 @@ export default function Dashboard({ goTo }) {
             <div className="dnew-k"><div className="dnew-ic dnew-gold">▣</div><div><small>Resultado do mês</small><b style={{ color: meta && meta.lucroRealizado < 0 ? 'var(--danger)' : 'var(--gold-light)' }}>{meta ? formatCurrency(meta.lucroRealizado) : '—'}</b></div></div>
             <CartaoMeta meta={meta} onDefinir={abrirDefinirMeta} podeEditar={user.papel === 'Administrador' || user.papel === 'Financeiro'} />
           </div>
-          <div className="grid grid-2" style={{ marginTop: 14 }}>
-            <div className="card">
-              <div className="section-title" style={{ marginTop: 0 }}>📈 Desempenho — Últimos 12 meses</div>
-              <BarChart data={data.faturamentoMensal || []} compact />
-              <div className="muted" style={{ fontSize: 11.5, marginTop: 10, textAlign: 'right' }}>Total no ano: <b>{formatCurrency(data.faturamentoAno)}</b></div>
-            </div>
-            <div className="card">
-              <div className="section-title" style={{ marginTop: 0 }}>📊 Faturamento — Últimos 7 dias</div>
-              <BarChart data={data.faturamentoSemana || []} />
-            </div>
-          </div>
           <div className="dnew-tiles">
             {[...cards, ...cards2, ...cards3].map((c) => (
               <div className="dnew-tile" key={c.label}>
@@ -348,19 +337,18 @@ export default function Dashboard({ goTo }) {
         </div>
       </div>
 
-      {!novo && (
       <div className="grid grid-2" style={{ marginTop: 18 }}>
         <div className="card">
-          <div className="section-title" style={{ marginTop: 0 }}>📊 Faturamento — Últimos 7 dias</div>
-          <BarChart data={data.faturamentoSemana || []} />
+          <div className="section-title" style={{ marginTop: 0 }}>{novo ? '📈 Desempenho — Últimos 12 meses' : '📊 Faturamento — Últimos 7 dias'}</div>
+          <BarChart data={novo ? (data.faturamentoMensal || []) : (data.faturamentoSemana || [])} compact={novo} />
+          {novo && <div className="muted" style={{ fontSize: 11.5, marginTop: 10, textAlign: 'right' }}>Total no ano: <b>{formatCurrency(data.faturamentoAno)}</b></div>}
         </div>
         <div className="card">
-          <div className="section-title" style={{ marginTop: 0 }}>📈 Faturamento — Últimos 12 meses</div>
-          <BarChart data={data.faturamentoMensal || []} compact />
-          <div className="muted" style={{ fontSize: 11.5, marginTop: 10, textAlign: 'right' }}>Total no ano: <b>{formatCurrency(data.faturamentoAno)}</b></div>
+          <div className="section-title" style={{ marginTop: 0 }}>{novo ? '📊 Faturamento — Últimos 7 dias' : '📈 Faturamento — Últimos 12 meses'}</div>
+          <BarChart data={novo ? (data.faturamentoSemana || []) : (data.faturamentoMensal || [])} compact={!novo} />
+          {!novo && <div className="muted" style={{ fontSize: 11.5, marginTop: 10, textAlign: 'right' }}>Total no ano: <b>{formatCurrency(data.faturamentoAno)}</b></div>}
         </div>
       </div>
-      )}
     </div>
   );
 }
