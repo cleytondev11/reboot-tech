@@ -280,6 +280,27 @@ CREATE TABLE IF NOT EXISTS configuracoes_empresa (
   atualizado_em TEXT
 );
 
+CREATE TABLE IF NOT EXISTS solucoes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  marca TEXT,
+  modelo TEXT,
+  tipo TEXT,
+  defeito TEXT NOT NULL,
+  passos TEXT, -- o que foi feito (passo a passo)
+  solucao TEXT, -- a solução que resolveu
+  nivel TEXT DEFAULT 'Iniciante', -- Iniciante, Intermediário, Avançado
+  pecas TEXT,
+  origem TEXT NOT NULL DEFAULT 'proprio', -- proprio | base (vem pronta no sistema)
+  usuario_nome TEXT,
+  criado_em TEXT NOT NULL,
+  atualizado_em TEXT
+);
+
+CREATE TABLE IF NOT EXISTS solucoes_seed (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  versao INTEGER NOT NULL DEFAULT 0
+);
+
 CREATE TABLE IF NOT EXISTS configuracoes_catalogo (
   id INTEGER PRIMARY KEY CHECK (id = 1),
   ativo INTEGER NOT NULL DEFAULT 0,

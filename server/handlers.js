@@ -17,6 +17,8 @@ const push = require('./push');
 const tenants = require('./tenants');
 const acompanhar = require('./acompanhar');
 const catalogo = require('./catalogo');
+const SOLUCOES_BASE = require('./solucoes-base');
+const SOLUCOES_VERSAO = 1; // aumente ao acrescentar itens novos na base
 
 function nowIso() {
   return new Date().toISOString();
@@ -1305,6 +1307,56 @@ const handlers = {
     );
     await log(db, req, 'MOVIMENTAR_ESTOQUE', 'produtos', produto_id, `${tipo} ${quantidade} — ${motivo || ''}`);
     if (tipo === 'saida' || tipo === 'ajuste') await push.avisarEstoqueBaixo(db, produto_id, produto.quantidade || 0);
+    return { ok: true };
+  },
+
+  // ---------- Soluções (base de conhecimento do técnico) ----------
+  'solucoes:list': async (db, { termo, marca, tipo, nivel, origem } = {}) => {
+    // Primeira vez (ou base nova): carrega as soluções prontas, uma vez por versão.
+    const sem = await db.get('SELECT versao FROM solucoes_seed WHERE id = 1');
+    if (!sem || sem.versao < SOLUCOES_VERSAO) {
+      const agora = nowIso();
+      const ja = new Set((await db.all("SELECT defeito || '|' || COALESCE(marca,'') || '|' || COALESCE(modelo,'') AS k FROM solucoes WHERE origem = 'base'")).map((r) => r.k));
+      for (const b of SOLUCOES_BASE) {
+        if (ja.has(`${b.defeito}|${b.marca || ''}|${b.modelo || ''}`)) continue;
+        await db.run('INSERT INTO solucoes (marca, modelo, tipo, defeito, passos, solucao, nivel, pecas, origem, usuario_nome, criado_em) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
+          [b.marca || '', b.modelo || '', b.tipo || 'Outros', b.defeito, b.passos || '', b.solucao || '', b.nivel || 'Iniciante', b.pecas || '', 'base', 'Base do sistema', agora]);
+      }
+      await db.run('INSERT OR IGNORE INTO solucoes_seed (id, versao) VALUES (1, 0)');
+      await db.run('UPDATE solucoes_seed SET versao = ? WHERE id = 1', [SOLUCOES_VERSAO]);
+    }
+    const w = []; const p = [];
+    if (marca) { w.push("(marca = ? OR marca = 'Todas' OR marca = '')"); p.push(marca); }
+    if (tipo) { w.push('tipo = ?'); p.push(tipo); }
+    if (nivel) { w.push('nivel = ?'); p.push(nivel); }
+    if (origem) { w.push('origem = ?'); p.push(origem); }
+    const t = String(termo || '').trim().toLowerCase();
+    if (t) {
+      for (const parte of t.split(/\s+/).slice(0, 6)) {
+        w.push("LOWER(COALESCE(marca,'') || ' ' || COALESCE(modelo,'') || ' ' || COALESCE(tipo,'') || ' ' || defeito || ' ' || COALESCE(passos,'') || ' ' || COALESCE(solucao,'')) LIKE ?");
+        p.push('%' + parte + '%');
+      }
+    }
+    return db.all(`SELECT * FROM solucoes ${w.length ? 'WHERE ' + w.join(' AND ') : ''} ORDER BY CASE origem WHEN 'proprio' THEN 0 ELSE 1 END, id DESC LIMIT 500`, p);
+  },
+  'solucoes:save': async (db, { solucao }, req) => {
+    const s = solucao || {};
+    const defeito = String(s.defeito || '').trim();
+    if (defeito.length < 3) throw new Error('Descreva o defeito.');
+    const nivel = ['Iniciante', 'Intermediário', 'Avançado'].includes(s.nivel) ? s.nivel : 'Iniciante';
+    const campos = [String(s.marca || '').trim().slice(0, 60), String(s.modelo || '').trim().slice(0, 80), String(s.tipo || 'Outros').trim().slice(0, 60), defeito.slice(0, 300), String(s.passos || '').trim().slice(0, 3000), String(s.solucao || '').trim().slice(0, 1500), nivel, String(s.pecas || '').trim().slice(0, 200)];
+    if (s.id) {
+      await db.run('UPDATE solucoes SET marca=?, modelo=?, tipo=?, defeito=?, passos=?, solucao=?, nivel=?, pecas=?, atualizado_em=? WHERE id=?', [...campos, nowIso(), s.id]);
+      await log(db, req, 'EDITAR', 'solucoes', s.id, defeito);
+      return { ok: true, id: s.id };
+    }
+    const id = await db.insert('INSERT INTO solucoes (marca, modelo, tipo, defeito, passos, solucao, nivel, pecas, origem, usuario_nome, criado_em) VALUES (?,?,?,?,?,?,?,?,?,?,?)', [...campos, 'proprio', req.usuario?.nome || '', nowIso()]);
+    await log(db, req, 'CRIAR', 'solucoes', id, defeito);
+    return { ok: true, id };
+  },
+  'solucoes:delete': async (db, { id }, req) => {
+    await db.run('DELETE FROM solucoes WHERE id = ?', [id]);
+    await log(db, req, 'EXCLUIR', 'solucoes', id, '');
     return { ok: true };
   },
 

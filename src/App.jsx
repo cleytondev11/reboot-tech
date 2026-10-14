@@ -9,6 +9,7 @@ import Orcamentos from './pages/Orcamentos.jsx';
 import Compras from './pages/Compras.jsx';
 import Estoque from './pages/Estoque.jsx';
 import Catalogo from './pages/Catalogo.jsx';
+import Solucoes from './pages/Solucoes.jsx';
 import Servicos from './pages/Servicos.jsx';
 import Vendas from './pages/Vendas.jsx';
 import Financeiro from './pages/Financeiro.jsx';
@@ -36,6 +37,7 @@ const NAV = [
   { key: 'clientes', label: 'Clientes e Equipamentos', icon: '👤' },
   { key: 'os', label: 'Ordens de Serviço', icon: '🧾' },
   { key: 'kanban', label: 'Bancada (Kanban)', icon: '🗂️' },
+  { key: 'solucoes', label: 'Soluções', icon: '💡', hideInElectron: true },
   { key: 'orcamentos', label: 'Orçamentos', icon: '📝' },
   { key: 'compras', label: 'Compras', icon: '🚚' },
   { key: 'estoque', label: 'Estoque', icon: '📦' },
@@ -56,7 +58,7 @@ const NAV = [
 
 const TITLES = {
   dashboard: 'Dashboard', clientes: 'Clientes e Equipamentos',
-  os: 'Ordens de Serviço', kanban: 'Bancada — Kanban', cobrancas: 'Cobranças', comissoes: 'Comissões', plano: 'Meu Plano', suporte: 'Fale com o Suporte', download: 'Download App', orcamentos: 'Orçamentos', compras: 'Compras', estoque: 'Estoque', catalogo: 'Catálogo Online', servicos: 'Serviços', vendas: 'Vendas', financeiro: 'Financeiro',
+  os: 'Ordens de Serviço', kanban: 'Bancada — Kanban', cobrancas: 'Cobranças', comissoes: 'Comissões', plano: 'Meu Plano', suporte: 'Fale com o Suporte', download: 'Download App', orcamentos: 'Orçamentos', compras: 'Compras', estoque: 'Estoque', solucoes: 'Soluções de Bancada', catalogo: 'Catálogo Online', servicos: 'Serviços', vendas: 'Vendas', financeiro: 'Financeiro',
   relatorios: 'Relatórios', calcpro: 'Calculadora Pro', usuarios: 'Usuários', config: 'Configurações',
 };
 
@@ -129,6 +131,7 @@ function Shell() {
       case 'compras': return <Compras />;
       case 'estoque': return <Estoque />;
       case 'catalogo': return <Catalogo />;
+      case 'solucoes': return <Solucoes />;
       case 'servicos': return <Servicos />;
       case 'vendas': return <Vendas />;
       case 'financeiro': return <Financeiro />;
