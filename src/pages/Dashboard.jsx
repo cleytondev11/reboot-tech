@@ -126,6 +126,7 @@ export default function Dashboard({ goTo }) {
             <button className="btn btn-primary" onClick={() => atalho('os', 'os')}>＋ Nova OS</button>
             <button className="btn btn-primary" onClick={() => atalho('venda', 'vendas')}>＋ Nova venda</button>
             <button className="btn btn-secondary" onClick={() => atalho('orcamento', 'orcamentos')}>📝 Orçamento</button>
+            <button className="btn btn-secondary" onClick={() => goTo('calcpro')}>🧮 Calculadora Pro</button>
             <button className="btn btn-secondary" onClick={() => goTo('catalogo')}>🛍️ Catálogo</button>
             <button className="btn btn-secondary" onClick={() => goTo('relatorios')}>📈 Relatórios</button>
             <button className="btn btn-secondary" onClick={() => goTo('config')}>⚙️ Configurações</button>
@@ -135,6 +136,7 @@ export default function Dashboard({ goTo }) {
           <button className="btn btn-primary" onClick={() => atalho('venda', 'vendas')}>🛒 Nova venda</button>
           <button className="btn btn-secondary" onClick={() => atalho('orcamento', 'orcamentos')}>📝 Novo orçamento</button>
           <button className="btn btn-secondary" onClick={() => atalho('os', 'os')}>🧾 Nova OS</button>
+            <button className="btn btn-secondary" onClick={() => goTo('calcpro')}>🧮 Calculadora Pro</button>
         </div>
         )}
         {mobile && !tourVisto && (
