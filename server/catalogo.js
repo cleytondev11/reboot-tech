@@ -96,7 +96,7 @@ router.get('/:codigo', limitar(120, 60000), async (req, res) => {
     if (!l) return res.status(404).json({ ok: false, error: 'Este catálogo não está disponível no momento.' });
     const produtos = await l.db.all(
       `SELECT id, nome, categoria, descricao, valor_venda, quantidade,
-              CASE WHEN imagem_mini IS NOT NULL AND imagem_mini <> '' THEN 1 ELSE 0 END AS foto
+              CASE WHEN (imagem IS NOT NULL AND imagem <> '') OR (imagem_mini IS NOT NULL AND imagem_mini <> '') THEN 1 ELSE 0 END AS foto
        FROM produtos WHERE ativo = 1 AND catalogo = 1 AND valor_venda > 0 AND quantidade > 0 ORDER BY categoria, nome LIMIT 500`
     );
     res.json({
@@ -114,10 +114,12 @@ router.get('/:codigo/foto/:id', limitar(600, 60000), async (req, res) => {
   try {
     const l = await carregarLoja(req.params.codigo);
     if (!l) return res.status(404).end();
-    const p = await l.db.get('SELECT imagem_mini FROM produtos WHERE id = ? AND ativo = 1 AND catalogo = 1', [Number(req.params.id) || 0]);
-    const m = p && /^data:(image\/(?:jpeg|png|webp));base64,(.+)$/.exec(p.imagem_mini || '');
+    // A foto inteira (900 px) — a miniatura de 120 px do estoque fica borrada no catálogo; ela só serve de reserva.
+    const p = await l.db.get('SELECT imagem, imagem_mini FROM produtos WHERE id = ? AND ativo = 1 AND catalogo = 1', [Number(req.params.id) || 0]);
+    const re = /^data:(image\/(?:jpeg|png|webp));base64,(.+)$/;
+    const m = p && (re.exec(p.imagem || '') || re.exec(p.imagem_mini || ''));
     if (!m) return res.status(404).end();
-    res.set('Content-Type', m[1]); res.set('Cache-Control', 'public, max-age=3600');
+    res.set('Content-Type', m[1]); res.set('Cache-Control', 'public, max-age=600');
     res.send(Buffer.from(m[2], 'base64'));
   } catch (err) { res.status(404).end(); }
 });
