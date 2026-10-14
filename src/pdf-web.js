@@ -405,9 +405,27 @@ function buildGarantiaHtml(os, empresa) {
   const dataEntrega = formatDate(os.data_saida) !== '-' ? formatDate(os.data_saida) : formatDate(nowStr());
   const garantiaDias = os.garantia_dias || 90;
 
-  const assinaturaHtml = os.assinatura_cliente
-    ? `<img src="${os.assinatura_cliente}" style="height:60px; display:block; margin-bottom:2px;" />`
+  const assinaturaImg = os.assinatura_cliente || os.assinatura_aprovacao;
+  const assinaturaHtml = assinaturaImg
+    ? `<img src="${assinaturaImg}" style="height:60px; display:block; margin-bottom:2px;" />`
     : '';
+  const notaRemota = os.assinatura_aprovacao
+    ? `<div style="font-size:9.5px;color:#666;margin-top:2px;">Autorização do orçamento assinada à distância (link) em ${escapeHtml(os.aprovacao_em ? new Date(os.aprovacao_em).toLocaleString('pt-BR') : '')}${os.aprovacao_ip ? ' · IP ' + escapeHtml(os.aprovacao_ip) : ''}</div>`
+    : '';
+  let termosLidos = [];
+  try { termosLidos = JSON.parse(os.termos_aceite || '[]'); } catch { termosLidos = []; }
+  const termosGarantiaHtml = `
+    <div class="section-title">8. Termos e Declarações aceitos na Ordem de Serviço</div>
+    <div class="termos-list">
+      ${TERMOS_ACEITE_ITENS.map((texto, i) => `
+        <div class="termo-item"><span class="termo-check">${termosLidos[i] ? '☑' : '☐'}</span><span>${escapeHtml(texto)}</span></div>
+      `).join('')}
+    </div>
+    <div class="declaracao-box">
+      <div class="declaracao-titulo">⚠️ Declaração de Condição do Aparelho</div>
+      <p class="declaracao-texto">${escapeHtml(DECLARACAO_CONDICAO_APARELHO)}</p>
+    </div>
+  `;
 
   return `
     <div class="info-grid">
@@ -445,11 +463,13 @@ function buildGarantiaHtml(os, empresa) {
 
     <div class="section-title">7. Condições Finais</div>
     <p>A garantia não representa cobertura integral do aparelho, sendo limitada ao serviço realizado e/ou componente substituído, conforme descrito na respectiva Ordem de Serviço. Ao receber o aparelho, o cliente declara que teve a oportunidade de conferir seu funcionamento e as condições externas do equipamento.</p>
+    ${termosGarantiaHtml}
     <p><b>Declaro que li e estou de acordo com as condições deste Termo de Garantia.</b></p>
 
     <div class="signature-box">
       ${assinaturaHtml}
       <div class="signature-line">Assinatura do Cliente — ${escapeHtml(os.cliente_nome || '')}</div>
+      ${notaRemota}
     </div>
     <div class="signature-box" style="margin-top:8mm;">
       <div class="signature-line">Responsável Técnico — ${nomeEmpresa}</div>
