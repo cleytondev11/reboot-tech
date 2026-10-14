@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useApp } from '../context.jsx';
-import { formatCurrency, formatDateTime, toInputDate, todayInputValue, sanitizeDecimalInput, parseDecimal, sanitizeIntegerInput, parseIntSafe, FORMAS_PAGAMENTO_COM_PRAZO, FORMA_A_PRAZO, ROTULO_A_PRAZO } from '../utils.js';
+import { maskPhone, maskCpfCnpj, formatCurrency, formatDateTime, toInputDate, todayInputValue, sanitizeDecimalInput, parseDecimal, sanitizeIntegerInput, parseIntSafe, FORMAS_PAGAMENTO_COM_PRAZO, FORMA_A_PRAZO, ROTULO_A_PRAZO } from '../utils.js';
 import PrazoCampos, { valorEntrada } from '../components/PrazoCampos.jsx';
 import { reduzirImagem } from '../imagem.js';
 import ImprimirMenu from '../components/ImprimirMenu.jsx';
@@ -39,6 +39,19 @@ export default function Vendas() {
   const [formatoImpressao, setFormatoImpressao] = useState('termica');
 
   async function load() { setList(await window.api.vendas.list(termo)); }
+  // Cadastro rápido de cliente, sem sair da venda
+  const [novoCli, setNovoCli] = useState(null); // null = fechado; objeto = formulário aberto
+  async function salvarNovoCliente() {
+    const c = novoCli || {};
+    if (!String(c.nome || '').trim()) return showToast('Informe o nome do cliente.', 'error');
+    try {
+      const r = await window.api.clientes.save(user, { tipo: 'PF', nome: c.nome.trim(), whatsapp: c.telefone || '', telefone: c.telefone || '', cpf_cnpj: c.cpf_cnpj || '' });
+      await loadClientes();
+      setForm((f) => ({ ...f, cliente_id: String(r.id) }));
+      setNovoCli(null);
+      showToast('Cliente cadastrado e selecionado na venda.');
+    } catch (err) { showToast(String((err && err.message) || err), 'error'); }
+  }
   async function loadClientes() { setClientes(await window.api.clientes.list()); }
   async function loadProdutos() { setProdutos(await window.api.produtos.list()); }
 
@@ -283,6 +296,25 @@ export default function Vendas() {
                   <option value="">Consumidor não identificado</option>
                   {clientes.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
                 </select>
+                {!novoCli && (
+                  <button type="button" className="btn btn-secondary btn-sm" style={{ marginTop: 6, alignSelf: 'flex-start' }} onClick={() => setNovoCli({ nome: '', telefone: '', cpf_cnpj: '' })}>
+                    ＋ {clientes.length === 0 ? 'Nenhum cliente cadastrado — cadastrar agora' : 'Cadastrar novo cliente'}
+                  </button>
+                )}
+                {novoCli && (
+                  <div style={{ marginTop: 8, padding: 10, border: '1px solid var(--border)', borderRadius: 10, background: 'var(--bg-elev-2)', display: 'grid', gap: 8 }}>
+                    <b style={{ fontSize: 12.5 }}>Novo cliente</b>
+                    <input autoFocus placeholder="Nome do cliente *" value={novoCli.nome} onChange={(e) => setNovoCli({ ...novoCli, nome: e.target.value })} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); salvarNovoCliente(); } }} />
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                      <input inputMode="tel" placeholder="WhatsApp / telefone" value={novoCli.telefone} onChange={(e) => setNovoCli({ ...novoCli, telefone: maskPhone(e.target.value) })} />
+                      <input inputMode="numeric" placeholder="CPF / CNPJ (opcional)" value={novoCli.cpf_cnpj} onChange={(e) => setNovoCli({ ...novoCli, cpf_cnpj: maskCpfCnpj(e.target.value, e.target.value.replace(/\D/g, '').length > 11 ? 'PJ' : 'PF') })} />
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                      <button type="button" className="btn btn-secondary btn-sm" onClick={() => setNovoCli(null)}>Cancelar</button>
+                      <button type="button" className="btn btn-primary btn-sm" onClick={salvarNovoCliente}>Salvar e usar na venda</button>
+                    </div>
+                  </div>
+                )}
               </div>
               <div className="field"><label>Data da Compra</label><input type="date" value={form.data_venda} onChange={(e) => set('data_venda', e.target.value)} /></div>
               <div className="field"><label>Garantia (dias)</label><input type="text" inputMode="numeric" value={form.garantia_dias} onChange={(e) => set('garantia_dias', sanitizeIntegerInput(e.target.value))} /></div>
