@@ -79,7 +79,7 @@ async function carregarLoja(codigo) {
   const db = await tenants.bancoDoCliente(cliente);
   const cfg = await db.get('SELECT * FROM configuracoes_catalogo WHERE id = 1').catch(() => null);
   if (!cfg || !cfg.ativo) return null;
-  const emp = (await db.get('SELECT nome, nome_fantasia, telefone, whatsapp, endereco, numero, bairro, cidade, uf, logo FROM configuracoes_empresa WHERE id = 1').catch(() => null)) || {};
+  const emp = (await db.get('SELECT nome, nome_fantasia, cnpj, telefone, whatsapp, email, site, endereco, numero, bairro, cidade, uf, cep, logo FROM configuracoes_empresa WHERE id = 1').catch(() => null)) || {};
   return { clienteId, cliente, db, cfg, emp };
 }
 const so = (t) => String(t || '').replace(/\D/g, '');
@@ -101,7 +101,10 @@ router.get('/:codigo', limitar(120, 60000), async (req, res) => {
     );
     res.json({
       ok: true,
-      loja: { nome: nomeLoja(l), whatsapp: zap(l), cidade: [l.emp.cidade, l.emp.uf].filter(Boolean).join(' - '), mensagem: l.cfg.mensagem || '', entregaInfo: l.cfg.entrega_info || '', logo: l.emp.logo && /^data:image\//.test(l.emp.logo) && l.emp.logo.length < 400000 ? l.emp.logo : '', pix: !!l.cfg.chave_pix },
+      loja: { nome: nomeLoja(l), whatsapp: zap(l), cidade: [l.emp.cidade, l.emp.uf].filter(Boolean).join(' - '),
+        razao: l.emp.nome && l.emp.nome !== nomeLoja(l) ? l.emp.nome : '', cnpj: l.emp.cnpj || '',
+        endereco: [[l.emp.endereco, l.emp.numero].filter(Boolean).join(', '), l.emp.bairro, [l.emp.cidade, l.emp.uf].filter(Boolean).join(' - '), l.emp.cep ? 'CEP ' + l.emp.cep : ''].filter(Boolean).join(' · '),
+        telefone: l.emp.telefone || l.emp.whatsapp || '', email: l.emp.email || '', site: l.emp.site || '', mensagem: l.cfg.mensagem || '', entregaInfo: l.cfg.entrega_info || '', logo: l.emp.logo && /^data:image\//.test(l.emp.logo) && l.emp.logo.length < 1200000 ? l.emp.logo : '', pix: !!l.cfg.chave_pix },
       produtos: produtos.map((p) => ({ id: p.id, nome: p.nome, categoria: p.categoria || '', descricao: p.descricao || '', preco: p.valor_venda, estoque: p.quantidade, foto: !!p.foto })),
     });
   } catch (err) { console.error('[Catalogo] lista:', err && err.message); res.status(500).json({ ok: false, error: 'Não foi possível carregar o catálogo.' }); }
