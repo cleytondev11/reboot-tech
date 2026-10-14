@@ -92,7 +92,7 @@ export const ORCAMENTO_STATUS = ['Pendente', 'Enviado', 'Aprovado', 'Recusado', 
 
 export const COMPRA_STATUS = ['Pendente', 'Enviado', 'Recebido', 'Cancelado'];
 
-export const CATEGORIAS_PRODUTO = ['Tela', 'Bateria', 'Conector de Carga', 'Placa', 'Câmera', 'Alto-falante', 'Carcaça', 'Botão', 'Cabo Flex', 'Acessório', 'Outro'];
+export const CATEGORIAS_PRODUTO = ['Celulares Seminovo', 'Celulares Novo', 'Fone de Ouvido', 'Carregador', 'Caixinha de Som', 'Películas', 'Capinhas', 'Cabos', 'Suportes', 'Tela', 'Bateria', 'Conector de Carga', 'Placa', 'Câmera', 'Alto-falante', 'Carcaça', 'Botão', 'Cabo Flex', 'Acessório', 'Outro'];
 
 export const FORMAS_PAGAMENTO = ['Dinheiro', 'PIX', 'Cartão Débito', 'Cartão Crédito', 'Boleto', 'Transferência'];
 

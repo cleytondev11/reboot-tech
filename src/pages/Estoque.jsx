@@ -59,6 +59,21 @@ export default function Estoque() {
       showToast(String((err && err.message) || err), 'error');
     }
   }
+  // Categorias: as padrão + as que a loja já usou nos produtos + as criadas agora.
+  const [catsLoja, setCatsLoja] = useState([]);
+  const [novaCat, setNovaCat] = useState(null); // null = não está criando; string = texto digitado
+  useEffect(() => {
+    if (!modalProduto) return;
+    setNovaCat(null);
+    window.api.produtos.list('', false).then((l) => setCatsLoja([...new Set((l || []).map((p) => (p.categoria || '').trim()).filter(Boolean))])).catch(() => {});
+  }, [modalProduto]);
+  const todasCats = [...new Set([...CATEGORIAS_PRODUTO, ...catsLoja, formProduto.categoria].filter(Boolean))];
+  function confirmarNovaCat() {
+    const nome = String(novaCat || '').trim();
+    if (!nome) { setNovaCat(null); return; }
+    const ja = todasCats.find((c) => c.toLowerCase() === nome.toLowerCase());
+    setP('categoria', ja || nome); setNovaCat(null);
+  }
   function setP(field, v) { setFormProduto((f) => ({ ...f, [field]: v })); }
 
   async function saveProduto(e) {
@@ -258,10 +273,19 @@ export default function Estoque() {
 
               <div className="field">
                 <label>Categoria</label>
-                <select value={formProduto.categoria} onChange={(e) => setP('categoria', e.target.value)}>
-                  <option value="">Selecione...</option>
-                  {CATEGORIAS_PRODUTO.map((c) => <option key={c} value={c}>{c}</option>)}
-                </select>
+                {novaCat === null ? (
+                  <select value={formProduto.categoria} onChange={(e) => (e.target.value === '__nova__' ? setNovaCat('') : setP('categoria', e.target.value))}>
+                    <option value="">Selecione...</option>
+                    {todasCats.map((c) => <option key={c} value={c}>{c}</option>)}
+                    <option value="__nova__">➕ Criar nova categoria…</option>
+                  </select>
+                ) : (
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <input autoFocus placeholder="Nome da nova categoria" value={novaCat} onChange={(e) => setNovaCat(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); confirmarNovaCat(); } }} />
+                    <button type="button" className="btn btn-primary" onClick={confirmarNovaCat}>OK</button>
+                    <button type="button" className="btn btn-secondary" onClick={() => setNovaCat(null)}>✕</button>
+                  </div>
+                )}
               </div>
               <div className="field"><label>Fabricante</label><input value={formProduto.fabricante} onChange={(e) => setP('fabricante', e.target.value)} /></div>
 
