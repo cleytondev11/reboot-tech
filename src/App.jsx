@@ -4,7 +4,6 @@ import LicencaGate from './pages/LicencaGate.jsx';
 import Login from './pages/Login.jsx';
 import Dashboard from './pages/Dashboard.jsx';
 import Clientes from './pages/Clientes.jsx';
-import Equipamentos from './pages/Equipamentos.jsx';
 import OrdensServico from './pages/OrdensServico.jsx';
 import Orcamentos from './pages/Orcamentos.jsx';
 import Compras from './pages/Compras.jsx';
@@ -34,8 +33,7 @@ const EH_ELECTRON = typeof navigator !== 'undefined' && /Electron/i.test(navigat
 
 const NAV = [
   { key: 'dashboard', label: 'Dashboard', icon: '📊' },
-  { key: 'clientes', label: 'Clientes', icon: '👤' },
-  { key: 'equipamentos', label: 'Equipamentos', icon: '📱' },
+  { key: 'clientes', label: 'Clientes e Equipamentos', icon: '👤' },
   { key: 'os', label: 'Ordens de Serviço', icon: '🧾' },
   { key: 'kanban', label: 'Bancada (Kanban)', icon: '🗂️' },
   { key: 'orcamentos', label: 'Orçamentos', icon: '📝' },
@@ -57,7 +55,7 @@ const NAV = [
 ];
 
 const TITLES = {
-  dashboard: 'Dashboard', clientes: 'Clientes', equipamentos: 'Equipamentos',
+  dashboard: 'Dashboard', clientes: 'Clientes e Equipamentos',
   os: 'Ordens de Serviço', kanban: 'Bancada — Kanban', cobrancas: 'Cobranças', comissoes: 'Comissões', plano: 'Meu Plano', suporte: 'Fale com o Suporte', download: 'Download App', orcamentos: 'Orçamentos', compras: 'Compras', estoque: 'Estoque', catalogo: 'Catálogo Online', servicos: 'Serviços', vendas: 'Vendas', financeiro: 'Financeiro',
   relatorios: 'Relatórios', calcpro: 'Calculadora Pro', usuarios: 'Usuários', config: 'Configurações',
 };
@@ -121,7 +119,6 @@ function Shell() {
     switch (page) {
       case 'dashboard': return <Dashboard goTo={irPara} />;
       case 'clientes': return <Clientes />;
-      case 'equipamentos': return <Equipamentos />;
       case 'os': return <OrdensServico />;
       case 'kanban': return <Kanban />;
       case 'cobrancas': return <Cobrancas />;

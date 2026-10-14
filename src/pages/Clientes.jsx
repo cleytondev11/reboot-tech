@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useApp } from '../context.jsx';
+import Equipamentos from './Equipamentos.jsx';
 import { maskCpfCnpj, maskPhone, formatDateTime, statusClass } from '../utils.js';
 
 const EMPTY = {
@@ -7,7 +8,7 @@ const EMPTY = {
   email: '', cep: '', endereco: '', numero: '', bairro: '', cidade: '', uf: '', observacoes: '', data_nascimento: '',
 };
 
-export default function Clientes() {
+function ListaClientes() {
   const { user, showToast } = useApp();
   const [list, setList] = useState([]);
   const [termo, setTermo] = useState('');
@@ -221,6 +222,20 @@ export default function Clientes() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// Clientes e Equipamentos ficam no mesmo menu, em duas abas.
+export default function Clientes() {
+  const [aba, setAba] = useState('clientes');
+  return (
+    <div>
+      <div className="tabs-sub" style={{ marginBottom: 12 }}>
+        <button className={`tab-btn ${aba === 'clientes' ? 'active' : ''}`} onClick={() => setAba('clientes')}>👤 Clientes</button>
+        <button className={`tab-btn ${aba === 'equipamentos' ? 'active' : ''}`} onClick={() => setAba('equipamentos')}>📱 Equipamentos</button>
+      </div>
+      {aba === 'clientes' ? <ListaClientes /> : <Equipamentos />}
     </div>
   );
 }
