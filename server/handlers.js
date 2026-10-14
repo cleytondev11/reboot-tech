@@ -2172,6 +2172,48 @@ const handlers = {
   },
 
   // ---------- RELATÓRIOS ----------
+  'relatorios:entregasPrazo': async (db, { meses, mes } = {}, req) => {
+    const n = Math.max(2, Math.min(12, parseInt(meses, 10) || 6));
+    const alvo = /^\d{4}-\d{2}$/.test(String(mes || '')) ? mes : hojeBr().slice(0, 7);
+    const lista = [];
+    { let [a, m] = alvo.split('-').map(Number); for (let i = 0; i < n; i++) { lista.unshift(`${a}-${String(m).padStart(2, '0')}`); m--; if (m === 0) { m = 12; a--; } } }
+    const rows = await db.all(
+      `SELECT os.id, os.numero, os.previsao, os.data_entrada, os.data_saida, c.nome AS cliente, eq.marca, eq.modelo, u.nome AS tecnico
+       FROM ordens_servico os
+       LEFT JOIN clientes c ON c.id = os.cliente_id
+       LEFT JOIN equipamentos eq ON eq.id = os.equipamento_id
+       LEFT JOIN usuarios u ON u.id = os.tecnico_id
+       WHERE os.status = 'Entregue' AND os.data_saida IS NOT NULL AND os.data_saida <> '' AND substr(os.data_saida,1,7) >= ? AND substr(os.data_saida,1,7) <= ?`,
+      [lista[0], alvo]);
+    const dia = (t) => { const d = new Date(String(t).slice(0, 10) + 'T00:00:00Z'); return isNaN(d) ? null : d.getTime(); };
+    const acc = {}; lista.forEach((m) => { acc[m] = { mes: m, total: 0, noPrazo: 0, fora: 0, semPrev: 0, somaAtraso: 0, somaReparo: 0, nReparo: 0 }; });
+    const atrasadas = [];
+    for (const r of rows) {
+      const m = String(r.data_saida).slice(0, 7); const a = acc[m]; if (!a) continue;
+      a.total++;
+      const sai = dia(r.data_saida); const ent = r.data_entrada ? dia(r.data_entrada) : null;
+      if (sai != null && ent != null && sai >= ent) { a.somaReparo += (sai - ent) / 86400000; a.nReparo++; }
+      const prev = r.previsao ? dia(r.previsao) : null;
+      if (prev == null || sai == null) { a.semPrev++; continue; }
+      const atraso = Math.round((sai - prev) / 86400000);
+      if (atraso <= 0) a.noPrazo++;
+      else {
+        a.fora++; a.somaAtraso += atraso;
+        if (m === alvo) atrasadas.push({ id: r.id, numero: r.numero, cliente: r.cliente || '', aparelho: [r.marca, r.modelo].filter(Boolean).join(' '), previsao: String(r.previsao).slice(0, 10), saida: String(r.data_saida).slice(0, 10), atraso, tecnico: r.tecnico || '' });
+      }
+    }
+    const serie = lista.map((m) => {
+      const a = acc[m]; const comPrev = a.noPrazo + a.fora;
+      return { mes: m, total: a.total, noPrazo: a.noPrazo, fora: a.fora, semPrev: a.semPrev,
+        taxa: comPrev ? Math.round((a.noPrazo / comPrev) * 1000) / 10 : null,
+        atrasoMedio: a.fora ? Math.round((a.somaAtraso / a.fora) * 10) / 10 : 0,
+        tempoMedio: a.nReparo ? Math.round((a.somaReparo / a.nReparo) * 10) / 10 : null };
+    });
+    const comTaxa = serie.filter((x) => x.taxa != null);
+    const melhor = comTaxa.length ? comTaxa.reduce((b, x) => (x.taxa > b.taxa ? x : b)) : null;
+    atrasadas.sort((x, y) => y.atraso - x.atraso);
+    return { mes: alvo, serie, atual: serie[serie.length - 1], anterior: serie[serie.length - 2], melhor: melhor ? { mes: melhor.mes, taxa: melhor.taxa } : null, atrasadas };
+  },
   'relatorios:os': async (db, { dataInicio, dataFim, status }, req) => {
     requirePapel(req, ['Administrador']);
     let sql = `SELECT os.numero, c.nome as cliente, (eq.marca || ' ' || eq.modelo) as equipamento,

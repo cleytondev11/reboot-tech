@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useApp } from '../context.jsx';
+import EntregasPrazo from './EntregasPrazo.jsx';
 import { formatCurrency, formatDate, firstDayOfMonth, todayInputValue, isCurrencyKey, isDateKey } from '../utils.js';
 
 const REPORTS = [
@@ -11,12 +12,18 @@ const REPORTS = [
   { key: 'tecnicos', label: 'Serviços por Técnico', icon: '🧑‍🔧', period: true },
   { key: 'pecas', label: 'Peças Mais Utilizadas', icon: '🔩', period: true },
   { key: 'estoque', label: 'Estoque Atual', icon: '📦', period: false },
+  { key: 'prazo', label: 'Entregas no prazo', icon: '⏱️', period: false, custom: true, soWeb: true },
   { key: 'garantias', label: 'Garantias', icon: '🛡️', period: false, garantiaToggle: true },
 ];
 
+const EH_ELECTRON = typeof navigator !== 'undefined' && /Electron/i.test(navigator.userAgent);
+
 export default function Relatorios() {
   const { user, showToast } = useApp();
-  const [activeKey, setActiveKey] = useState('os');
+  const [activeKey, setActiveKey] = useState(() => {
+    try { const a = sessionStorage.getItem('rt-rel-aba'); if (a) { sessionStorage.removeItem('rt-rel-aba'); return a; } } catch { /* sem storage */ }
+    return 'os';
+  });
   const [dataInicio, setDataInicio] = useState(firstDayOfMonth());
   const [dataFim, setDataFim] = useState(todayInputValue());
   const [status, setStatus] = useState('');
@@ -98,7 +105,7 @@ export default function Relatorios() {
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '230px 1fr', gap: 18 }}>
       <div className="card" style={{ padding: 10, alignSelf: 'start' }}>
-        {REPORTS.map((r) => (
+        {REPORTS.filter((r) => !(r.soWeb && EH_ELECTRON)).map((r) => (
           <button
             key={r.key}
             className="nav-item"
@@ -114,6 +121,7 @@ export default function Relatorios() {
         ))}
       </div>
 
+      {active.custom ? <div>{active.key === 'prazo' && <EntregasPrazo />}</div> : (
       <div>
         <div className="toolbar">
           <div className="toolbar-left">
@@ -197,6 +205,7 @@ export default function Relatorios() {
           </table>
         </div>
       </div>
+      )}
     </div>
   );
 }

@@ -350,6 +350,7 @@ import { criarApiImpressora } from './impressao-web.js';
     },
     relatorios: {
       os: (atual, dataInicio, dataFim, status) => invoke('relatorios:os', { dataInicio, dataFim, status }),
+      entregasPrazo: (filtros) => invoke('relatorios:entregasPrazo', filtros || {}),
       financeiro: (atual, dataInicio, dataFim) => invoke('relatorios:financeiro', { dataInicio, dataFim }),
       clientes: (atual, dataInicio, dataFim) => invoke('relatorios:clientes', { dataInicio, dataFim }),
       vendas: (atual, dataInicio, dataFim) => invoke('relatorios:vendas', { dataInicio, dataFim }),

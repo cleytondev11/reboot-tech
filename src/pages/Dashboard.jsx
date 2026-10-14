@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { rotuloMes } from './EntregasPrazo.jsx';
 import { useApp } from '../context.jsx';
 import { useMobile, lerLS, gravarLS, useLayoutNovo } from '../mobile.js';
 import Tour from '../components/Tour.jsx';
@@ -46,6 +47,11 @@ export default function Dashboard({ goTo }) {
     setMeta(res);
   }
 
+  const [prazo, setPrazo] = useState(null);
+  useEffect(() => {
+    // Resumo de entregas no prazo (só na versão web; no app de computador não existe e some sozinho).
+    try { Promise.resolve(window.api.relatorios.entregasPrazo({ meses: 2 })).then(setPrazo).catch(() => {}); } catch { /* sem relatório */ }
+  }, []);
   useEffect(() => { load(); }, []);
   useEffect(() => { loadMeta(mesSelecionado); }, [mesSelecionado]);
 
@@ -336,6 +342,23 @@ export default function Dashboard({ goTo }) {
           )}
         </div>
       </div>
+
+      {prazo && prazo.atual && prazo.atual.total > 0 && (
+        <div className="card" style={{ marginTop: 18, display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+          <div style={{ fontSize: 26 }}>⏱️</div>
+          <div style={{ flex: 1, minWidth: 200 }}>
+            <div className="muted" style={{ fontSize: 12, fontWeight: 600 }}>Entregas no prazo — {rotuloMes(prazo.mes)}</div>
+            <b style={{ fontSize: 24, color: 'var(--success)' }}>{prazo.atual.taxa != null ? `${String(prazo.atual.taxa).replace('.', ',')}%` : '—'}</b>
+            {prazo.atual.taxa != null && prazo.anterior && prazo.anterior.taxa != null && prazo.atual.taxa !== prazo.anterior.taxa && (
+              <span style={{ fontSize: 12, fontWeight: 800, marginLeft: 8, color: prazo.atual.taxa > prazo.anterior.taxa ? 'var(--success)' : 'var(--danger)' }}>
+                {prazo.atual.taxa > prazo.anterior.taxa ? '▲ +' : '▼ −'}{String(Math.round(Math.abs(prazo.atual.taxa - prazo.anterior.taxa) * 10) / 10).replace('.', ',')} pts vs mês anterior
+              </span>
+            )}
+            <div className="muted" style={{ fontSize: 12 }}>{prazo.atual.noPrazo} no prazo · {prazo.atual.fora} fora do prazo · {prazo.atual.total} entregas</div>
+          </div>
+          <button className="btn btn-secondary btn-sm" onClick={() => { try { sessionStorage.setItem('rt-rel-aba', 'prazo'); } catch { /* sem storage */ } goTo('relatorios'); }}>Ver detalhes</button>
+        </div>
+      )}
 
       <div className="grid grid-2" style={{ marginTop: 18 }}>
         <div className="card">
