@@ -725,3 +725,6 @@ tbody tr:last-child td { border-bottom: none; }
   .content { padding-bottom: 84px; }
 }
 @media (max-width: 1100px) and (min-width: 701px) { .dnew-tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+
+.btn-voltar { white-space: nowrap; margin-right: 4px; flex: none; }
+@media (max-width: 700px) { .btn-voltar { padding: 6px 11px; font-size: 15px; } .btn-voltar span { display: none; } }

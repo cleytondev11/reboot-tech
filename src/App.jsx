@@ -182,6 +182,9 @@ function Shell() {
       <div className="main-area">
         <div className="topbar">
           <button className="icon-btn menu-toggle" aria-label="Abrir menu" onClick={() => setMenuAberto((v) => !v)}>☰</button>
+          {page !== 'dashboard' && (
+            <button className="btn btn-secondary btn-sm btn-voltar" onClick={() => irPara('dashboard')} title="Voltar para o Dashboard">← <span>Voltar</span></button>
+          )}
           <h1>{TITLES[page]}</h1>
           <div className="topbar-actions">
             <Notificacoes plano={plano} goTo={irPara} />
