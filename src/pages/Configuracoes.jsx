@@ -3,6 +3,7 @@ import { useApp } from '../context.jsx';
 import { formatDateTime } from '../utils.js';
 import { somAtivo, definirSom, tocarSom } from '../som.js';
 import { zoomPref, definirZoom, densidadePref, definirDensidade } from '../zoom.js';
+import { layoutPref, definirLayout } from '../mobile.js';
 import { perguntarAvisoStatus, definirPerguntarAvisoStatus } from '../components/AvisoProntoModal.jsx';
 
 const EMPTY_EMPRESA = {
@@ -16,6 +17,7 @@ export default function Configuracoes() {
   const [somLigado, setSomLigado] = useState(() => somAtivo());
   const [zoomSel, setZoomSel] = useState(() => zoomPref());
   const [densSel, setDensSel] = useState(() => densidadePref());
+  const [layoutSel, setLayoutSel] = useState(() => layoutPref());
   const [avisoStatus, setAvisoStatus] = useState(() => perguntarAvisoStatus());
   const [logs, setLogs] = useState([]);
   const [version, setVersion] = useState('');
@@ -213,6 +215,12 @@ export default function Configuracoes() {
               <select value={densSel} onChange={(e) => { setDensSel(e.target.value); definirDensidade(e.target.value); }}>
                 <option value="compacto">Compacto (recomendado)</option>
                 <option value="confortavel">Confortável</option>
+              </select>
+              <div className="section-title" style={{ marginTop: 18 }}>🧩 Layout do painel</div>
+              <p className="muted" style={{ fontSize: 12.5 }}>Novo: atalhos no topo, resumo do caixa e gráfico em destaque, e barra de navegação embaixo no celular. Clássico: o visual anterior. A escolha vale neste aparelho.</p>
+              <select value={layoutSel} onChange={(e) => { setLayoutSel(e.target.value); definirLayout(e.target.value); }}>
+                <option value="novo">Novo (recomendado)</option>
+                <option value="classico">Clássico</option>
               </select>
             </div>
 

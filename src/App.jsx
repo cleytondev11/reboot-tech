@@ -27,7 +27,7 @@ import PlanoAviso from './components/PlanoAviso.jsx';
 import RenovarPlanoModal from './components/RenovarPlanoModal.jsx';
 import Notificacoes from './components/Notificacoes.jsx';
 import { statusPlano, precisaAviso } from './plano.js';
-import { useMobile, lerAcaoInicial } from './mobile.js';
+import { useMobile, lerAcaoInicial, useLayoutNovo } from './mobile.js';
 
 // No programa instalado no Windows (Electron) não faz sentido o menu de instalar o app no celular.
 const EH_ELECTRON = typeof navigator !== 'undefined' && /Electron/i.test(navigator.userAgent);
@@ -64,6 +64,7 @@ const TITLES = {
 
 function Shell() {
   const { user, setUser, theme, toggleTheme, showToast } = useApp();
+  const layoutNovo = useLayoutNovo();
   const mobile = useMobile(); // true só no celular (PWA); no computador nada muda
   const [page, setPage] = useState(() => {
     // Atalhos da tela inicial do celular: ?acao=venda | orcamento | os
@@ -192,6 +193,14 @@ function Shell() {
         <PlanoAviso plano={plano} onVerPlano={() => irPara('plano')} onRenovar={() => setRenovando(true)} />
         <div className="content">{renderPage()}</div>
       </div>
+      {mobile && layoutNovo && (
+        <nav className="tabbar" aria-label="Navegação">
+          {[['dashboard', '📊', 'Início'], ['os', '🧾', 'OS'], ['vendas', '🛒', 'Vendas'], ['estoque', '📦', 'Estoque']].map(([k, ic, rot]) => (
+            <button key={k} className={page === k ? 'on' : ''} onClick={() => irPara(k)}><span>{ic}</span>{rot}</button>
+          ))}
+          <button onClick={() => setMenuAberto((v) => !v)}><span>☰</span>Mais</button>
+        </nav>
+      )}
       {renovando && <RenovarPlanoModal plano={plano} onClose={() => setRenovando(false)} onPago={() => window.api.plano.get().then(setPlano).catch(() => {})} />}
     </div>
   );

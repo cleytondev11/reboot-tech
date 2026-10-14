@@ -36,3 +36,21 @@ export function lerAcaoInicial() {
   } catch { /* ignora */ }
   return null;
 }
+
+// Layout do painel: "novo" (atalhos no topo, resumo do caixa e gráfico em destaque, barra inferior no celular)
+// ou "classico" (o visual anterior). Fica salvo neste aparelho; Configurações → Geral troca entre os dois.
+const CHAVE_LAYOUT = 'rt-layout';
+export function layoutPref() { return lerLS(CHAVE_LAYOUT) === 'classico' ? 'classico' : 'novo'; }
+export function definirLayout(v) {
+  gravarLS(CHAVE_LAYOUT, v === 'classico' ? 'classico' : 'novo');
+  try { window.dispatchEvent(new Event('rt-layout')); } catch { /* ignora */ }
+}
+export function useLayoutNovo() {
+  const [l, setL] = useState(layoutPref);
+  useEffect(() => {
+    const on = () => setL(layoutPref());
+    window.addEventListener('rt-layout', on);
+    return () => window.removeEventListener('rt-layout', on);
+  }, []);
+  return l === 'novo';
+}

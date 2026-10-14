@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useApp } from '../context.jsx';
-import { useMobile, lerLS, gravarLS } from '../mobile.js';
+import { useMobile, lerLS, gravarLS, useLayoutNovo } from '../mobile.js';
 import Tour from '../components/Tour.jsx';
 import { formatDateTime, formatCurrency, statusClass, sanitizeDecimalInput, parseDecimal } from '../utils.js';
 
@@ -24,6 +24,7 @@ export default function Dashboard({ goTo }) {
   const [planejarOpen, setPlanejarOpen] = useState(false);
   const [metasFuturas, setMetasFuturas] = useState([]);
   const mobile = useMobile();
+  const novo = useLayoutNovo();
   const [empresa, setEmpresa] = useState(null);
   const chaveTour = `rt-tour-${user?.id || 0}`;
   const [tourVisto, setTourVisto] = useState(() => !!lerLS(chaveTour));
@@ -120,11 +121,22 @@ export default function Dashboard({ goTo }) {
             <div className="muted dash-empresa">{empresa?.nome_fantasia || empresa?.nome || nomeApp}</div>
           </>
         )}
-        <div className="dash-atalhos">
+        {novo ? (
+          <div className="dash-atalhos dnew-atalhos">
+            <button className="btn btn-primary" onClick={() => atalho('os', 'os')}>＋ Nova OS</button>
+            <button className="btn btn-primary" onClick={() => atalho('venda', 'vendas')}>＋ Nova venda</button>
+            <button className="btn btn-secondary" onClick={() => atalho('orcamento', 'orcamentos')}>📝 Orçamento</button>
+            <button className="btn btn-secondary" onClick={() => goTo('catalogo')}>🛍️ Catálogo</button>
+            <button className="btn btn-secondary" onClick={() => goTo('relatorios')}>📈 Relatórios</button>
+            <button className="btn btn-secondary" onClick={() => goTo('config')}>⚙️ Configurações</button>
+          </div>
+        ) : (
+          <div className="dash-atalhos">
           <button className="btn btn-primary" onClick={() => atalho('venda', 'vendas')}>🛒 Nova venda</button>
           <button className="btn btn-secondary" onClick={() => atalho('orcamento', 'orcamentos')}>📝 Novo orçamento</button>
           <button className="btn btn-secondary" onClick={() => atalho('os', 'os')}>🧾 Nova OS</button>
         </div>
+        )}
         {mobile && !tourVisto && (
           <div className="tour-banner">
             <div className="tour-banner-txt"><b>Primeira vez por aqui?</b> Tour rápido pelo sistema e como colocar o {nomeApp} como app no celular.</div>
@@ -134,6 +146,37 @@ export default function Dashboard({ goTo }) {
         )}
       </div>
       {tourAberto && <Tour app={nomeApp} onClose={fecharTour} />}
+      {novo && (
+        <>
+          <div className="dnew-kpis">
+            <div className="dnew-k"><div className="dnew-ic" style={{ background: 'var(--success)' }}>↑</div><div><small>Entradas do mês</small><b>{meta ? formatCurrency(meta.receitas) : '—'}</b></div></div>
+            <div className="dnew-k"><div className="dnew-ic" style={{ background: 'var(--danger)' }}>↓</div><div><small>Saídas do mês</small><b>{meta ? formatCurrency(meta.despesas) : '—'}</b></div></div>
+            <div className="dnew-k"><div className="dnew-ic dnew-gold">▣</div><div><small>Resultado do mês</small><b style={{ color: meta && meta.lucroRealizado < 0 ? 'var(--danger)' : 'var(--gold-light)' }}>{meta ? formatCurrency(meta.lucroRealizado) : '—'}</b></div></div>
+          </div>
+          <div className="grid grid-2" style={{ marginTop: 14 }}>
+            <div className="card">
+              <div className="section-title" style={{ marginTop: 0 }}>📈 Desempenho — Últimos 12 meses</div>
+              <BarChart data={data.faturamentoMensal || []} compact />
+              <div className="muted" style={{ fontSize: 11.5, marginTop: 10, textAlign: 'right' }}>Total no ano: <b>{formatCurrency(data.faturamentoAno)}</b></div>
+            </div>
+            <div className="card">
+              <div className="section-title" style={{ marginTop: 0 }}>📊 Faturamento — Últimos 7 dias</div>
+              <BarChart data={data.faturamentoSemana || []} />
+            </div>
+          </div>
+          <div className="dnew-tiles">
+            {[...cards, ...cards2, ...cards3].map((c) => (
+              <div className="dnew-tile" key={c.label}>
+                <span className="dnew-tile-ic">{c.icon}</span>
+                <span className="dnew-tile-l">{c.label}</span>
+                <b style={c.warn ? { color: 'var(--danger)' } : undefined}>{c.value}</b>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+      {!novo && (
+        <>
       <div className="grid grid-4">
         {cards.map((c) => (
           <div className="card kpi-card" key={c.label}>
@@ -163,6 +206,8 @@ export default function Dashboard({ goTo }) {
           </div>
         ))}
       </div>
+        </>
+      )}
 
       <FinancialDashboardSection
         meta={meta}
@@ -300,6 +345,7 @@ export default function Dashboard({ goTo }) {
         </div>
       </div>
 
+      {!novo && (
       <div className="grid grid-2" style={{ marginTop: 18 }}>
         <div className="card">
           <div className="section-title" style={{ marginTop: 0 }}>📊 Faturamento — Últimos 7 dias</div>
@@ -311,6 +357,7 @@ export default function Dashboard({ goTo }) {
           <div className="muted" style={{ fontSize: 11.5, marginTop: 10, textAlign: 'right' }}>Total no ano: <b>{formatCurrency(data.faturamentoAno)}</b></div>
         </div>
       </div>
+      )}
     </div>
   );
 }
