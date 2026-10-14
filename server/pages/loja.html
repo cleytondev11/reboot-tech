@@ -133,7 +133,7 @@ function desenha(){
   $('semProd').hidden=ls.length>0;
   $('grid').innerHTML=ls.map(function(p){
     var n=cart[p.id]||0;
-    return '<div class="p"><div class="f">'+(p.foto?'<img loading="lazy" alt="" src="'+api+'/foto/'+p.id+'">':'📦')+'</div><div class="i"><b>'+esc(p.nome)+'</b>'+(p.descricao?'<span class="d">'+esc(p.descricao)+'</span>':'')+'<span class="v">'+R(p.preco)+'</span>'+
+    return '<div class="p"><div class="f">'+(p.foto?'<img loading="lazy" alt="" src="'+api+'/foto/'+p.id+'?v=2">':'📦')+'</div><div class="i"><b>'+esc(p.nome)+'</b>'+(p.descricao?'<span class="d">'+esc(p.descricao)+'</span>':'')+'<span class="v">'+R(p.preco)+'</span>'+
     (n?'<div class="qtd"><button data-m="'+p.id+'" type="button">−</button><b>'+n+'</b><button data-a="'+p.id+'" type="button">+</button></div>':'<button class="b" data-a="'+p.id+'" type="button">Adicionar</button>')+'</div></div>';
   }).join('');
   barra();

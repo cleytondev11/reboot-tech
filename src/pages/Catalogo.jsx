@@ -114,7 +114,7 @@ export default function Catalogo() {
                 <td>{p.nome}<div className="muted" style={{ fontSize: 11 }}>{p.categoria}</div></td>
                 <td>{formatCurrency(p.valor_venda)}</td>
                 <td>{p.quantidade}</td>
-                <td>{p.foto ? '✓' : '—'}</td>
+                <td>{p.foto === 2 ? '✓' : p.foto === 1 ? <span title="Só tem a miniatura (baixa qualidade). Abra o produto no Estoque e envie a foto de novo.">⚠️ baixa</span> : '—'}</td>
               </tr>
             ))}</tbody>
           </table></div>

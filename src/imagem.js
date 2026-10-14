@@ -26,7 +26,7 @@ export function reduzirImagem(arquivo, max = 900, qualidade = 0.78) {
 
 // Foto do produto: a versão normal (900px) e uma miniatura (120px) para a lista do estoque ficar leve.
 export async function fotoDoProduto(arquivo) {
-  const imagem = await reduzirImagem(arquivo, 900, 0.78);
+  const imagem = await reduzirImagem(arquivo, 1200, 0.85);
   const imagem_mini = await reduzirImagem(arquivo, 120, 0.7);
   return { imagem, imagem_mini };
 }

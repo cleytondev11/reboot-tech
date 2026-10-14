@@ -1328,7 +1328,7 @@ const handlers = {
   },
   'catalogo:produtos': async (db) => db.all(
     `SELECT id, nome, categoria, descricao, valor_venda, quantidade, catalogo,
-            CASE WHEN (imagem IS NOT NULL AND imagem <> '') OR (imagem_mini IS NOT NULL AND imagem_mini <> '') THEN 1 ELSE 0 END AS foto
+            CASE WHEN imagem IS NOT NULL AND imagem <> '' THEN 2 WHEN imagem_mini IS NOT NULL AND imagem_mini <> '' THEN 1 ELSE 0 END AS foto
      FROM produtos WHERE ativo = 1 ORDER BY nome LIMIT 2000`
   ),
   'catalogo:publicar': async (db, { ids, publicar, id, descricao }, req) => {
