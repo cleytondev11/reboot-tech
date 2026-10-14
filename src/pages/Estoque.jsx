@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useApp } from '../context.jsx';
+import InsumosSucata from './InsumosSucata.jsx';
 import { fotoDoProduto } from '../imagem.js';
 import { formatCurrency, formatDateTime, CATEGORIAS_PRODUTO, sanitizeDecimalInput, parseDecimal, sanitizeIntegerInput, parseIntSafe } from '../utils.js';
 
@@ -169,7 +170,16 @@ export default function Estoque() {
       <div className="tabs-sub">
         <button className={`tab-btn ${tab === 'produtos' ? 'active' : ''}`} onClick={() => setTab('produtos')}>📦 Produtos</button>
         <button className={`tab-btn ${tab === 'fornecedores' ? 'active' : ''}`} onClick={() => setTab('fornecedores')}>🚚 Fornecedores</button>
+        {!/Electron/i.test(navigator.userAgent) && (
+          <>
+            <button className={`tab-btn ${tab === 'insumos' ? 'active' : ''}`} onClick={() => setTab('insumos')}>🧪 Insumos</button>
+            <button className={`tab-btn ${tab === 'sucata' ? 'active' : ''}`} onClick={() => setTab('sucata')}>♻️ Peças de sucata</button>
+          </>
+        )}
       </div>
+
+      {tab === 'insumos' && <InsumosSucata modo="insumos" />}
+      {tab === 'sucata' && <InsumosSucata modo="sucata" />}
 
       {tab === 'produtos' && (
         <div>

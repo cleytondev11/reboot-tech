@@ -1360,6 +1360,88 @@ const handlers = {
     return { ok: true };
   },
 
+  // ---------- Insumos e sucata (dentro do Estoque) ----------
+  'insumos:list': async (db, { termo, categoria, baixo } = {}) => {
+    const w = []; const p = [];
+    if (termo) { w.push('(nome LIKE ? OR fornecedor LIKE ?)'); p.push(`%${termo}%`, `%${termo}%`); }
+    if (categoria) { w.push('categoria = ?'); p.push(categoria); }
+    if (baixo) w.push('quantidade <= minimo');
+    const itens = await db.all(`SELECT * FROM insumos ${w.length ? 'WHERE ' + w.join(' AND ') : ''} ORDER BY nome COLLATE NOCASE LIMIT 1000`, p);
+    const t = (await db.get('SELECT COUNT(*) AS n, COALESCE(SUM(quantidade*custo),0) AS valor, COALESCE(SUM(CASE WHEN quantidade <= minimo THEN 1 ELSE 0 END),0) AS baixo FROM insumos')) || {};
+    const mes = nowIso().slice(0, 7);
+    const g = (await db.get("SELECT COALESCE(SUM(valor),0) AS v FROM insumos_mov WHERE tipo = 'saida' AND criado_em LIKE ?", [mes + '%'])) || {};
+    return { itens, resumo: { total: t.n || 0, baixo: t.baixo || 0, valor: t.valor || 0, gastoMes: g.v || 0 } };
+  },
+  'insumos:save': async (db, { insumo }, req) => {
+    const i = insumo || {};
+    const nome = String(i.nome || '').trim();
+    if (nome.length < 2) throw new Error('Informe o nome do insumo.');
+    const num = (v) => Math.max(0, Number(v) || 0);
+    const c = [nome.slice(0, 120), String(i.categoria || '').trim().slice(0, 60), String(i.unidade || 'un').trim().slice(0, 12), num(i.minimo), num(i.custo), String(i.fornecedor || '').trim().slice(0, 120)];
+    if (i.id) {
+      await db.run('UPDATE insumos SET nome=?, categoria=?, unidade=?, minimo=?, custo=?, fornecedor=?, atualizado_em=? WHERE id=?', [...c, nowIso(), i.id]);
+      await log(db, req, 'EDITAR', 'insumos', i.id, nome);
+      return { ok: true, id: i.id };
+    }
+    const q = num(i.quantidade);
+    const id = await db.insert('INSERT INTO insumos (nome, categoria, unidade, minimo, custo, fornecedor, quantidade, criado_em) VALUES (?,?,?,?,?,?,?,?)', [...c, q, nowIso()]);
+    await log(db, req, 'CRIAR', 'insumos', id, nome);
+    return { ok: true, id };
+  },
+  'insumos:mov': async (db, { id, tipo, quantidade }, req) => {
+    const q = Number(quantidade);
+    if (!(q > 0)) throw new Error('Informe uma quantidade maior que zero.');
+    const it = await db.get('SELECT * FROM insumos WHERE id = ?', [id]);
+    if (!it) throw new Error('Insumo não encontrado.');
+    const ent = tipo === 'entrada';
+    if (!ent && q > it.quantidade) throw new Error(`Só há ${it.quantidade} ${it.unidade} em estoque.`);
+    await db.run('UPDATE insumos SET quantidade = quantidade + ?, atualizado_em = ? WHERE id = ?', [ent ? q : -q, nowIso(), id]);
+    await db.run('INSERT INTO insumos_mov (insumo_id, tipo, quantidade, valor, usuario_nome, criado_em) VALUES (?,?,?,?,?,?)', [id, ent ? 'entrada' : 'saida', q, q * (it.custo || 0), req.usuario?.nome || '', nowIso()]);
+    await log(db, req, ent ? 'ENTRADA' : 'SAIDA', 'insumos', id, `${it.nome} ${q}`);
+    return { ok: true };
+  },
+  'insumos:delete': async (db, { id }, req) => {
+    await db.run('DELETE FROM insumos_mov WHERE insumo_id = ?', [id]);
+    await db.run('DELETE FROM insumos WHERE id = ?', [id]);
+    await log(db, req, 'EXCLUIR', 'insumos', id, '');
+    return { ok: true };
+  },
+  'sucata:list': async (db, { termo, situacao } = {}) => {
+    const w = []; const p = [];
+    if (termo) { w.push('(peca LIKE ? OR aparelho LIKE ? OR local LIKE ?)'); p.push(`%${termo}%`, `%${termo}%`, `%${termo}%`); }
+    if (situacao) { w.push('situacao = ?'); p.push(situacao); }
+    const itens = await db.all(`SELECT * FROM sucata ${w.length ? 'WHERE ' + w.join(' AND ') : ''} ORDER BY id DESC LIMIT 1000`, p);
+    const t = (await db.get("SELECT COALESCE(SUM(CASE WHEN situacao='Disponível' THEN 1 ELSE 0 END),0) AS disp, COALESCE(SUM(CASE WHEN situacao='Disponível' THEN valor ELSE 0 END),0) AS valor, COALESCE(SUM(CASE WHEN situacao='Usada' THEN 1 ELSE 0 END),0) AS usadas FROM sucata")) || {};
+    const ap = (await db.get("SELECT COUNT(DISTINCT LOWER(TRIM(aparelho))) AS n FROM sucata WHERE TRIM(COALESCE(aparelho,'')) <> ''")) || {};
+    return { itens, resumo: { disponiveis: t.disp || 0, valor: t.valor || 0, usadas: t.usadas || 0, aparelhos: ap.n || 0 } };
+  },
+  'sucata:save': async (db, { peca }, req) => {
+    const s = peca || {};
+    const nome = String(s.peca || '').trim();
+    if (nome.length < 2) throw new Error('Informe o tipo da peça.');
+    const foto = typeof s.foto === 'string' && s.foto.startsWith('data:image/') && s.foto.length < 400000 ? s.foto : '';
+    const c = [nome.slice(0, 120), String(s.aparelho || '').trim().slice(0, 120), ['Testada', 'Não testada', 'Defeituosa'].includes(s.estado) ? s.estado : 'Não testada', String(s.local || '').trim().slice(0, 80), Math.max(0, Number(s.valor) || 0), foto, String(s.obs || '').trim().slice(0, 500)];
+    if (s.id) {
+      await db.run('UPDATE sucata SET peca=?, aparelho=?, estado=?, local=?, valor=?, foto=?, obs=?, atualizado_em=? WHERE id=?', [...c, nowIso(), s.id]);
+      await log(db, req, 'EDITAR', 'sucata', s.id, nome);
+      return { ok: true, id: s.id };
+    }
+    const id = await db.insert('INSERT INTO sucata (peca, aparelho, estado, local, valor, foto, obs, criado_em) VALUES (?,?,?,?,?,?,?,?)', [...c, nowIso()]);
+    await log(db, req, 'CRIAR', 'sucata', id, nome);
+    return { ok: true, id };
+  },
+  'sucata:situacao': async (db, { id, situacao, os_ref }, req) => {
+    if (!['Disponível', 'Reservada', 'Usada', 'Descartada'].includes(situacao)) throw new Error('Situação inválida.');
+    await db.run('UPDATE sucata SET situacao = ?, os_ref = ?, atualizado_em = ? WHERE id = ?', [situacao, situacao === 'Disponível' ? '' : String(os_ref || '').trim().slice(0, 60), nowIso(), id]);
+    await log(db, req, 'EDITAR', 'sucata', id, situacao);
+    return { ok: true };
+  },
+  'sucata:delete': async (db, { id }, req) => {
+    await db.run('DELETE FROM sucata WHERE id = ?', [id]);
+    await log(db, req, 'EXCLUIR', 'sucata', id, '');
+    return { ok: true };
+  },
+
   // ---------- Catálogo online ----------
   'catalogo:get': async (db, _a, req) => {
     const cfg = (await db.get('SELECT * FROM configuracoes_catalogo WHERE id = 1')) || {};

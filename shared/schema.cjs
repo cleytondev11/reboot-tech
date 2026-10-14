@@ -296,6 +296,44 @@ CREATE TABLE IF NOT EXISTS solucoes (
   atualizado_em TEXT
 );
 
+CREATE TABLE IF NOT EXISTS insumos (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  nome TEXT NOT NULL,
+  categoria TEXT,
+  unidade TEXT DEFAULT 'un',
+  quantidade REAL NOT NULL DEFAULT 0,
+  minimo REAL NOT NULL DEFAULT 0,
+  custo REAL NOT NULL DEFAULT 0,
+  fornecedor TEXT,
+  criado_em TEXT NOT NULL,
+  atualizado_em TEXT
+);
+
+CREATE TABLE IF NOT EXISTS insumos_mov (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  insumo_id INTEGER NOT NULL,
+  tipo TEXT NOT NULL, -- entrada | saida
+  quantidade REAL NOT NULL,
+  valor REAL NOT NULL DEFAULT 0,
+  usuario_nome TEXT,
+  criado_em TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS sucata (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  peca TEXT NOT NULL,
+  aparelho TEXT,
+  estado TEXT DEFAULT 'Não testada', -- Testada, Não testada, Defeituosa
+  local TEXT,
+  valor REAL NOT NULL DEFAULT 0,
+  foto TEXT,
+  obs TEXT,
+  situacao TEXT NOT NULL DEFAULT 'Disponível', -- Disponível, Reservada, Usada, Descartada
+  os_ref TEXT,
+  criado_em TEXT NOT NULL,
+  atualizado_em TEXT
+);
+
 CREATE TABLE IF NOT EXISTS solucoes_seed (
   id INTEGER PRIMARY KEY CHECK (id = 1),
   versao INTEGER NOT NULL DEFAULT 0
