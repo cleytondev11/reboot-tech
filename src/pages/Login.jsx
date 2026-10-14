@@ -24,6 +24,7 @@ export default function Login() {
   const [pago, setPago] = useState(false);
   const [erroPix, setErroPix] = useState('');
   const podeEsquecer = !!window.api?.auth?.esqueciSenha;
+  useEffect(() => { if (/terminou|venceu/i.test(error || '')) setRenovar(true); }, [error]);
 
   useEffect(() => {
     let vivo = true;
@@ -101,10 +102,19 @@ export default function Login() {
 
   return (
     <div className="login-screen">
+      <div className="lg-wrap">
+      <div className="lg-hero">
+        <div className="lg-marca">
+          <img src="./logo.png" alt="Reboot Tech" onError={(e) => (e.target.style.display = 'none')} />
+          <div><b>Reboot Tech System</b><span>Gestão de Assistência Técnica — acesse sua conta</span></div>
+        </div>
+        <h1>Entrada rápida e segura</h1>
+        <p>Ordens de serviço, estoque, vendas e financeiro da sua assistência em um só lugar — no computador e no celular, com acesso protegido e feedback instantâneo.</p>
+        <div className="lg-chips"><span>Rápido</span><span>Prático</span><span>Seguro</span></div>
+      </div>
       <form className="login-card" onSubmit={handleSubmit}>
-        <img src="./logo.png" alt="Reboot Tech" onError={(e) => (e.target.style.display = 'none')} />
-        <h2>Reboot Tech</h2>
-        <p className="sub">Sistema de Gestão de Assistência Técnica</p>
+        <h2>Entrar na sua conta</h2>
+        <p className="sub">Insira seu usuário e senha para acessar o painel Reboot Tech.</p>
 
         <div className="field">
           <label>Usuário</label>
@@ -115,19 +125,18 @@ export default function Login() {
           <input type="password" value={senha} onChange={(e) => setSenha(e.target.value)} placeholder="••••••••" />
         </div>
 
-        <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }} disabled={loading}>
-          {loading ? 'Entrando...' : 'Entrar'}
+        <div className="lg-links">
+          {podeEsquecer ? <button type="button" className="lg-link" onClick={() => { setEsqueci(true); setPedidoEnviado(false); }}>Esqueceu sua senha?</button> : <span />}
+          <span>Precisa de ajuda? <a href={'https://wa.me/' + String(SUPORTE_WHATSAPP || '').replace(/\D/g, '')} target="_blank" rel="noopener noreferrer">Suporte →</a></span>
+        </div>
+        <button className="btn btn-primary lg-entrar" disabled={loading}>
+          {loading ? 'Entrando...' : 'Login'}
         </button>
         {error && <div className="login-error">{error}</div>}
-        {error && bloqueado && !renovar && (
-          <button type="button" className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', marginTop: 10 }} onClick={() => setRenovar(true)}>
-            💳 Renovar plano
-          </button>
-        )}
         {error && bloqueioManual && (
           <a className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', textDecoration: 'none', marginTop: 10 }} href={linkSup} target="_blank" rel="noopener noreferrer">💬 Contatar suporte</a>
         )}
-        {error && bloqueado && renovar && (
+        {renovar && (
           <div style={{ marginTop: 12, padding: 14, border: '1px solid var(--border, #333)', borderRadius: 10, textAlign: 'center', fontSize: 14 }}>
             <div style={{ fontWeight: 800, marginBottom: 4 }}>Renovar plano</div>
             <p className="muted" style={{ margin: '0 0 10px', fontSize: 12.5 }}>Escolha o plano e pague o Pix. Depois envie o comprovante: a gente libera o acesso <b>{usuario.trim()}</b>.</p>
@@ -189,11 +198,7 @@ export default function Login() {
           </div>
         )}
 
-        {podeEsquecer && !esqueci && (
-          <button type="button" className="btn-link" style={{ marginTop: 14, background: 'none', border: 'none', color: 'var(--primary, #d4af37)', cursor: 'pointer', textDecoration: 'underline', fontSize: 13.5 }} onClick={() => { setEsqueci(true); setPedidoEnviado(false); }}>
-            Esqueci minha senha
-          </button>
-        )}
+        <div className="lg-renovar"><button type="button" onClick={() => setRenovar((v) => !v)}><b>Plano</b> Renovar seu plano</button></div>
         {podeEsquecer && esqueci && (
           <div style={{ marginTop: 16, padding: 14, border: '1px solid var(--border, #333)', borderRadius: 10, textAlign: 'left', fontSize: 13.5 }}>
             {!pedidoEnviado ? (
@@ -214,6 +219,7 @@ export default function Login() {
           </div>
         )}
       </form>
+      </div>
     </div>
   );
 }
