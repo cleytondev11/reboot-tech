@@ -64,6 +64,20 @@ export function statusClass(status) {
   return 'badge-' + String(status).replace(/[^a-zA-ZÀ-ÿ]/g, '');
 }
 
+// Indicador de prazo da OS entregue: compara a previsão com a data de saída (entrega).
+export function prazoOsInfo(previsao, saida) {
+  if (!saida) return null;
+  if (!previsao) return { label: 'Sem previsão', className: 'badge-SemPrevisao' };
+  const prev = new Date(String(previsao).slice(0, 10) + 'T00:00:00');
+  // A saída vem em UTC (com "Z"): converte para a data local, senão entrega à noite contaria como o dia seguinte.
+  let sai;
+  if (/Z$|[+-]\d{2}:?\d{2}$/.test(String(saida))) { const d = new Date(saida); sai = new Date(d.getFullYear(), d.getMonth(), d.getDate()); } else sai = new Date(String(saida).slice(0, 10) + 'T00:00:00');
+  if (isNaN(prev) || isNaN(sai)) return null;
+  const dias = Math.round((sai - prev) / 86400000);
+  if (dias <= 0) return { label: '✔ Entregue no prazo', className: 'badge-NoPrazo' };
+  return { label: `Fora do prazo (+${dias} dia${dias > 1 ? 's' : ''})`, className: 'badge-ForaDoPrazo' };
+}
+
 // Indica se uma compra foi recebida dentro do prazo previsto ou não.
 // - Ainda não recebida: "Aguardando"
 // - Recebida mas sem data de previsão cadastrada: "Sem previsão"

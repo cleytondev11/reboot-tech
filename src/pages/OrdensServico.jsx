@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useApp } from '../context.jsx';
-import { formatCurrency, formatDateTime, toInputDate, todayInputValue, statusClass, CHECKLIST_ITENS, FORMAS_PAGAMENTO_COM_PRAZO, FORMA_A_PRAZO, ROTULO_A_PRAZO, sanitizeDecimalInput, parseDecimal, maskCpfCnpj, maskPhone, sanitizeIntegerInput, parseIntSafe, ACESSORIOS_OPCOES, TERMOS_ACEITE_ITENS, DECLARACAO_CONDICAO_APARELHO } from '../utils.js';
+import { formatCurrency, formatDateTime, toInputDate, todayInputValue, statusClass, CHECKLIST_ITENS, FORMAS_PAGAMENTO_COM_PRAZO, FORMA_A_PRAZO, ROTULO_A_PRAZO, sanitizeDecimalInput, parseDecimal, maskCpfCnpj, maskPhone, sanitizeIntegerInput, parseIntSafe, ACESSORIOS_OPCOES, TERMOS_ACEITE_ITENS, DECLARACAO_CONDICAO_APARELHO, prazoOsInfo } from '../utils.js';
 import SignaturePad from '../components/SignaturePad.jsx';
 import PatternLock from '../components/PatternLock.jsx';
 import ImprimirMenu from '../components/ImprimirMenu.jsx';
@@ -443,6 +443,7 @@ export default function OrdensServico() {
                     value={o.status} onChange={(e) => quickStatus(o, e.target.value)}>
                     {statusList.map((s) => <option key={s} value={s}>{s}</option>)}
                   </select>
+                  {o.status === 'Entregue' && (() => { const pz = prazoOsInfo(o.previsao, o.data_saida); return pz ? <div><span className={`badge ${pz.className}`} style={{ fontSize: 10.5 }} title={`Previsão: ${o.previsao ? formatDateTime(o.previsao) : '-'} · Entrega: ${formatDateTime(o.data_saida)}`}>{pz.label}</span></div> : null; })()}
                 </td>
                 <td style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
                   <button className="icon-btn" title="Abrir" onClick={() => openEdit(o)}>✏️</button>
